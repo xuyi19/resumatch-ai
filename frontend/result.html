@@ -63,13 +63,14 @@
 
 <div class="max-w-6xl mx-auto p-6 space-y-6">
 
+  <!-- 加载/进度区 -->
   <div id="loading" class="bg-white rounded-2xl p-16 text-center border border-gray-100">
     <div class="inline-block relative mb-6">
       <div class="w-14 h-14 border-4 border-teal-100 rounded-full"></div>
       <div class="absolute inset-0 w-14 h-14 border-4 border-transparent border-t-teal-500 rounded-full animate-spin"></div>
     </div>
-    <div class="text-gray-900 font-semibold text-base" id="loadingMsg">正在匹配岗位...</div>
-    <div class="text-xs text-gray-400 mt-2">多智能体诊断 + 简历优化约需 90 秒，请耐心等待</div>
+    <div class="text-gray-900 font-semibold text-base" id="loadingMsg">正在初始化...</div>
+    <div class="text-xs text-gray-400 mt-2">实时爬取 + 多智能体诊断约需 3-5 分钟</div>
 
     <div class="flex justify-center gap-2 mt-8">
       <div class="stage-dot w-2 h-2 rounded-full bg-teal-500"></div>
@@ -77,10 +78,10 @@
       <div class="stage-dot w-2 h-2 rounded-full bg-gray-200"></div>
       <div class="stage-dot w-2 h-2 rounded-full bg-gray-200"></div>
       <div class="stage-dot w-2 h-2 rounded-full bg-gray-200"></div>
-      <div class="stage-dot w-2 h-2 rounded-full bg-gray-200"></div>
     </div>
   </div>
 
+  <!-- 结果区 -->
   <div id="resultArea" class="hidden space-y-6">
 
     <section class="bg-white rounded-2xl p-6 border border-gray-100">
@@ -177,10 +178,8 @@
 
 <script>
 (function () {
-  // ========== 优先从 URL 参数读取，其次 sessionStorage ==========
   const urlParams = new URLSearchParams(location.search);
-  const resumeId = urlParams.get('rid') || sessionStorage.getItem('resume_id');
-  const topK = parseInt(urlParams.get('top_k') || sessionStorage.getItem('top_k') || '10');
+  const taskId = urlParams.get('task_id');
 
   const loadingEl = document.getElementById('loading');
   const loadingMsg = document.getElementById('loadingMsg');
@@ -191,17 +190,23 @@
   let currentTemplate = 'classic';
   let stageTimer = null;
 
+  const stages = [
+    '正在爬取最新岗位...',
+    '正在去重入库...',
+    '正在语义匹配...',
+    '正在多智能体诊断...',
+    '正在优化简历...',
+  ];
+
   function startStageAnimation() {
-    const stages = ['正在匹配岗位...', '正在解析简历...', '正在评分...', '正在分析差距...', '正在生成改写建议...', '正在优化简历...'];
     const dots = document.querySelectorAll('.stage-dot');
     let idx = 0;
     stageTimer = setInterval(() => {
-      loadingMsg.textContent = stages[idx];
       dots.forEach((d, i) => {
         d.className = 'stage-dot w-2 h-2 rounded-full ' + (i <= idx ? 'bg-teal-500' : 'bg-gray-200');
       });
-      idx = (idx + 1) % stages.length;
-    }, 12000);
+      idx = (idx + 1) % dots.length;
+    }, 15000);
   }
 
   function stopStageAnimation() {
@@ -213,73 +218,98 @@
     loadingEl.innerHTML = `
       <div class="py-6">
         <div class="text-6xl mb-4">📄</div>
-        <div class="text-gray-900 font-semibold text-lg mb-2">还没有上传简历</div>
-        <div class="text-sm text-gray-400 mb-6">请先返回首页上传一份简历，然后开始诊断</div>
+        <div class="text-gray-900 font-semibold text-lg mb-2">还没有分析任务</div>
+        <div class="text-sm text-gray-400 mb-6">请先返回首页上传简历并启动分析</div>
         <a href="/" class="inline-block bg-teal-500 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-teal-600 transition">
-          返回首页上传
+          返回首页
         </a>
       </div>
     `;
-    statusText.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-gray-300"></span> 等待上传';
+    statusText.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-gray-300"></span> 等待中';
   }
 
-  // ========== 关键：没 resumeId 直接返回，绝不发请求 ==========
+  // ========== 轮询任务状态 ==========
   async function run() {
-    if (!resumeId) {
+    if (!taskId) {
       showEmptyState();
       return;
     }
 
     startStageAnimation();
 
-    try {
-      let llmConfig = {};
-      try { llmConfig = JSON.parse(sessionStorage.getItem('llm_config') || '{}'); } catch (e) {}
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/v1/live/status/${taskId}`);
+        if (!res.ok) throw new Error('任务不存在');
 
-      const payload = {
-        resume_id: parseInt(resumeId),
-        top_k: topK,
-        skip_diagnosis: false,
-      };
-      if (llmConfig.api_key) payload.llm_config = llmConfig;
+        const task = await res.json();
 
-      const res = await fetch('/api/v1/match/with-diagnosis', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+        // 实时更新阶段文字
+        if (task.message) {
+          loadingMsg.textContent = task.message;
+        }
 
-      stopStageAnimation();
+        // 根据后端返回的 stage 高亮对应的小圆点
+        if (task.stage) {
+          const stageMap = {
+            '准备中': 0, '爬取岗位': 1, '入库': 2, '匹配': 3, '诊断': 4, '完成': 5,
+          };
+          const idx = stageMap[task.stage] ?? 0;
+          const dots = document.querySelectorAll('.stage-dot');
+          dots.forEach((d, i) => {
+            d.className = 'stage-dot w-2 h-2 rounded-full ' + (i <= idx ? 'bg-teal-500' : 'bg-gray-200');
+          });
+        }
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || `诊断失败（HTTP ${res.status}）`);
+        if (task.status === 'success') {
+          stopStageAnimation();
+          render(task.result);
+          return;
+        }
+
+        if (task.status === 'failed') {
+          stopStageAnimation();
+          loadingEl.innerHTML = `
+            <div class="py-6">
+              <div class="text-5xl mb-4">⚠️</div>
+              <div class="text-red-500 font-medium mb-4">${task.error || '任务失败'}</div>
+              <a href="/" class="inline-block bg-teal-500 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-teal-600 transition">
+                返回首页重试
+              </a>
+            </div>
+          `;
+          statusText.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-red-400"></span> 失败';
+          return;
+        }
+
+        // 继续轮询
+        setTimeout(poll, 3000);
+
+      } catch (e) {
+        stopStageAnimation();
+        console.error(e);
+        loadingEl.innerHTML = `
+          <div class="py-6">
+            <div class="text-5xl mb-4">⚠️</div>
+            <div class="text-red-500 font-medium mb-4">${e.message}</div>
+            <a href="/" class="inline-block bg-teal-500 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-teal-600 transition">
+              返回首页
+            </a>
+          </div>
+        `;
       }
+    };
 
-      const data = await res.json();
-      render(data);
-
-    } catch (e) {
-      stopStageAnimation();
-      console.error(e);
-      loadingEl.innerHTML = `
-        <div class="py-6">
-          <div class="text-5xl mb-4">⚠️</div>
-          <div class="text-red-500 font-medium mb-4">诊断失败：${e.message}</div>
-          <a href="/" class="inline-block bg-teal-500 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-teal-600 transition">
-            返回首页重试
-          </a>
-        </div>
-      `;
-      statusText.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-red-400"></span> 失败';
-    }
+    poll();
   }
 
+  // ========== 渲染结果 ==========
   function render(data) {
     loadingEl.classList.add('hidden');
     resultArea.classList.remove('hidden');
     statusText.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-teal-500"></span> 诊断完成';
 
+    // Top 岗位
     const jobList = document.getElementById('jobList');
     document.getElementById('jobCount').textContent = `共 ${(data.top_jobs || []).length} 个`;
     jobList.innerHTML = '';
@@ -309,6 +339,7 @@
 
     renderRadar(scores);
 
+    // 技能标签
     const skills = (diag.parsed && diag.parsed.skills) || [];
     const skillTags = document.getElementById('skillTags');
     skillTags.innerHTML = '';
@@ -319,10 +350,12 @@
       skillTags.appendChild(span);
     });
 
+    // 综合评价
     const comments = ['completeness', 'skill_match', 'quantification', 'star_structure']
       .map(k => scores[k] && scores[k].comment).filter(Boolean);
     document.getElementById('overallComment').textContent = comments.join(' ') || '（暂无评语）';
 
+    // 优势
     const strengthsList = document.getElementById('strengthsList');
     strengthsList.innerHTML = '';
     const strengthLabels = {
@@ -341,6 +374,7 @@
       strengthsList.innerHTML = '<li class="text-gray-400 text-sm">暂无高亮优势维度</li>';
     }
 
+    // 差距
     const gapsList = document.getElementById('gapsList');
     gapsList.innerHTML = '';
     (diag.gaps || []).forEach(g => {
@@ -352,6 +386,7 @@
       gapsList.appendChild(li);
     });
 
+    // 改写建议
     const suggestionsList = document.getElementById('suggestionsList');
     suggestionsList.innerHTML = '';
     (diag.suggestions || []).forEach(s => {
@@ -373,6 +408,7 @@
       suggestionsList.appendChild(div);
     });
 
+    // 优化后的简历
     const opt = diag.optimized_resume || {};
     if (opt && (opt.experience?.length || opt.summary)) {
       optimizedResumeData = opt;
@@ -381,6 +417,7 @@
     }
   }
 
+  // ========== 简历渲染 ==========
   function drawResume(opt) {
     const paper = document.getElementById('resumePaper');
     const contactHtml = opt.contact ? `<div class="r-contact">${opt.contact}</div>` : '';
@@ -407,6 +444,7 @@
     paper.innerHTML = html;
   }
 
+  // ========== 模板切换 ==========
   document.querySelectorAll('.template-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       currentTemplate = btn.dataset.tpl;
@@ -417,6 +455,7 @@
     });
   });
 
+  // ========== 下载 Word ==========
   document.getElementById('downloadBtn').addEventListener('click', async () => {
     if (!optimizedResumeData) return;
     const btn = document.getElementById('downloadBtn');
@@ -453,6 +492,7 @@
     }
   });
 
+  // ========== 雷达图 ==========
   function renderRadar(scores) {
     const chart = echarts.init(document.getElementById('radarChart'));
     const dims = [
