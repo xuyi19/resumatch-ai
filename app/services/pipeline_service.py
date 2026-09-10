@@ -1,7 +1,7 @@
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.entities import Job, Resume
+from app.models.entities import Job
 from app.services.diagnosis_service import DiagnosisService
 from app.services.match_service import MatchService
 
@@ -20,8 +20,8 @@ class PipelineService:
         top_k: int = 10,
         diagnose_job_id: int | None = None,
         skip_diagnosis: bool = False,
+        llm_config: dict | None = None,
     ) -> dict:
-        # 1. 匹配 Top-N
         logger.info(f"开始匹配，简历 {len(resume_text)} 字，top_k={top_k}")
         top_jobs = await self.match_service.recommend(
             resume_text, top_k=top_k, use_semantic=True
@@ -38,13 +38,11 @@ class PipelineService:
         if skip_diagnosis:
             return result
 
-        # 2. 选定目标岗位
         if diagnose_job_id is not None:
             target = next(
                 (j for j in top_jobs if j["job_id"] == diagnose_job_id), None
             )
             if target is None:
-                # 从数据库单独查（可能是 Top-N 外的岗位）
                 job = await self.db.get(Job, diagnose_job_id)
                 if job is None:
                     result["error"] = f"岗位 id={diagnose_job_id} 不存在"
@@ -58,13 +56,11 @@ class PipelineService:
         else:
             target = top_jobs[0]
 
-        # 3. 拉完整的岗位 JD
         job = await self.db.get(Job, target["job_id"])
         if job is None:
             result["error"] = "目标岗位不存在"
             return result
 
-        # 4. 多智能体诊断
         logger.info(f"开始诊断，目标岗位: {job.title} @ {job.company}")
         jd_text = f"""岗位：{job.title}
 公司：{job.company}
@@ -76,7 +72,9 @@ class PipelineService:
 岗位描述：
 {job.description}
 """
-        diagnosis = await self.diagnosis_service.diagnose(resume_text, jd_text)
+        diagnosis = await self.diagnosis_service.diagnose(
+            resume_text, jd_text, llm_config=llm_config
+        )
 
         result["diagnosis_target"] = target
         result["diagnosis"] = diagnosis

@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
@@ -28,6 +28,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+# ★★★ 全局中间件：所有 HTML 页面和根路径都禁止缓存 ★★★
+@app.middleware("http")
+async def no_cache_html(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path == "/" or path.endswith(".html"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
 # ---------- API 路由 ----------
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(job.router, prefix="/api/v1")
@@ -38,7 +51,14 @@ app.include_router(match.router, prefix="/api/v1")
 # ---------- 前端托管 ----------
 @app.get("/")
 async def serve_index():
-    return FileResponse("frontend/index.html")
+    return FileResponse(
+        "frontend/index.html",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
 
 
-app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
+app.mount("/frontend", StaticFiles(directory="frontend", html=True), name="frontend")

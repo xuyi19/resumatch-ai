@@ -1,10 +1,14 @@
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.services.diagnosis_service import DiagnosisService
 from app.services.resume_service import ResumeService
+from app.utils.docx_generator import generate_resume_docx
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
 
@@ -20,12 +24,14 @@ class DiagnoseRequest(BaseModel):
     jd_text: str = ""
 
 
+class ExportDocxRequest(BaseModel):
+    optimized_resume: dict
+    template: str = "classic"        # ★ 新增
 @router.post("/upload", response_model=ResumeOut)
 async def upload_resume(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """上传简历（支持 pdf/docx/txt），解析文本并入库"""
     if not file.filename:
         raise HTTPException(status_code=400, detail="缺少文件名")
 
@@ -63,6 +69,23 @@ async def get_resume(resume_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/diagnose")
 async def diagnose(req: DiagnoseRequest):
-    """简历 + JD → 多智能体诊断（不落库，纯计算）"""
     service = DiagnosisService()
     return await service.diagnose(req.resume_text, req.jd_text)
+
+
+@router.post("/export-docx")
+async def export_docx(req: ExportDocxRequest):
+    """把优化后的简历导出为 Word 文件"""
+    try:
+        data = generate_resume_docx(req.optimized_resume, template=req.template)   # ★ 传参
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"生成失败: {e}")
+
+    filename = quote("优化后的简历.docx")
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{filename}",
+        },
+    )

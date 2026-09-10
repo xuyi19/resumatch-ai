@@ -12,9 +12,7 @@ class Suggestion(BaseModel):
 
 
 class RewriteResult(BaseModel):
-    suggestions: list[Suggestion] = Field(
-        default_factory=list, description="改写建议列表"
-    )
+    suggestions: list[Suggestion] = Field(default_factory=list, description="改写建议列表")
     overall_advice: str = Field(default="", description="整体改进建议")
 
 
@@ -56,6 +54,7 @@ async def run(state: DiagnosisState) -> dict:
             ),
             RewriteResult,
             temperature=0.5,
+            llm_config=state.get("llm_config"),
         )
         suggestions = [s.model_dump() for s in result.suggestions]
         suggestions.append({"overall_advice": result.overall_advice})
@@ -67,7 +66,5 @@ async def run(state: DiagnosisState) -> dict:
 
     return {
         "suggestions": suggestions,
-        "messages": [
-            {"role": "rewriter", "content": f"生成 {len(suggestions) - 1} 条建议"}
-        ],
+        "messages": [{"role": "rewriter", "content": f"生成 {len(suggestions) - 1} 条建议"}],
     }

@@ -32,6 +32,7 @@ async def run(state: DiagnosisState) -> dict:
             PROMPT.format(resume_text=state["resume_text"]),
             ParsedResume,
             temperature=0.1,
+            llm_config=state.get("llm_config"),
         )
         parsed = result.model_dump()
     except Exception as e:

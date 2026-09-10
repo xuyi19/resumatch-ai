@@ -10,6 +10,12 @@ from app.services.resume_service import ResumeService
 router = APIRouter(prefix="/match", tags=["match"])
 
 
+class LLMConfig(BaseModel):
+    api_key: str | None = None
+    base_url: str | None = None
+    model: str | None = None
+
+
 class MatchRequest(BaseModel):
     resume_text: str
     top_k: int = 10
@@ -20,13 +26,13 @@ class MatchWithDiagnosisRequest(BaseModel):
     resume_id: int | None = None
     resume_text: str | None = None
     top_k: int = 10
-    diagnose_job_id: int | None = None   # 不传则诊断 Top1
-    skip_diagnosis: bool = False          # 只做匹配，不做诊断
+    diagnose_job_id: int | None = None
+    skip_diagnosis: bool = False
+    llm_config: LLMConfig | None = None
 
 
 @router.post("/recommend")
 async def recommend(req: MatchRequest, db: AsyncSession = Depends(get_db)):
-    """简历文本 → Top-N 岗位（纯匹配，不诊断）"""
     service = MatchService(db)
     results = await service.recommend(
         resume_text=req.resume_text,
@@ -41,11 +47,6 @@ async def match_with_diagnosis(
     req: MatchWithDiagnosisRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    完整流程：简历 → 匹配 Top-N → 对目标岗位做多智能体诊断。
-    ★ 这个接口会很慢（30-60 秒），因为要等 4 个 Agent 串行跑完。
-    """
-    # 解析简历来源
     if req.resume_id is not None:
         resume_service = ResumeService(db)
         resume = await resume_service.get_by_id(req.resume_id)
@@ -64,6 +65,7 @@ async def match_with_diagnosis(
             top_k=req.top_k,
             diagnose_job_id=req.diagnose_job_id,
             skip_diagnosis=req.skip_diagnosis,
+            llm_config=req.llm_config.model_dump() if req.llm_config else None,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"流水线失败: {e}")

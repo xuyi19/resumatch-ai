@@ -21,7 +21,6 @@ class ResumeScores(BaseModel):
     @field_validator("overall", mode="before")
     @classmethod
     def coerce_overall(cls, v):
-        """兼容 LLM 可能返回 {'score': 80} 或 80"""
         if isinstance(v, dict):
             return v.get("score", 0)
         return v
@@ -70,6 +69,7 @@ async def run(state: DiagnosisState) -> dict:
             PROMPT.format(resume_text=state["resume_text"], summary=summary),
             ResumeScores,
             temperature=0.2,
+            llm_config=state.get("llm_config"),
         )
         scores = result.model_dump()
     except Exception as e:
@@ -80,7 +80,5 @@ async def run(state: DiagnosisState) -> dict:
 
     return {
         "scores": scores,
-        "messages": [
-            {"role": "scorer", "content": f"综合评分 {scores['overall']}"}
-        ],
+        "messages": [{"role": "scorer", "content": f"综合评分 {scores['overall']}"}],
     }

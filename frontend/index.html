@@ -5,214 +5,337 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ResuMatch AI - 智能简历诊断</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  </style>
 </head>
-<body class="bg-gray-50 text-gray-900 h-screen overflow-hidden">
+<body class="bg-gray-50 h-screen overflow-hidden">
 
-  <div class="flex h-screen">
+<div class="flex h-screen">
 
-    <!-- 左侧栏 -->
-    <aside class="w-64 bg-white border-r border-gray-100 flex flex-col">
-      <div class="p-4 border-b border-gray-100">
-        <div class="flex items-center gap-2 mb-4">
-          <div class="w-8 h-8 bg-teal-500 rounded-lg flex items-center justify-center text-white font-bold">R</div>
-          <span class="font-semibold text-sm">ResuMatch AI</span>
-        </div>
-        <button onclick="location.reload()" class="w-full bg-teal-50 text-teal-700 py-2 rounded-lg text-sm font-medium hover:bg-teal-100 transition">
-          + 新建诊断
-        </button>
-      </div>
-
-      <div class="flex-1 p-4 overflow-y-auto">
-        <div class="text-xs text-gray-400 mb-2 px-1">提示</div>
-        <div class="text-xs text-gray-500 px-1 leading-relaxed">
-          上传一份 PDF 或 Word 简历，系统会自动匹配 132 条真实岗位，并对 Top1 岗位做多智能体诊断。
-        </div>
-      </div>
-
-      <div class="p-4 border-t border-gray-100 space-y-1 text-sm text-gray-600">
-        <div class="px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer">📊 能力画像</div>
-        <div class="px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer">⚙️ 设置</div>
-      </div>
-    </aside>
-
-    <!-- 中间品牌区 -->
-    <main class="flex-1 flex items-center justify-center p-12">
-      <div class="max-w-md text-center">
-        <div class="w-20 h-20 bg-teal-500 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-6 shadow-lg shadow-teal-200">
-          🎯
-        </div>
-        <h1 class="text-4xl font-bold mb-2 leading-tight">
-          <span class="text-gray-900">智能简历诊断</span><br>
-          <span class="text-teal-500">助你拿到 Offer</span>
-        </h1>
-        <p class="text-gray-500 mt-5 leading-relaxed">
-          上传简历，系统自动匹配岗位库，<br>
-          多智能体深度诊断，产出可落地的改写建议。
-        </p>
-
-        <div class="grid grid-cols-2 gap-3 mt-10 text-left">
-          <div class="bg-white p-4 rounded-xl border border-gray-100">
-            <div class="text-2xl mb-2">🎯</div>
-            <div class="font-medium text-sm">智能匹配</div>
-            <div class="text-xs text-gray-500 mt-1">关键词 + 语义混合排序</div>
-          </div>
-          <div class="bg-white p-4 rounded-xl border border-gray-100">
-            <div class="text-2xl mb-2">🤖</div>
-            <div class="font-medium text-sm">多智能体诊断</div>
-            <div class="text-xs text-gray-500 mt-1">4 个 Agent 协同分析</div>
-          </div>
-        </div>
-      </div>
-    </main>
-
-    <!-- 右侧表单 -->
-    <aside class="w-96 bg-white border-l border-gray-100 p-6 overflow-y-auto">
-      <div class="space-y-6">
-
-        <!-- 1. 上传 -->
+  <!-- 左侧栏 -->
+  <aside class="w-64 bg-white border-r border-gray-100 flex flex-col">
+    <div class="p-5 border-b border-gray-100">
+      <div class="flex items-center gap-2.5 mb-4">
+        <div class="w-9 h-9 bg-teal-500 rounded-xl flex items-center justify-center text-white font-bold shadow-sm">R</div>
         <div>
-          <div class="flex items-center gap-2 mb-2 text-sm font-medium">
-            <span class="w-5 h-5 bg-teal-500 text-white rounded-full text-xs flex items-center justify-center">1</span>
-            上传简历（PDF / Word）
-          </div>
-          <label class="border-2 border-dashed border-gray-200 rounded-xl p-6 block text-center cursor-pointer hover:border-teal-500 transition">
-            <input type="file" id="resumeFile" accept=".pdf,.docx,.doc" class="hidden">
-            <div class="text-gray-400 text-sm">
-              <div class="text-2xl mb-1">📄</div>
-              <span id="fileName">点击上传简历</span>
-            </div>
-          </label>
+          <div class="font-semibold text-sm text-gray-900">ResuMatch AI</div>
+          <div class="text-xs text-gray-400">智能简历助手</div>
         </div>
-
-        <!-- 2. JD -->
-        <div>
-          <div class="flex items-center gap-2 mb-2 text-sm font-medium">
-            <span class="w-5 h-5 bg-gray-300 text-white rounded-full text-xs flex items-center justify-center">2</span>
-            目标岗位 <span class="text-gray-400 text-xs font-normal">（选填）</span>
-          </div>
-          <textarea id="jdText" rows="3"
-            class="w-full border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:border-teal-500 resize-none"
-            placeholder="粘贴目标 JD，系统将针对性诊断"></textarea>
-        </div>
-
-        <!-- 3. 城市 -->
-        <div>
-          <div class="flex items-center gap-2 mb-2 text-sm font-medium">
-            <span class="w-5 h-5 bg-gray-300 text-white rounded-full text-xs flex items-center justify-center">3</span>
-            期望城市
-          </div>
-          <select id="city" class="w-full border border-gray-200 rounded-lg p-2.5 text-sm focus:outline-none focus:border-teal-500">
-            <option>北京</option>
-            <option>上海</option>
-            <option>深圳</option>
-            <option>广州</option>
-            <option>杭州</option>
-          </select>
-        </div>
-
-        <!-- 4. TopK -->
-        <div>
-          <div class="flex items-center gap-2 mb-2 text-sm font-medium">
-            <span class="w-5 h-5 bg-gray-300 text-white rounded-full text-xs flex items-center justify-center">4</span>
-            推荐岗位数量
-          </div>
-          <div class="flex items-center gap-3">
-            <input type="range" id="topK" min="3" max="20" value="10" class="flex-1 accent-teal-500">
-            <span id="topKValue" class="text-teal-600 font-semibold w-8 text-center">10</span>
-          </div>
-          <div class="text-xs text-gray-400 mt-1.5">建议 10 个，兼顾覆盖面与速度</div>
-        </div>
-
-        <!-- 按钮 -->
-        <button id="startBtn"
-          class="w-full bg-teal-500 text-white py-3 rounded-lg font-medium hover:bg-teal-600 transition disabled:opacity-50 disabled:cursor-not-allowed">
-          ✨ 开始诊断
-        </button>
-
-        <div id="statusMsg" class="text-xs text-center hidden"></div>
-
       </div>
-    </aside>
+      <button onclick="location.reload()" class="w-full flex items-center justify-center gap-1.5 bg-teal-50 text-teal-600 py-2.5 rounded-lg text-sm font-medium hover:bg-teal-100 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        新建诊断
+      </button>
+    </div>
 
+    <div class="flex-1 p-5 overflow-y-auto">
+      <div class="text-xs text-gray-400 mb-3">使用说明</div>
+      <div class="text-xs text-gray-500 leading-relaxed space-y-2">
+        <div class="flex gap-2"><span class="text-teal-500">①</span><span>上传 PDF 或 Word 简历</span></div>
+        <div class="flex gap-2"><span class="text-teal-500">②</span><span>自动匹配真实岗位</span></div>
+        <div class="flex gap-2"><span class="text-teal-500">③</span><span>多智能体深度诊断</span></div>
+        <div class="flex gap-2"><span class="text-teal-500">④</span><span>生成优化后简历</span></div>
+      </div>
+    </div>
+
+    <div class="p-4 border-t border-gray-100 space-y-1 text-sm text-gray-600">
+      <div class="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer transition">
+        <span>📊</span><span>能力画像</span>
+      </div>
+      <div class="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer transition">
+        <span>📁</span><span>历史记录</span>
+      </div>
+      <div onclick="openSettings()" class="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer transition">
+        <span>⚙️</span><span>设置</span>
+        <span id="apiStatus" class="ml-auto text-xs"></span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 中间品牌区 -->
+  <main class="flex-1 flex items-center justify-center p-12">
+    <div class="max-w-lg text-center">
+      <div class="w-20 h-20 bg-teal-500 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-6 shadow-lg shadow-teal-100">
+        🎯
+      </div>
+      <h1 class="text-4xl font-bold mb-3 leading-tight tracking-tight text-gray-900">
+        智能简历诊断<br>
+        <span class="text-teal-500">助你拿到 Offer</span>
+      </h1>
+      <p class="text-gray-500 mt-5 leading-relaxed">
+        上传简历，系统自动匹配岗位库，<br>
+        多智能体深度诊断，产出可落地的改写建议。
+      </p>
+
+      <div class="grid grid-cols-2 gap-3 mt-10 text-left">
+        <div class="bg-white p-5 rounded-2xl border border-gray-100">
+          <div class="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center text-xl mb-3">🎯</div>
+          <div class="font-medium text-sm text-gray-900">智能匹配</div>
+          <div class="text-xs text-gray-500 mt-1 leading-relaxed">关键词 + 语义混合排序</div>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-gray-100">
+          <div class="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center text-xl mb-3">🤖</div>
+          <div class="font-medium text-sm text-gray-900">多智能体诊断</div>
+          <div class="text-xs text-gray-500 mt-1 leading-relaxed">5 个 Agent 协同分析</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 右侧表单 -->
+  <aside class="w-96 bg-white border-l border-gray-100 flex flex-col">
+    <div class="p-6 border-b border-gray-100">
+      <h2 class="text-base font-semibold text-gray-900">新建诊断</h2>
+      <p class="text-xs text-gray-400 mt-1">4 步获得完整简历分析报告</p>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-6 space-y-6">
+
+      <div>
+        <div class="flex items-center gap-2 mb-3">
+          <span class="w-5 h-5 bg-teal-500 text-white rounded-full text-xs flex items-center justify-center font-medium">1</span>
+          <span class="text-sm font-medium text-gray-900">上传简历</span>
+          <span class="text-xs text-gray-400">PDF / Word</span>
+        </div>
+        <label class="group border-2 border-dashed border-gray-200 rounded-xl p-6 block text-center cursor-pointer hover:border-teal-400 hover:bg-teal-50/30 transition-all">
+          <input type="file" id="resumeFile" accept=".pdf,.docx,.doc" class="hidden">
+          <div class="text-gray-400 group-hover:text-teal-500 transition">
+            <div class="text-3xl mb-1">📄</div>
+            <div class="text-sm" id="fileName">点击上传简历</div>
+            <div class="text-xs mt-1 opacity-70">支持 .pdf .docx .doc</div>
+          </div>
+        </label>
+      </div>
+
+      <div>
+        <div class="flex items-center gap-2 mb-3">
+          <span class="w-5 h-5 bg-gray-200 text-gray-500 rounded-full text-xs flex items-center justify-center font-medium">2</span>
+          <span class="text-sm font-medium text-gray-900">目标岗位</span>
+          <span class="text-xs text-gray-400">选填</span>
+        </div>
+        <textarea id="jdText" rows="3"
+          class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 resize-none transition"
+          placeholder="粘贴目标 JD，系统将针对性诊断"></textarea>
+      </div>
+
+      <div>
+        <div class="flex items-center gap-2 mb-3">
+          <span class="w-5 h-5 bg-gray-200 text-gray-500 rounded-full text-xs flex items-center justify-center font-medium">3</span>
+          <span class="text-sm font-medium text-gray-900">期望城市</span>
+        </div>
+        <select id="city" class="w-full border border-gray-200 rounded-xl p-2.5 text-sm focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition">
+          <option>北京</option><option>上海</option><option>深圳</option>
+          <option>广州</option><option>杭州</option>
+        </select>
+      </div>
+
+      <div>
+        <div class="flex items-center gap-2 mb-3">
+          <span class="w-5 h-5 bg-gray-200 text-gray-500 rounded-full text-xs flex items-center justify-center font-medium">4</span>
+          <span class="text-sm font-medium text-gray-900">推荐岗位数量</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <input type="range" id="topK" min="3" max="20" value="10" class="flex-1 accent-teal-500">
+          <span id="topKValue" class="text-teal-600 font-semibold w-8 text-center">10</span>
+        </div>
+        <div class="text-xs text-gray-400 mt-1.5">建议 10 个，兼顾覆盖面与速度</div>
+      </div>
+
+    </div>
+
+    <div class="p-6 border-t border-gray-100">
+      <button id="startBtn"
+        class="w-full bg-teal-500 text-white py-3 rounded-lg font-medium hover:bg-teal-600 transition disabled:opacity-50 disabled:cursor-not-allowed">
+        ✨ 开始诊断
+      </button>
+      <div id="statusMsg" class="text-xs text-center mt-3 hidden"></div>
+    </div>
+  </aside>
+
+</div>
+
+<!-- 设置弹窗 -->
+<div id="settingsModal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl">
+    <div class="p-6 border-b border-gray-100 flex items-center justify-between">
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900">API 配置</h3>
+        <p class="text-xs text-gray-400 mt-1">配置你自己的大模型 API</p>
+      </div>
+      <button onclick="closeSettings()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+    </div>
+
+    <div class="p-6 space-y-5">
+      <div>
+        <div class="text-xs text-gray-500 mb-2">快速选择服务商</div>
+        <div class="grid grid-cols-3 gap-2">
+          <button onclick="applyPreset('deepseek')" class="py-2 text-xs border border-gray-200 rounded-lg hover:border-teal-400 hover:bg-teal-50/30 transition">DeepSeek</button>
+          <button onclick="applyPreset('zhipu')" class="py-2 text-xs border border-gray-200 rounded-lg hover:border-teal-400 hover:bg-teal-50/30 transition">智谱 GLM</button>
+          <button onclick="applyPreset('openai')" class="py-2 text-xs border border-gray-200 rounded-lg hover:border-teal-400 hover:bg-teal-50/30 transition">OpenAI</button>
+        </div>
+      </div>
+
+      <div>
+        <label class="text-sm font-medium text-gray-900 block mb-2">API Key</label>
+        <input type="password" id="cfgApiKey"
+          class="w-full border border-gray-200 rounded-lg p-2.5 text-sm focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+          placeholder="sk-...">
+        <div class="text-xs text-gray-400 mt-1.5">Key 只保存在浏览器本地，不会上传服务器</div>
+      </div>
+
+      <div>
+        <label class="text-sm font-medium text-gray-900 block mb-2">Base URL</label>
+        <input type="text" id="cfgBaseUrl"
+          class="w-full border border-gray-200 rounded-lg p-2.5 text-sm focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+          placeholder="https://api.deepseek.com/v1">
+      </div>
+
+      <div>
+        <label class="text-sm font-medium text-gray-900 block mb-2">模型名称</label>
+        <input type="text" id="cfgModel"
+          class="w-full border border-gray-200 rounded-lg p-2.5 text-sm focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+          placeholder="deepseek-chat">
+      </div>
+
+      <div id="cfgStatus" class="text-xs text-center hidden"></div>
+    </div>
+
+    <div class="p-6 border-t border-gray-100 flex gap-3">
+      <button onclick="clearSettings()" class="px-4 py-2.5 text-sm text-gray-500 hover:text-red-500 transition">清空</button>
+      <button onclick="saveSettings()" class="flex-1 bg-teal-500 text-white py-2.5 rounded-lg font-medium hover:bg-teal-600 transition">保存配置</button>
+    </div>
   </div>
+</div>
 
-  <script>
-    const fileInput = document.getElementById('resumeFile');
-    const fileNameEl = document.getElementById('fileName');
-    const jdTextEl = document.getElementById('jdText');
-    const cityEl = document.getElementById('city');
-    const topKEl = document.getElementById('topK');
-    const topKValueEl = document.getElementById('topKValue');
-    const startBtn = document.getElementById('startBtn');
-    const statusMsg = document.getElementById('statusMsg');
+<script>
+  const fileInput = document.getElementById('resumeFile');
+  const fileNameEl = document.getElementById('fileName');
+  const jdTextEl = document.getElementById('jdText');
+  const cityEl = document.getElementById('city');
+  const topKEl = document.getElementById('topK');
+  const topKValueEl = document.getElementById('topKValue');
+  const startBtn = document.getElementById('startBtn');
+  const statusMsg = document.getElementById('statusMsg');
 
-    // 文件选择显示文件名
-    fileInput.addEventListener('change', (e) => {
-      const f = e.target.files[0];
-      if (f) fileNameEl.textContent = f.name;
-    });
+  fileInput.addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (f) fileNameEl.textContent = f.name;
+  });
 
-    // 滑块
-    topKEl.addEventListener('input', () => {
-      topKValueEl.textContent = topKEl.value;
-    });
+  topKEl.addEventListener('input', () => { topKValueEl.textContent = topKEl.value; });
 
-    function showStatus(msg, type = 'info') {
-      statusMsg.textContent = msg;
-      statusMsg.className = 'text-xs text-center ' + (
-        type === 'error' ? 'text-red-500' :
-        type === 'ok'    ? 'text-teal-600' :
-        'text-gray-500'
-      );
+  function showStatus(msg, type = 'info') {
+    statusMsg.textContent = msg;
+    statusMsg.className = 'text-xs text-center mt-3 ' + (
+      type === 'error' ? 'text-red-500' :
+      type === 'ok'    ? 'text-teal-600' : 'text-gray-500'
+    );
+    statusMsg.classList.remove('hidden');
+  }
+
+  // ========== API 配置管理 ==========
+  const CFG_KEY = 'llm_config';
+  const PRESETS = {
+    deepseek: { base_url: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+    zhipu:    { base_url: 'https://open.bigmodel.cn/api/paas/v4/', model: 'glm-4-flash' },
+    openai:   { base_url: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
+  };
+
+  function loadConfig() {
+    try { return JSON.parse(localStorage.getItem(CFG_KEY) || '{}'); }
+    catch { return {}; }
+  }
+
+  function refreshApiStatus() {
+    const cfg = loadConfig();
+    const el = document.getElementById('apiStatus');
+    el.innerHTML = cfg.api_key ? '<span class="text-teal-500">●</span>' : '<span class="text-gray-300">●</span>';
+  }
+
+  function openSettings() {
+    const cfg = loadConfig();
+    document.getElementById('cfgApiKey').value = cfg.api_key || '';
+    document.getElementById('cfgBaseUrl').value = cfg.base_url || '';
+    document.getElementById('cfgModel').value = cfg.model || '';
+    document.getElementById('cfgStatus').classList.add('hidden');
+    document.getElementById('settingsModal').classList.remove('hidden');
+  }
+
+  function closeSettings() {
+    document.getElementById('settingsModal').classList.add('hidden');
+  }
+
+  function applyPreset(name) {
+    const p = PRESETS[name];
+    if (!p) return;
+    document.getElementById('cfgBaseUrl').value = p.base_url;
+    document.getElementById('cfgModel').value = p.model;
+  }
+
+  function saveSettings() {
+    const cfg = {
+      api_key: document.getElementById('cfgApiKey').value.trim(),
+      base_url: document.getElementById('cfgBaseUrl').value.trim(),
+      model: document.getElementById('cfgModel').value.trim(),
+    };
+    localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+    const status = document.getElementById('cfgStatus');
+    status.textContent = '✓ 已保存';
+    status.className = 'text-xs text-center text-teal-600';
+    status.classList.remove('hidden');
+    refreshApiStatus();
+    setTimeout(closeSettings, 800);
+  }
+
+  function clearSettings() {
+    localStorage.removeItem(CFG_KEY);
+    document.getElementById('cfgApiKey').value = '';
+    document.getElementById('cfgBaseUrl').value = '';
+    document.getElementById('cfgModel').value = '';
+    refreshApiStatus();
+  }
+
+  refreshApiStatus();
+
+  // ========== 开始诊断 ==========
+  startBtn.addEventListener('click', async () => {
+    const file = fileInput.files[0];
+    if (!file) { showStatus('请先选择简历文件', 'error'); return; }
+
+    startBtn.disabled = true;
+    startBtn.textContent = '上传中...';
+    showStatus('正在上传简历...');
+
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const uploadRes = await fetch('/api/v1/resumes/upload', { method: 'POST', body: form });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}));
+        throw new Error(err.detail || '上传失败');
+      }
+      const uploadData = await uploadRes.json();
+      const rid = uploadData.id;
+
+      // 同时存 sessionStorage + URL 参数（双保险）
+      sessionStorage.setItem('resume_id', rid);
+      sessionStorage.setItem('top_k', topKEl.value || '10');
+      sessionStorage.setItem('llm_config', JSON.stringify(loadConfig()));
+
+      showStatus('上传成功，正在跳转...', 'ok');
+      location.href = `/frontend/result.html?rid=${rid}&top_k=${topKEl.value || '10'}`;
+
+    } catch (e) {
+      console.error(e);
+      showStatus('失败：' + e.message, 'error');
+      startBtn.disabled = false;
+      startBtn.textContent = '✨ 开始诊断';
     }
-
-    // 开始诊断：上传简历 → 保存 resume_id → 跳转 result.html
-    startBtn.addEventListener('click', async () => {
-      const file = fileInput.files[0];
-      if (!file) {
-        showStatus('请先选择简历文件', 'error');
-        return;
-      }
-
-      startBtn.disabled = true;
-      startBtn.textContent = '上传中...';
-      showStatus('正在上传简历...');
-
-      try {
-        // 1. 上传简历
-        const form = new FormData();
-        form.append('file', file);
-
-        const uploadRes = await fetch('/api/v1/resumes/upload', {
-          method: 'POST',
-          body: form,
-        });
-        if (!uploadRes.ok) {
-          const err = await uploadRes.json().catch(() => ({}));
-          throw new Error(err.detail || '上传失败');
-        }
-        const uploadData = await uploadRes.json();
-        const resumeId = uploadData.id;
-
-        showStatus('上传成功，正在跳转诊断页面...', 'ok');
-
-        // 2. 把参数暂存到 sessionStorage
-        sessionStorage.setItem('resume_id', resumeId);
-        sessionStorage.setItem('jd_text', jdTextEl.value || '');
-        sessionStorage.setItem('city', cityEl.value || '');
-        sessionStorage.setItem('top_k', topKEl.value || '10');
-
-        // 3. 跳转
-        location.href = '/frontend/result.html';
-
-      } catch (e) {
-        console.error(e);
-        showStatus('失败：' + e.message, 'error');
-        startBtn.disabled = false;
-        startBtn.textContent = '✨ 开始诊断';
-      }
-    });
-  </script>
+  });
+</script>
 
 </body>
 </html>

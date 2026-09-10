@@ -17,19 +17,21 @@ async def call_llm_for_json(
     schema: Type[T],
     temperature: float = 0.2,
     max_retries: int = 2,
+    llm_config: dict | None = None,
 ) -> T:
     """
     调 LLM 并要求返回符合 schema 的 JSON。
-
-    兼容所有 OpenAI 协议模型（DeepSeek / GLM / Ollama 等），
-    不依赖 with_structured_output 的 tool calling 能力。
+    llm_config: {"api_key": ..., "base_url": ..., "model": ...}，None 表示用 .env 默认配置
     """
-    llm = get_llm(temperature=temperature)
-
-    # 把 schema 描述注入 prompt
-    schema_desc = json.dumps(
-        schema.model_json_schema(), ensure_ascii=False, indent=2
+    llm_config = llm_config or {}
+    llm = get_llm(
+        temperature=temperature,
+        api_key=llm_config.get("api_key"),
+        base_url=llm_config.get("base_url"),
+        model=llm_config.get("model"),
     )
+
+    schema_desc = json.dumps(schema.model_json_schema(), ensure_ascii=False, indent=2)
 
     full_prompt = f"""{prompt}
 
@@ -47,12 +49,10 @@ JSON Schema:
             content = resp.content if hasattr(resp, "content") else str(resp)
             content = content.strip()
 
-            # 去掉可能的 markdown 代码块标记
             if content.startswith("```"):
                 content = re.sub(r"^```(?:json)?\s*", "", content)
                 content = re.sub(r"\s*```$", "", content)
 
-            # 用正则兜底，抓第一个完整 JSON 对象
             match = JSON_PATTERN.search(content)
             if match:
                 content = match.group(0)

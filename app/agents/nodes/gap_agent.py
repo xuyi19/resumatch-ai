@@ -49,6 +49,7 @@ async def run(state: DiagnosisState) -> dict:
             ),
             GapAnalysis,
             temperature=0.3,
+            llm_config=state.get("llm_config"),
         )
         gaps = [g.model_dump() for g in result.gaps]
         gaps.append({"summary": result.summary})
@@ -60,7 +61,5 @@ async def run(state: DiagnosisState) -> dict:
 
     return {
         "gaps": gaps,
-        "messages": [
-            {"role": "gap", "content": f"发现 {len(gaps) - 1} 条差距"}
-        ],
+        "messages": [{"role": "gap", "content": f"发现 {len(gaps) - 1} 条差距"}],
     }
