@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>诊断报告 - ResuMatch AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+
+  <!-- 顶部导航 -->
+  <nav class="bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between sticky top-0 z-10">
+    <div class="flex items-center gap-3">
+      <a href="/" class="text-gray-400 hover:text-gray-600 text-sm">← 返回</a>
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 bg-teal-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">R</div>
+        <span class="font-semibold text-sm">诊断报告</span>
+      </div>
+    </div>
+    <div class="text-xs text-gray-400" id="statusText">加载中...</div>
+  </nav>
+
+  <!-- 主内容 -->
+  <div class="max-w-6xl mx-auto p-6 space-y-6" id="mainContent">
+
+    <!-- 加载态 -->
+    <div id="loading" class="bg-white rounded-2xl p-12 text-center border border-gray-100">
+      <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-teal-500 border-t-transparent mb-4"></div>
+      <div class="text-gray-600 font-medium" id="loadingMsg">正在匹配岗位...</div>
+      <div class="text-xs text-gray-400 mt-2">多智能体诊断约需 60 秒，请耐心等待</div>
+    </div>
+
+    <!-- 结果区（初始隐藏） -->
+    <div id="resultArea" class="hidden space-y-6">
+
+      <!-- Top 岗位列表 -->
+      <section class="bg-white rounded-2xl p-6 border border-gray-100">
+        <h2 class="text-lg font-semibold mb-4">🎯 Top 推荐岗位</h2>
+        <div id="jobList" class="space-y-2"></div>
+      </section>
+
+      <!-- 诊断目标 + 雷达图 -->
+      <section class="grid grid-cols-3 gap-6">
+        <!-- 雷达图 -->
+        <div class="col-span-2 bg-white rounded-2xl p-6 border border-gray-100">
+          <h2 class="text-lg font-semibold mb-1">📊 简历评分</h2>
+          <div class="text-sm text-gray-500 mb-4" id="targetJob"></div>
+          <div id="radarChart" style="width:100%; height:360px;"></div>
+        </div>
+
+        <!-- 综合评分 + 技能 -->
+        <div class="bg-white rounded-2xl p-6 border border-gray-100 flex flex-col">
+          <h2 class="text-lg font-semibold mb-4">综合评分</h2>
+          <div class="text-6xl font-bold text-teal-500 mb-2" id="overallScore">--</div>
+          <div class="text-xs text-gray-400 mb-6">满分 100</div>
+
+          <h3 class="text-sm font-medium mb-2">技能标签</h3>
+          <div id="skillTags" class="flex flex-wrap gap-1.5"></div>
+        </div>
+      </section>
+
+      <!-- 综合评价 -->
+      <section class="bg-white rounded-2xl p-6 border border-gray-100">
+        <h2 class="text-lg font-semibold mb-3">综合评价</h2>
+        <p class="text-sm text-gray-600 leading-relaxed" id="overallComment"></p>
+      </section>
+
+      <!-- 优势 / 待提升 -->
+      <section class="grid grid-cols-2 gap-6">
+        <div class="bg-white rounded-2xl p-6 border border-gray-100">
+          <h2 class="text-lg font-semibold mb-3 text-teal-600">✓ 主要优势</h2>
+          <ul class="space-y-2 text-sm text-gray-700" id="strengthsList"></ul>
+        </div>
+        <div class="bg-white rounded-2xl p-6 border border-gray-100">
+          <h2 class="text-lg font-semibold mb-3 text-amber-600">△ 待提升项</h2>
+          <ul class="space-y-2 text-sm text-gray-700" id="gapsList"></ul>
+        </div>
+      </section>
+
+      <!-- 改写建议 -->
+      <section class="bg-white rounded-2xl p-6 border border-gray-100">
+        <h2 class="text-lg font-semibold mb-4">✍️ 改写建议</h2>
+        <div id="suggestionsList" class="space-y-4"></div>
+      </section>
+
+    </div>
+
+  </div>
+
+  <script>
+    const resumeId = sessionStorage.getItem('resume_id');
+    const jdText = sessionStorage.getItem('jd_text') || '';
+    const topK = parseInt(sessionStorage.getItem('top_k') || '10');
+
+    if (!resumeId) {
+      alert('缺少简历信息，请重新上传');
+      location.href = '/';
+    }
+
+    const loadingEl = document.getElementById('loading');
+    const loadingMsg = document.getElementById('loadingMsg');
+    const resultArea = document.getElementById('resultArea');
+    const statusText = document.getElementById('statusText');
+
+    // 阶段提示
+    const stages = ['正在匹配岗位...', '正在解析简历...', '正在评分...', '正在分析差距...', '正在生成改写建议...'];
+    let stageIdx = 0;
+    const stageTimer = setInterval(() => {
+      stageIdx = (stageIdx + 1) % stages.length;
+      loadingMsg.textContent = stages[stageIdx];
+    }, 8000);
+
+    // 主流程
+    async function run() {
+      try {
+        const res = await fetch('/api/v1/match/with-diagnosis', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            resume_id: parseInt(resumeId),
+            top_k: topK,
+            skip_diagnosis: false,
+          }),
+        });
+
+        clearInterval(stageTimer);
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || '诊断失败');
+        }
+
+        const data = await res.json();
+        render(data);
+
+      } catch (e) {
+        clearInterval(stageTimer);
+        console.error(e);
+        loadingEl.innerHTML = `<div class="text-red-500">失败：${e.message}</div>
+          <a href="/" class="inline-block mt-4 text-sm text-teal-600 hover:underline">← 返回重试</a>`;
+      }
+    }
+
+    function render(data) {
+      loadingEl.classList.add('hidden');
+      resultArea.classList.remove('hidden');
+      statusText.textContent = '诊断完成';
+
+      // 1. Top 岗位列表
+      const jobList = document.getElementById('jobList');
+      jobList.innerHTML = '';
+      (data.top_jobs || []).forEach((j, i) => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 border border-gray-100';
+        div.innerHTML = `
+          <div class="flex items-center gap-3 min-w-0">
+            <span class="text-xs text-gray-400 w-6">${i + 1}</span>
+            <div class="min-w-0">
+              <div class="font-medium text-sm truncate">${j.title}</div>
+              <div class="text-xs text-gray-500 truncate">${j.company} · ${j.city}</div>
+            </div>
+          </div>
+          <div class="text-teal-500 font-semibold text-sm">${j.score}</div>
+        `;
+        jobList.appendChild(div);
+      });
+
+      const diag = data.diagnosis || {};
+      const scores = diag.scores || {};
+      const target = data.diagnosis_target || {};
+
+      // 2. 诊断目标
+      document.getElementById('targetJob').textContent =
+        target.title ? `${target.title} @ ${target.company}` : '';
+
+      // 3. 综合评分
+      document.getElementById('overallScore').textContent = scores.overall || '--';
+
+      // 4. 雷达图
+      renderRadar(scores);
+
+      // 5. 技能标签
+      const skills = (diag.parsed && diag.parsed.skills) || [];
+      const skillTags = document.getElementById('skillTags');
+      skillTags.innerHTML = '';
+      skills.forEach(s => {
+        const span = document.createElement('span');
+        span.className = 'px-2 py-1 bg-teal-50 text-teal-700 rounded-full text-xs';
+        span.textContent = s;
+        skillTags.appendChild(span);
+      });
+
+      // 6. 综合评价（用各维度评语拼接）
+      const comments = ['completeness', 'skill_match', 'quantification', 'star_structure']
+        .map(k => scores[k] && scores[k].comment)
+        .filter(Boolean);
+      document.getElementById('overallComment').textContent =
+        comments.join(' ') || '（暂无评语）';
+
+      // 7. 优势（从 scores 里挑高分维度）
+      const strengthsList = document.getElementById('strengthsList');
+      strengthsList.innerHTML = '';
+      const strengthLabels = {
+        completeness: '信息完整', quantification: '量化清晰',
+        star_structure: 'STAR 结构', skill_match: '技能含金量',
+        achievement: '业绩亮点', readability: '可读性',
+      };
+      Object.entries(scores).forEach(([k, v]) => {
+        if (typeof v === 'object' && v.score >= 80 && strengthLabels[k]) {
+          const li = document.createElement('li');
+          li.textContent = `${strengthLabels[k]}（${v.score} 分）`;
+          strengthsList.appendChild(li);
+        }
+      });
+
+      // 8. 待提升（从 gaps 里取）
+      const gapsList = document.getElementById('gapsList');
+      gapsList.innerHTML = '';
+      (diag.gaps || []).forEach(g => {
+        if (g.summary) return;
+        const li = document.createElement('li');
+        const color = g.severity === 'high' ? 'text-red-500' : g.severity === 'medium' ? 'text-amber-500' : 'text-gray-400';
+        li.innerHTML = `<span class="${color}">[${g.severity || '-'}]</span> ${g.description}`;
+        gapsList.appendChild(li);
+      });
+
+      // 9. 改写建议
+      const suggestionsList = document.getElementById('suggestionsList');
+      suggestionsList.innerHTML = '';
+      (diag.suggestions || []).forEach(s => {
+        if (s.overall_advice) {
+          const div = document.createElement('div');
+          div.className = 'p-4 bg-teal-50 rounded-lg text-sm text-teal-800';
+          div.innerHTML = `<strong>整体建议：</strong>${s.overall_advice}`;
+          suggestionsList.appendChild(div);
+          return;
+        }
+        const div = document.createElement('div');
+        div.className = 'p-4 border border-gray-100 rounded-lg space-y-2';
+        div.innerHTML = `
+          <div class="text-xs text-gray-400">${s.target || ''}</div>
+          <div class="text-sm text-gray-500 line-through">${s.original || ''}</div>
+          <div class="text-sm text-teal-700">${s.rewritten || ''}</div>
+          <div class="text-xs text-gray-500">💡 ${s.reason || ''}</div>
+        `;
+        suggestionsList.appendChild(div);
+      });
+    }
+
+    function renderRadar(scores) {
+      const chart = echarts.init(document.getElementById('radarChart'));
+      const dims = [
+        { key: 'completeness',  name: '信息完整' },
+        { key: 'quantification', name: '量化成果' },
+        { key: 'star_structure', name: 'STAR 结构' },
+        { key: 'skill_match',   name: '技能含金量' },
+        { key: 'achievement',   name: '业绩亮点' },
+        { key: 'readability',   name: '可读性' },
+      ];
+      const values = dims.map(d => (scores[d.key] && scores[d.key].score) || 0);
+
+      chart.setOption({
+        radar: {
+          indicator: dims.map(d => ({ name: d.name, max: 100 })),
+          splitNumber: 5,
+          axisName: { color: '#6b7280', fontSize: 12 },
+          splitLine: { lineStyle: { color: '#e5e7eb' } },
+          splitArea: { areaStyle: { color: ['#ffffff', '#f9fafb'] } },
+          axisLine: { lineStyle: { color: '#e5e7eb' } },
+        },
+        series: [{
+          type: 'radar',
+          data: [{
+            value: values,
+            name: '能力评分',
+            areaStyle: { color: 'rgba(20, 184, 166, 0.25)' },
+            lineStyle: { color: '#14b8a6', width: 2 },
+            itemStyle: { color: '#14b8a6' },
+          }],
+        }],
+        tooltip: {},
+      });
+    }
+
+    window.addEventListener('resize', () => {
+      const el = document.getElementById('radarChart');
+      if (el) echarts.getInstanceByDom(el)?.resize();
+    });
+
+    run();
+  </script>
+
+</body>
+</html>

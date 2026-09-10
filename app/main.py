@@ -1,12 +1,14 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
 from app.api.v1 import health, job, match, resume
 from app.core.config import settings
 from app.core.db import Base, engine
-from app.models import entities  # noqa: F401  必须导入，否则建表时看不到表定义
+from app.models import entities  # noqa: F401
 
 
 @asynccontextmanager
@@ -26,12 +28,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# ---------- API 路由 ----------
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(job.router, prefix="/api/v1")
 app.include_router(resume.router, prefix="/api/v1")
 app.include_router(match.router, prefix="/api/v1")
 
 
+# ---------- 前端托管 ----------
 @app.get("/")
-async def root():
-    return {"message": f"{settings.APP_NAME} v{settings.APP_VERSION}"}
+async def serve_index():
+    return FileResponse("frontend/index.html")
+
+
+app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
