@@ -1,22 +1,17 @@
 from loguru import logger
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.core.db import AsyncSessionLocal
 from app.models.entities import Job
 
 
 class JobPipeline:
-    """负责将爬取的数据清洗并入库"""
-
     async def process(self, jobs_data: list[dict]):
-        """兼容旧接口，只打印日志"""
         inserted, skipped = await self.process_with_stats(jobs_data)
         logger.info(f"入库完成: 新增 {inserted} 条, 跳过 {skipped} 条")
 
     async def process_with_stats(self, jobs_data: list[dict]) -> tuple[int, int]:
-        """返回 (新增, 跳过) 二元组"""
         if not jobs_data:
-            logger.warning("没有可入库的职位数据")
             return 0, 0
 
         async with AsyncSessionLocal() as session:
@@ -28,7 +23,6 @@ class JobPipeline:
                     skipped += 1
                     continue
 
-                # 先查重
                 exists = await session.execute(
                     select(Job.id).where(Job.source_id == cleaned["source_id"])
                 )
@@ -48,3 +42,16 @@ class JobPipeline:
             await session.commit()
 
         return inserted, skipped
+
+    async def delete_by_source_ids(self, source_ids: list[str]) -> int:
+        """按 source_id 批量删除岗位"""
+        if not source_ids:
+            return 0
+
+        async with AsyncSessionLocal() as session:
+            stmt = delete(Job).where(Job.source_id.in_(source_ids))
+            result = await session.execute(stmt)
+            await session.commit()
+            deleted = result.rowcount
+            logger.info(f"清理岗位: 删除 {deleted} 条")
+            return deleted

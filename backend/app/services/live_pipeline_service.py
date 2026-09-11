@@ -1,5 +1,4 @@
 import asyncio
-import json
 from datetime import datetime
 from uuid import uuid4
 
@@ -11,10 +10,7 @@ from app.crawlers.zhilian_sync import ZhilianCrawlerSync
 from app.services.diagnosis_service import DiagnosisService
 from app.services.match_service import MatchService
 
-# 内存任务表
 TASKS: dict[str, dict] = {}
-# ★ 每个任务对应一个消息队列（用于 SSE 推送）
-QUEUES: dict[str, asyncio.Queue] = {}
 
 
 class LivePipelineService:
@@ -32,7 +28,6 @@ class LivePipelineService:
             "result": None,
             "error": None,
         }
-        QUEUES[task_id] = asyncio.Queue()
         return task_id
 
     @staticmethod
@@ -40,29 +35,9 @@ class LivePipelineService:
         return TASKS.get(task_id)
 
     @staticmethod
-    def get_queue(task_id: str) -> asyncio.Queue | None:
-        return QUEUES.get(task_id)
-
-    @classmethod
-    def _update(cls, task_id: str, **kwargs):
-        """更新任务状态，同时推送给 SSE 队列"""
-        if task_id not in TASKS:
-            return
-        TASKS[task_id].update(kwargs)
-
-        # 推送快照到队列
-        q = QUEUES.get(task_id)
-        if q is not None:
-            snapshot = {
-                "stage": TASKS[task_id].get("stage", ""),
-                "progress": TASKS[task_id].get("progress", 0),
-                "message": TASKS[task_id].get("message", ""),
-                "status": TASKS[task_id].get("status", "running"),
-            }
-            try:
-                q.put_nowait(snapshot)
-            except Exception:
-                pass
+    def _update(task_id: str, **kwargs):
+        if task_id in TASKS:
+            TASKS[task_id].update(kwargs)
 
     @classmethod
     async def run(
@@ -74,6 +49,9 @@ class LivePipelineService:
         top_k: int = 10,
         llm_config: dict | None = None,
     ):
+        # ★ 记录本次爬取的所有 source_id，用于最终清理
+        crawled_source_ids: list[str] = []
+
         try:
             # ---------- 阶段 1：爬取 ----------
             cls._update(task_id, status="running", stage="爬取岗位", progress=5,
@@ -85,6 +63,11 @@ class LivePipelineService:
                 crawler.fetch_job_list,
                 keyword=keyword, city=city, max_pages=2,
             )
+
+            # ★ 记录本次爬到的所有 source_id
+            crawled_source_ids = [
+                j["source_id"] for j in jobs if j.get("source_id")
+            ]
 
             cls._update(task_id, stage="入库", progress=30,
                         message=f"抓到 {len(jobs)} 条，正在去重入库...")
@@ -113,6 +96,8 @@ class LivePipelineService:
                 if not top_jobs:
                     cls._update(task_id, status="failed",
                                 error="没有匹配到任何岗位")
+                    # ★ 提前 return 也要清理
+                    await pipeline.delete_by_source_ids(crawled_source_ids)
                     return
 
                 logger.info(f"[{task_id}] 匹配 Top {len(top_jobs)}")
@@ -125,6 +110,7 @@ class LivePipelineService:
                 if not target_job:
                     cls._update(task_id, status="failed",
                                 error="目标岗位不存在")
+                    await pipeline.delete_by_source_ids(crawled_source_ids)
                     return
 
                 jd_text = f"""岗位：{target_job.title}
@@ -143,6 +129,7 @@ class LivePipelineService:
                     resume_text, jd_text, llm_config=llm_config,
                 )
 
+            # ★ 保存结果（在删除岗位之前，把 target_job 的信息存到 result 里）
             cls._update(
                 task_id,
                 stage="完成",
@@ -154,7 +141,7 @@ class LivePipelineService:
                     "city": city,
                     "crawled_count": len(jobs),
                     "inserted": inserted,
-                    "top_jobs": top_jobs,
+                    "top_jobs": top_jobs,   # 已存的内存快照，删库不影响
                     "diagnosis_target": {
                         "job_id": target_job.id,
                         "title": target_job.title,
@@ -165,6 +152,17 @@ class LivePipelineService:
                 },
             )
 
+            # ★★★ 分析完成，删除本次爬取的所有岗位 ★★★
+            deleted = await pipeline.delete_by_source_ids(crawled_source_ids)
+            logger.info(f"[{task_id}] 任务完成，已清理 {deleted} 条岗位数据")
+
         except Exception as e:
             logger.exception(f"[{task_id}] 失败: {e}")
             cls._update(task_id, status="failed", error=str(e)[:500])
+
+            # ★ 出错也要清理
+            try:
+                pipeline = JobPipeline()
+                await pipeline.delete_by_source_ids(crawled_source_ids)
+            except Exception as cleanup_err:
+                logger.error(f"清理失败: {cleanup_err}")
