@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import datetime
 from uuid import uuid4
 
@@ -6,12 +7,14 @@ from loguru import logger
 
 from app.core.db import AsyncSessionLocal
 from app.crawlers.pipeline import JobPipeline
-from app.crawlers.zhilian_sync import ZhilianCrawlerSync    # ★ 换成同步版
+from app.crawlers.zhilian_sync import ZhilianCrawlerSync
 from app.services.diagnosis_service import DiagnosisService
 from app.services.match_service import MatchService
 
 # 内存任务表
 TASKS: dict[str, dict] = {}
+# ★ 每个任务对应一个消息队列（用于 SSE 推送）
+QUEUES: dict[str, asyncio.Queue] = {}
 
 
 class LivePipelineService:
@@ -29,6 +32,7 @@ class LivePipelineService:
             "result": None,
             "error": None,
         }
+        QUEUES[task_id] = asyncio.Queue()
         return task_id
 
     @staticmethod
@@ -36,9 +40,29 @@ class LivePipelineService:
         return TASKS.get(task_id)
 
     @staticmethod
-    def _update(task_id: str, **kwargs):
-        if task_id in TASKS:
-            TASKS[task_id].update(kwargs)
+    def get_queue(task_id: str) -> asyncio.Queue | None:
+        return QUEUES.get(task_id)
+
+    @classmethod
+    def _update(cls, task_id: str, **kwargs):
+        """更新任务状态，同时推送给 SSE 队列"""
+        if task_id not in TASKS:
+            return
+        TASKS[task_id].update(kwargs)
+
+        # 推送快照到队列
+        q = QUEUES.get(task_id)
+        if q is not None:
+            snapshot = {
+                "stage": TASKS[task_id].get("stage", ""),
+                "progress": TASKS[task_id].get("progress", 0),
+                "message": TASKS[task_id].get("message", ""),
+                "status": TASKS[task_id].get("status", "running"),
+            }
+            try:
+                q.put_nowait(snapshot)
+            except Exception:
+                pass
 
     @classmethod
     async def run(
@@ -51,18 +75,15 @@ class LivePipelineService:
         llm_config: dict | None = None,
     ):
         try:
-            # ---------- 阶段 1：爬取（在独立线程里跑同步 Playwright）----------
+            # ---------- 阶段 1：爬取 ----------
             cls._update(task_id, status="running", stage="爬取岗位", progress=5,
                         message=f"正在爬取「{keyword}」岗位...")
             logger.info(f"[{task_id}] 爬取 {keyword} @ {city}")
 
             crawler = ZhilianCrawlerSync()
-            # ★ 关键：用 to_thread 让同步代码跑在独立线程，不受 uvicorn 事件循环影响
             jobs = await asyncio.to_thread(
                 crawler.fetch_job_list,
-                keyword=keyword,
-                city=city,
-                max_pages=2,
+                keyword=keyword, city=city, max_pages=2,
             )
 
             cls._update(task_id, stage="入库", progress=30,
@@ -98,7 +119,7 @@ class LivePipelineService:
                 cls._update(task_id, stage="诊断", progress=65,
                             message=f"匹配到 Top {len(top_jobs)}，开始多智能体诊断...")
 
-                # ---------- 阶段 4：诊断 Top1 ----------
+                # ---------- 阶段 4：诊断 ----------
                 from app.models.entities import Job
                 target_job = await session.get(Job, top_jobs[0]["job_id"])
                 if not target_job:

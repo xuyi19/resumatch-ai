@@ -8,32 +8,24 @@
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
   <style>
     body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
-
-    .template-btn {
-      padding: 7px 18px; border-radius: 8px; font-size: 13px;
-      border: 1px solid #e5e7eb; background: white; color: #4b5563;
-      cursor: pointer; transition: all 0.15s;
-    }
-    .template-btn:hover { border-color: #14b8a6; color: #0d9488; }
-    .template-btn.active { background: #14b8a6; color: white; border-color: #14b8a6; box-shadow: 0 2px 8px rgba(20,184,166,0.3); }
-
-    .resume-paper {
-      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-      color: #374151; line-height: 1.7; font-size: 13px;
-    }
+    .progress-bar { height: 6px; background: linear-gradient(90deg, #14b8a6, #3b82f6); border-radius: 3px; transition: width 0.6s ease; }
+    .stage-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 10px; opacity: 0.4; transition: all 0.3s; }
+    .stage-item.active { opacity: 1; background: rgba(20, 184, 166, 0.08); }
+    .stage-item.done { opacity: 0.7; }
+    .stage-item .dot { width: 10px; height: 10px; border-radius: 50%; background: #d1d5db; }
+    .stage-item.active .dot, .stage-item.done .dot { background: #14b8a6; }
+    .stage-item.active .dot { box-shadow: 0 0 0 4px rgba(20,184,166,0.2); }
+    .template-btn { padding: 7px 18px; border-radius: 8px; font-size: 13px; border: 1px solid #e5e7eb; background: white; color: #4b5563; cursor: pointer; }
+    .template-btn.active { background: #14b8a6; color: white; border-color: #14b8a6; }
+    .resume-paper { color: #374151; line-height: 1.7; font-size: 13px; }
     .resume-paper .r-section { margin-top: 18px; }
-    .resume-paper .r-line { margin: 3px 0; }
-
     .resume-paper.classic .r-name { text-align: center; font-size: 26px; font-weight: 700; color: #1f2937; margin-bottom: 6px; }
     .resume-paper.classic .r-contact { text-align: center; font-size: 12px; color: #9ca3af; margin-bottom: 24px; }
     .resume-paper.classic .r-section-title { font-size: 14px; font-weight: 600; color: #0d9488; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb; margin-bottom: 8px; }
-
     .resume-paper.modern .r-name { font-size: 28px; font-weight: 700; color: #0f172a; padding-bottom: 8px; border-bottom: 3px solid #14b8a6; margin-bottom: 6px; }
     .resume-paper.modern .r-contact { font-size: 12px; color: #9ca3af; margin-bottom: 24px; }
     .resume-paper.modern .r-section-title { font-size: 14px; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
     .resume-paper.modern .r-section-title::before { content: ''; width: 4px; height: 15px; background: #14b8a6; border-radius: 2px; }
-    .resume-paper.modern .r-section .r-line { padding-left: 12px; }
-
     .resume-paper.minimal .r-name { text-align: center; font-size: 24px; font-weight: 700; color: #000; letter-spacing: 6px; margin-bottom: 6px; }
     .resume-paper.minimal .r-contact { text-align: center; font-size: 11px; color: #999; margin-bottom: 28px; }
     .resume-paper.minimal .r-section-title { font-size: 11px; font-weight: 600; color: #666; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 8px; }
@@ -43,10 +35,8 @@
 
 <nav class="bg-white border-b border-gray-100 px-6 py-3.5 flex items-center justify-between sticky top-0 z-10">
   <div class="flex items-center gap-4">
-    <a href="/" class="flex items-center gap-1.5 text-gray-400 hover:text-gray-700 text-sm transition">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-      </svg>
+    <a href="/" class="flex items-center gap-1.5 text-gray-400 hover:text-gray-700 text-sm">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
       返回
     </a>
     <div class="w-px h-5 bg-gray-200"></div>
@@ -63,21 +53,35 @@
 
 <div class="max-w-6xl mx-auto p-6 space-y-6">
 
-  <!-- 加载/进度区 -->
-  <div id="loading" class="bg-white rounded-2xl p-16 text-center border border-gray-100">
-    <div class="inline-block relative mb-6">
-      <div class="w-14 h-14 border-4 border-teal-100 rounded-full"></div>
-      <div class="absolute inset-0 w-14 h-14 border-4 border-transparent border-t-teal-500 rounded-full animate-spin"></div>
-    </div>
-    <div class="text-gray-900 font-semibold text-base" id="loadingMsg">正在初始化...</div>
-    <div class="text-xs text-gray-400 mt-2">实时爬取 + 多智能体诊断约需 3-5 分钟</div>
+  <!-- 进度区 -->
+  <div id="loading" class="bg-white rounded-2xl p-12 border border-gray-100">
+    <div class="max-w-lg mx-auto">
+      <div class="text-center mb-8">
+        <div class="inline-block relative mb-4">
+          <div class="w-16 h-16 border-4 border-teal-100 rounded-full"></div>
+          <div class="absolute inset-0 w-16 h-16 border-4 border-transparent border-t-teal-500 rounded-full animate-spin"></div>
+        </div>
+        <div class="text-gray-900 font-semibold text-lg" id="loadingMsg">正在初始化...</div>
+        <div class="text-xs text-gray-400 mt-1">实时爬取 + 多智能体诊断约需 3-5 分钟</div>
+      </div>
 
-    <div class="flex justify-center gap-2 mt-8">
-      <div class="stage-dot w-2 h-2 rounded-full bg-teal-500"></div>
-      <div class="stage-dot w-2 h-2 rounded-full bg-gray-200"></div>
-      <div class="stage-dot w-2 h-2 rounded-full bg-gray-200"></div>
-      <div class="stage-dot w-2 h-2 rounded-full bg-gray-200"></div>
-      <div class="stage-dot w-2 h-2 rounded-full bg-gray-200"></div>
+      <div class="mb-6">
+        <div class="flex justify-between text-xs text-gray-400 mb-2">
+          <span>整体进度</span>
+          <span id="progressText">0%</span>
+        </div>
+        <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div id="progressBar" class="progress-bar" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <div class="space-y-1">
+        <div class="stage-item active" data-stage="爬取岗位"><div class="dot"></div><span class="text-sm">🕷️ 爬取岗位</span></div>
+        <div class="stage-item" data-stage="入库"><div class="dot"></div><span class="text-sm">💾 去重入库</span></div>
+        <div class="stage-item" data-stage="匹配"><div class="dot"></div><span class="text-sm">🎯 语义匹配</span></div>
+        <div class="stage-item" data-stage="诊断"><div class="dot"></div><span class="text-sm">🤖 多智能体诊断</span></div>
+        <div class="stage-item" data-stage="完成"><div class="dot"></div><span class="text-sm">✨ 生成优化简历</span></div>
+      </div>
     </div>
   </div>
 
@@ -86,9 +90,7 @@
 
     <section class="bg-white rounded-2xl p-6 border border-gray-100">
       <div class="flex items-center justify-between mb-5">
-        <h2 class="text-base font-semibold text-gray-900 flex items-center gap-2">
-          <span class="text-lg">🎯</span> 推荐岗位
-        </h2>
+        <h2 class="text-base font-semibold text-gray-900 flex items-center gap-2"><span class="text-lg">🎯</span> 推荐岗位</h2>
         <div class="text-xs text-gray-400" id="jobCount"></div>
       </div>
       <div id="jobList" class="space-y-2"></div>
@@ -96,13 +98,10 @@
 
     <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div class="lg:col-span-2 bg-white rounded-2xl p-6 border border-gray-100">
-        <h2 class="text-base font-semibold text-gray-900 flex items-center gap-2 mb-1">
-          <span class="text-lg">📊</span> 简历评分
-        </h2>
+        <h2 class="text-base font-semibold text-gray-900 flex items-center gap-2 mb-1"><span class="text-lg">📊</span> 简历评分</h2>
         <p class="text-xs text-gray-400 mb-4" id="targetJob"></p>
         <div id="radarChart" style="width:100%; height:360px;"></div>
       </div>
-
       <div class="bg-white rounded-2xl p-6 border border-gray-100">
         <h2 class="text-base font-semibold text-gray-900 mb-4">综合评分</h2>
         <div class="flex items-baseline gap-1 mb-6">
@@ -115,48 +114,34 @@
     </section>
 
     <section class="bg-white rounded-2xl p-6 border border-gray-100">
-      <h2 class="text-base font-semibold text-gray-900 flex items-center gap-2 mb-3">
-        <span class="text-lg">💬</span> 综合评价
-      </h2>
+      <h2 class="text-base font-semibold text-gray-900 flex items-center gap-2 mb-3"><span class="text-lg">💬</span> 综合评价</h2>
       <p class="text-sm text-gray-600 leading-relaxed" id="overallComment"></p>
     </section>
 
     <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
       <div class="bg-white rounded-2xl p-6 border border-gray-100">
-        <h2 class="text-base font-semibold text-gray-900 flex items-center gap-2 mb-4">
-          <span class="text-teal-500">✓</span> 主要优势
-        </h2>
+        <h2 class="text-base font-semibold text-gray-900 flex items-center gap-2 mb-4"><span class="text-teal-500">✓</span> 主要优势</h2>
         <ul class="space-y-2.5 text-sm text-gray-700" id="strengthsList"></ul>
       </div>
       <div class="bg-white rounded-2xl p-6 border border-gray-100">
-        <h2 class="text-base font-semibold text-gray-900 flex items-center gap-2 mb-4">
-          <span class="text-amber-500">△</span> 待提升项
-        </h2>
+        <h2 class="text-base font-semibold text-gray-900 flex items-center gap-2 mb-4"><span class="text-amber-500">△</span> 待提升项</h2>
         <ul class="space-y-2.5 text-sm text-gray-700" id="gapsList"></ul>
       </div>
     </section>
 
     <section class="bg-white rounded-2xl p-6 border border-gray-100">
-      <h2 class="text-base font-semibold text-gray-900 flex items-center gap-2 mb-5">
-        <span class="text-lg">✍️</span> 改写建议
-      </h2>
+      <h2 class="text-base font-semibold text-gray-900 flex items-center gap-2 mb-5"><span class="text-lg">✍️</span> 改写建议</h2>
       <div id="suggestionsList" class="space-y-3"></div>
     </section>
 
     <section id="optimizedSection" class="bg-white rounded-2xl p-6 border border-gray-100 hidden">
       <div class="flex items-center justify-between mb-5">
-        <h2 class="text-base font-semibold text-gray-900 flex items-center gap-2">
-          <span class="text-lg">📝</span> 优化后的简历
-        </h2>
-        <button id="downloadBtn"
-          class="flex items-center gap-2 bg-teal-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-teal-600 transition">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-          </svg>
+        <h2 class="text-base font-semibold text-gray-900 flex items-center gap-2"><span class="text-lg">📝</span> 优化后的简历</h2>
+        <button id="downloadBtn" class="flex items-center gap-2 bg-teal-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-teal-600 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
           下载 Word
         </button>
       </div>
-
       <div class="mb-5">
         <div class="text-xs text-gray-500 mb-2.5">选择模板</div>
         <div class="flex gap-2">
@@ -165,167 +150,144 @@
           <button data-tpl="minimal" class="template-btn">简约</button>
         </div>
       </div>
-
       <div class="rounded-xl overflow-hidden border border-gray-200 bg-gray-100 p-4">
-        <div id="resumePaper" class="resume-paper classic bg-white mx-auto shadow-sm"
-          style="max-width: 720px; min-height: 500px; padding: 40px 44px;"></div>
+        <div id="resumePaper" class="resume-paper classic bg-white mx-auto shadow-sm" style="max-width: 720px; min-height: 500px; padding: 40px 44px;"></div>
       </div>
     </section>
-
   </div>
 
 </div>
 
 <script>
 (function () {
-  const urlParams = new URLSearchParams(location.search);
-  const taskId = urlParams.get('task_id');
+  const params = new URLSearchParams(location.search);
+  const taskId = params.get('task_id');
+  console.log('[init] task_id =', taskId);
 
   const loadingEl = document.getElementById('loading');
   const loadingMsg = document.getElementById('loadingMsg');
   const resultArea = document.getElementById('resultArea');
   const statusText = document.getElementById('statusText');
+  const progressBar = document.getElementById('progressBar');
+  const progressText = document.getElementById('progressText');
 
   let optimizedResumeData = null;
   let currentTemplate = 'classic';
-  let stageTimer = null;
+  let pollCount = 0;
+  let stopped = false;
 
-  const stages = [
-    '正在爬取最新岗位...',
-    '正在去重入库...',
-    '正在语义匹配...',
-    '正在多智能体诊断...',
-    '正在优化简历...',
-  ];
-
-  function startStageAnimation() {
-    const dots = document.querySelectorAll('.stage-dot');
-    let idx = 0;
-    stageTimer = setInterval(() => {
-      dots.forEach((d, i) => {
-        d.className = 'stage-dot w-2 h-2 rounded-full ' + (i <= idx ? 'bg-teal-500' : 'bg-gray-200');
-      });
-      idx = (idx + 1) % dots.length;
-    }, 15000);
+  function updateStageUI(stage) {
+    const items = document.querySelectorAll('.stage-item');
+    const order = ['爬取岗位', '入库', '匹配', '诊断', '完成'];
+    const idx = order.indexOf(stage);
+    items.forEach((item, i) => {
+      item.classList.remove('active', 'done');
+      if (i < idx) item.classList.add('done');
+      if (i === idx) item.classList.add('active');
+    });
   }
 
-  function stopStageAnimation() {
-    if (stageTimer) { clearInterval(stageTimer); stageTimer = null; }
-  }
-
-  function showEmptyState() {
-    stopStageAnimation();
+  function showError(msg) {
+    stopped = true;
     loadingEl.innerHTML = `
-      <div class="py-6">
-        <div class="text-6xl mb-4">📄</div>
-        <div class="text-gray-900 font-semibold text-lg mb-2">还没有分析任务</div>
-        <div class="text-sm text-gray-400 mb-6">请先返回首页上传简历并启动分析</div>
-        <a href="/" class="inline-block bg-teal-500 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-teal-600 transition">
-          返回首页
-        </a>
-      </div>
-    `;
-    statusText.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-gray-300"></span> 等待中';
+      <div class="py-6 text-center">
+        <div class="text-5xl mb-4">⚠️</div>
+        <div class="text-red-500 font-medium mb-4">${msg}</div>
+        <a href="/" class="inline-block bg-teal-500 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-teal-600 transition">返回首页重试</a>
+      </div>`;
+    statusText.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-red-400"></span> 失败';
   }
 
-  // ========== 轮询任务状态 ==========
-  async function run() {
+  // 纯轮询：每 2 秒查一次
+  async function poll() {
+    if (stopped) return;
+
     if (!taskId) {
-      showEmptyState();
+      showError('缺少 task_id，请从首页重新启动');
       return;
     }
 
-    startStageAnimation();
+    pollCount++;
+    console.log('[poll #' + pollCount + '] 查询任务状态...');
 
-    const poll = async () => {
-      try {
-        const res = await fetch(`/api/v1/live/status/${taskId}`);
-        if (!res.ok) throw new Error('任务不存在');
+    try {
+      const res = await fetch(`/api/v1/live/status/${taskId}`);
+      console.log('[poll #' + pollCount + '] HTTP', res.status);
 
-        const task = await res.json();
-
-        // 实时更新阶段文字
-        if (task.message) {
-          loadingMsg.textContent = task.message;
+      if (!res.ok) {
+        if (res.status === 404) {
+          showError('任务不存在（服务可能已重启，请重新发起分析）');
+        } else {
+          showError('服务异常，状态码: ' + res.status);
         }
-
-        // 根据后端返回的 stage 高亮对应的小圆点
-        if (task.stage) {
-          const stageMap = {
-            '准备中': 0, '爬取岗位': 1, '入库': 2, '匹配': 3, '诊断': 4, '完成': 5,
-          };
-          const idx = stageMap[task.stage] ?? 0;
-          const dots = document.querySelectorAll('.stage-dot');
-          dots.forEach((d, i) => {
-            d.className = 'stage-dot w-2 h-2 rounded-full ' + (i <= idx ? 'bg-teal-500' : 'bg-gray-200');
-          });
-        }
-
-        if (task.status === 'success') {
-          stopStageAnimation();
-          render(task.result);
-          return;
-        }
-
-        if (task.status === 'failed') {
-          stopStageAnimation();
-          loadingEl.innerHTML = `
-            <div class="py-6">
-              <div class="text-5xl mb-4">⚠️</div>
-              <div class="text-red-500 font-medium mb-4">${task.error || '任务失败'}</div>
-              <a href="/" class="inline-block bg-teal-500 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-teal-600 transition">
-                返回首页重试
-              </a>
-            </div>
-          `;
-          statusText.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-red-400"></span> 失败';
-          return;
-        }
-
-        // 继续轮询
-        setTimeout(poll, 3000);
-
-      } catch (e) {
-        stopStageAnimation();
-        console.error(e);
-        loadingEl.innerHTML = `
-          <div class="py-6">
-            <div class="text-5xl mb-4">⚠️</div>
-            <div class="text-red-500 font-medium mb-4">${e.message}</div>
-            <a href="/" class="inline-block bg-teal-500 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-teal-600 transition">
-              返回首页
-            </a>
-          </div>
-        `;
+        return;
       }
-    };
 
-    poll();
+      const task = await res.json();
+      console.log('[poll #' + pollCount + '] 任务对象:', task);
+
+      // 更新 UI
+      if (task.message) loadingMsg.textContent = task.message;
+      if (typeof task.progress === 'number') {
+        progressBar.style.width = task.progress + '%';
+        progressText.textContent = task.progress + '%';
+      }
+      if (task.stage) updateStageUI(task.stage);
+
+      // 完成
+      if (task.status === 'success') {
+        console.log('[poll] ✓ 任务完成，开始渲染');
+        stopped = true;
+        progressBar.style.width = '100%';
+        progressText.textContent = '100%';
+        updateStageUI('完成');
+        if (task.result) {
+          render(task.result);
+        } else {
+          showError('任务完成但没有结果数据');
+        }
+        return;
+      }
+
+      // 失败
+      if (task.status === 'failed') {
+        showError(task.error || '任务执行失败');
+        return;
+      }
+
+      // 继续轮询
+      setTimeout(poll, 2000);
+
+    } catch (e) {
+      console.error('[poll] 异常:', e);
+      showError('网络请求失败：' + e.message);
+    }
   }
 
-  // ========== 渲染结果 ==========
   function render(data) {
+    console.log('[render] 开始渲染，数据:', data);
+
     loadingEl.classList.add('hidden');
     resultArea.classList.remove('hidden');
     statusText.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-teal-500"></span> 诊断完成';
 
     // Top 岗位
     const jobList = document.getElementById('jobList');
-    document.getElementById('jobCount').textContent = `共 ${(data.top_jobs || []).length} 个`;
+    const jobs = data.top_jobs || [];
+    document.getElementById('jobCount').textContent = `共 ${jobs.length} 个`;
     jobList.innerHTML = '';
-    (data.top_jobs || []).forEach((j, i) => {
+    jobs.forEach((j, i) => {
       const div = document.createElement('div');
-      div.className = 'flex items-center justify-between p-3.5 rounded-xl border border-gray-100 hover:border-teal-200 hover:bg-teal-50/30 transition cursor-default';
+      div.className = 'flex items-center justify-between p-3.5 rounded-xl border border-gray-100 hover:border-teal-200 hover:bg-teal-50/30 transition';
       div.innerHTML = `
         <div class="flex items-center gap-3 min-w-0">
           <span class="w-7 h-7 rounded-lg bg-gray-50 text-gray-500 text-xs font-semibold flex items-center justify-center shrink-0">${i + 1}</span>
           <div class="min-w-0">
-            <div class="font-medium text-sm text-gray-900 truncate">${j.title}</div>
-            <div class="text-xs text-gray-400 truncate">${j.company} · ${j.city}</div>
+            <div class="font-medium text-sm text-gray-900 truncate">${j.title || '-'}</div>
+            <div class="text-xs text-gray-400 truncate">${j.company || '-'} · ${j.city || '-'}</div>
           </div>
         </div>
-        <div class="text-teal-500 font-semibold text-sm shrink-0">${j.score}</div>
-      `;
+        <div class="text-teal-500 font-semibold text-sm shrink-0">${j.score || '-'}</div>`;
       jobList.appendChild(div);
     });
 
@@ -333,11 +295,44 @@
     const scores = diag.scores || {};
     const target = data.diagnosis_target || {};
 
-    document.getElementById('targetJob').textContent =
-      target.title ? `目标：${target.title} @ ${target.company}` : '';
+    document.getElementById('targetJob').textContent = target.title ? `目标：${target.title} @ ${target.company}` : '';
     document.getElementById('overallScore').textContent = scores.overall || '--';
 
-    renderRadar(scores);
+    // 雷达图
+    try {
+      const chart = echarts.init(document.getElementById('radarChart'));
+      const dims = [
+        { key: 'completeness', name: '信息完整' },
+        { key: 'quantification', name: '量化成果' },
+        { key: 'star_structure', name: 'STAR 结构' },
+        { key: 'skill_match', name: '技能含金量' },
+        { key: 'achievement', name: '业绩亮点' },
+        { key: 'readability', name: '可读性' },
+      ];
+      const values = dims.map(d => (scores[d.key] && scores[d.key].score) || 0);
+      chart.setOption({
+        radar: {
+          indicator: dims.map(d => ({ name: d.name, max: 100 })),
+          splitNumber: 5,
+          axisName: { color: '#6b7280', fontSize: 12 },
+          splitLine: { lineStyle: { color: '#e5e7eb' } },
+          splitArea: { areaStyle: { color: ['#ffffff', '#f9fafb'] } },
+          axisLine: { lineStyle: { color: '#e5e7eb' } },
+        },
+        series: [{
+          type: 'radar',
+          data: [{
+            value: values, name: '能力评分',
+            areaStyle: { color: 'rgba(20, 184, 166, 0.2)' },
+            lineStyle: { color: '#14b8a6', width: 2 },
+            itemStyle: { color: '#14b8a6' },
+          }],
+        }],
+        tooltip: {},
+      });
+    } catch (e) {
+      console.error('[render] 雷达图渲染失败:', e);
+    }
 
     // 技能标签
     const skills = (diag.parsed && diag.parsed.skills) || [];
@@ -358,15 +353,15 @@
     // 优势
     const strengthsList = document.getElementById('strengthsList');
     strengthsList.innerHTML = '';
-    const strengthLabels = {
+    const labels = {
       completeness: '信息完整', quantification: '量化清晰', star_structure: 'STAR 结构',
       skill_match: '技能含金量', achievement: '业绩亮点', readability: '可读性',
     };
     Object.entries(scores).forEach(([k, v]) => {
-      if (typeof v === 'object' && v.score >= 80 && strengthLabels[k]) {
+      if (typeof v === 'object' && v.score >= 80 && labels[k]) {
         const li = document.createElement('li');
         li.className = 'flex gap-2.5 items-start';
-        li.innerHTML = `<span class="text-teal-500 shrink-0">✓</span><span>${strengthLabels[k]}（${v.score} 分）</span>`;
+        li.innerHTML = `<span class="text-teal-500 shrink-0">✓</span><span>${labels[k]}（${v.score} 分）</span>`;
         strengthsList.appendChild(li);
       }
     });
@@ -382,11 +377,11 @@
       const li = document.createElement('li');
       li.className = 'flex gap-2.5 items-start';
       const color = g.severity === 'high' ? 'text-red-500' : g.severity === 'medium' ? 'text-amber-500' : 'text-gray-400';
-      li.innerHTML = `<span class="${color} shrink-0">△</span><span><span class="text-xs ${color}">[${g.severity}]</span> ${g.description}</span>`;
+      li.innerHTML = `<span class="${color} shrink-0">△</span><span><span class="text-xs ${color}">[${g.severity || '-'}]</span> ${g.description || ''}</span>`;
       gapsList.appendChild(li);
     });
 
-    // 改写建议
+    // 建议
     const suggestionsList = document.getElementById('suggestionsList');
     suggestionsList.innerHTML = '';
     (diag.suggestions || []).forEach(s => {
@@ -403,8 +398,7 @@
         <div class="text-xs text-gray-400">${s.target || ''}</div>
         <div class="text-sm text-gray-400 line-through">${s.original || '（新增内容）'}</div>
         <div class="text-sm text-teal-700 bg-teal-50/60 px-3 py-2 rounded-lg">${s.rewritten || ''}</div>
-        <div class="text-xs text-gray-500">💡 ${s.reason || ''}</div>
-      `;
+        <div class="text-xs text-gray-500">💡 ${s.reason || ''}</div>`;
       suggestionsList.appendChild(div);
     });
 
@@ -415,36 +409,27 @@
       drawResume(opt);
       document.getElementById('optimizedSection').classList.remove('hidden');
     }
+
+    console.log('[render] 渲染完成');
   }
 
-  // ========== 简历渲染 ==========
   function drawResume(opt) {
     const paper = document.getElementById('resumePaper');
     const contactHtml = opt.contact ? `<div class="r-contact">${opt.contact}</div>` : '';
-
     function section(title, lines) {
       if (!lines || !lines.length) return '';
-      return `<div class="r-section">
-        <div class="r-section-title">${title}</div>
-        ${lines.map(l => `<div class="r-line">${l}</div>`).join('')}
-      </div>`;
+      return `<div class="r-section"><div class="r-section-title">${title}</div>${lines.map(l => `<div class="r-line">${l}</div>`).join('')}</div>`;
     }
-
     let html = `<div class="r-name">${opt.name || '个人简历'}</div>${contactHtml}`;
     if (opt.summary) html += section('个人简介', [opt.summary]);
     html += section('教育经历', opt.education);
     html += section('工作经历', opt.experience);
     html += section('项目经历', opt.projects);
-    if (opt.skills && opt.skills.length) {
-      html += `<div class="r-section">
-        <div class="r-section-title">技能</div>
-        <div class="r-line">${opt.skills.join(' · ')}</div>
-      </div>`;
-    }
+    if (opt.skills && opt.skills.length) html += section('技能', [opt.skills.join(' · ')]);
     paper.innerHTML = html;
   }
 
-  // ========== 模板切换 ==========
+  // 模板切换
   document.querySelectorAll('.template-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       currentTemplate = btn.dataset.tpl;
@@ -455,24 +440,19 @@
     });
   });
 
-  // ========== 下载 Word ==========
+  // 下载 Word
   document.getElementById('downloadBtn').addEventListener('click', async () => {
     if (!optimizedResumeData) return;
     const btn = document.getElementById('downloadBtn');
     btn.disabled = true;
     btn.textContent = '生成中...';
-
     try {
       const res = await fetch('/api/v1/resumes/export-docx', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          optimized_resume: optimizedResumeData,
-          template: currentTemplate,
-        }),
+        body: JSON.stringify({ optimized_resume: optimizedResumeData, template: currentTemplate }),
       });
       if (!res.ok) throw new Error('下载失败');
-
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -486,54 +466,17 @@
       alert('下载失败：' + e.message);
     } finally {
       btn.disabled = false;
-      btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-      </svg> 下载 Word`;
+      btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg> 下载 Word`;
     }
   });
-
-  // ========== 雷达图 ==========
-  function renderRadar(scores) {
-    const chart = echarts.init(document.getElementById('radarChart'));
-    const dims = [
-      { key: 'completeness', name: '信息完整' },
-      { key: 'quantification', name: '量化成果' },
-      { key: 'star_structure', name: 'STAR 结构' },
-      { key: 'skill_match', name: '技能含金量' },
-      { key: 'achievement', name: '业绩亮点' },
-      { key: 'readability', name: '可读性' },
-    ];
-    const values = dims.map(d => (scores[d.key] && scores[d.key].score) || 0);
-
-    chart.setOption({
-      radar: {
-        indicator: dims.map(d => ({ name: d.name, max: 100 })),
-        splitNumber: 5,
-        axisName: { color: '#6b7280', fontSize: 12 },
-        splitLine: { lineStyle: { color: '#e5e7eb' } },
-        splitArea: { areaStyle: { color: ['#ffffff', '#f9fafb'] } },
-        axisLine: { lineStyle: { color: '#e5e7eb' } },
-      },
-      series: [{
-        type: 'radar',
-        data: [{
-          value: values,
-          name: '能力评分',
-          areaStyle: { color: 'rgba(20, 184, 166, 0.2)' },
-          lineStyle: { color: '#14b8a6', width: 2 },
-          itemStyle: { color: '#14b8a6' },
-        }],
-      }],
-      tooltip: {},
-    });
-  }
 
   window.addEventListener('resize', () => {
     const el = document.getElementById('radarChart');
     if (el) echarts.getInstanceByDom(el)?.resize();
   });
 
-  run();
+  // 启动
+  poll();
 })();
 </script>
 

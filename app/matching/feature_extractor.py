@@ -68,9 +68,17 @@ def extract_experience_years(text: str) -> tuple:
 
 def extract_resume_features(text: str) -> ResumeFeatures:
     years = 0.0
-    m = re.search(r"(\d+)\s*年.{0,4}(工作|经验|开发)", text)
+
+    # 模式 1：3年经验 / 3年工作经验 / 3年开发经验
+    m = re.search(r"(\d+(?:\.\d+)?)\s*年.{0,4}(工作|经验|开发)", text)
     if m:
         years = float(m.group(1))
+    else:
+        # 模式 2：工作年限：3年 / 经验：3年 / 工作年限 3 年
+        m = re.search(r"(工作年限|工作经验|经验|工作)\s*[:：]?\s*(\d+(?:\.\d+)?)\s*年", text)
+        if m:
+            years = float(m.group(2))
+
     return ResumeFeatures(
         skills=extract_skills(text),
         education_level=extract_education(text),

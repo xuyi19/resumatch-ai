@@ -7,6 +7,10 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-in { animation: fadeInUp 0.4s ease-out; }
+    .hover-lift { transition: all 0.2s ease; }
+    .hover-lift:hover { transform: translateY(-2px); box-shadow: 0 8px 24px -8px rgba(15,23,42,0.1); }
   </style>
 </head>
 <body class="bg-gray-50 h-screen overflow-hidden">
@@ -37,7 +41,7 @@
         <div class="flex gap-2"><span class="text-teal-500">①</span><span>上传 PDF 或 Word 简历</span></div>
         <div class="flex gap-2"><span class="text-teal-500">②</span><span>填写意向职位和城市</span></div>
         <div class="flex gap-2"><span class="text-teal-500">③</span><span>系统实时爬取最新岗位</span></div>
-        <div class="flex gap-2"><span class="text-teal-500">④</span><span>多智能体深度诊断 + 优化简历</span></div>
+        <div class="flex gap-2"><span class="text-teal-500">④</span><span>多智能体诊断 + 优化简历</span></div>
       </div>
     </div>
 
@@ -45,7 +49,7 @@
       <div class="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer transition">
         <span>📊</span><span>能力画像</span>
       </div>
-      <div class="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer transition">
+      <div onclick="location.href='/frontend/history.html'" class="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer transition">
         <span>📁</span><span>历史记录</span>
       </div>
       <div onclick="openSettings()" class="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer transition">
@@ -57,7 +61,7 @@
 
   <!-- 中间品牌区 -->
   <main class="flex-1 flex items-center justify-center p-12">
-    <div class="max-w-lg text-center">
+    <div class="max-w-lg text-center fade-in">
       <div class="w-20 h-20 bg-teal-500 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-6 shadow-lg shadow-teal-100">
         🎯
       </div>
@@ -71,12 +75,12 @@
       </p>
 
       <div class="grid grid-cols-2 gap-3 mt-10 text-left">
-        <div class="bg-white p-5 rounded-2xl border border-gray-100">
+        <div class="bg-white p-5 rounded-2xl border border-gray-100 hover-lift">
           <div class="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center text-xl mb-3">🕷️</div>
           <div class="font-medium text-sm text-gray-900">实时爬取</div>
           <div class="text-xs text-gray-500 mt-1 leading-relaxed">基于意向职位抓取最新 JD</div>
         </div>
-        <div class="bg-white p-5 rounded-2xl border border-gray-100">
+        <div class="bg-white p-5 rounded-2xl border border-gray-100 hover-lift">
           <div class="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center text-xl mb-3">🤖</div>
           <div class="font-medium text-sm text-gray-900">多智能体诊断</div>
           <div class="text-xs text-gray-500 mt-1 leading-relaxed">5 个 Agent 协同分析</div>
@@ -229,9 +233,7 @@
 
   topKEl.addEventListener('input', () => { topKValueEl.textContent = topKEl.value; });
 
-  function setKeyword(kw) {
-    keywordEl.value = kw;
-  }
+  function setKeyword(kw) { keywordEl.value = kw; }
 
   function showStatus(msg, type = 'info') {
     statusMsg.textContent = msg;
@@ -242,7 +244,7 @@
     statusMsg.classList.remove('hidden');
   }
 
-  // ========== API 配置管理 ==========
+  // ========== API 配置 ==========
   const CFG_KEY = 'llm_config';
   const PRESETS = {
     deepseek: { base_url: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
@@ -352,7 +354,18 @@
       }
       const analyzeData = await analyzeRes.json();
 
-      // 3. 跳转到进度页
+      // 3. 保存到历史记录
+      const history = JSON.parse(localStorage.getItem('diagnosis_history') || '[]');
+      history.unshift({
+        task_id: analyzeData.task_id,
+        keyword: keyword,
+        city: cityEl.value,
+        resume_name: file.name,
+        created_at: new Date().toISOString(),
+      });
+      localStorage.setItem('diagnosis_history', JSON.stringify(history.slice(0, 50)));
+
+      // 4. 跳转到结果页
       location.href = `/frontend/result.html?task_id=${analyzeData.task_id}`;
 
     } catch (e) {

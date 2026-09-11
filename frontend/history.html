@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>历史记录 - ResuMatch AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-in { animation: fadeInUp 0.4s ease-out; }
+    .hover-lift { transition: all 0.2s ease; }
+    .hover-lift:hover { transform: translateY(-2px); box-shadow: 0 8px 24px -8px rgba(15,23,42,0.1); }
+  </style>
+</head>
+<body class="bg-gray-50 h-screen overflow-hidden">
+
+<div class="flex h-screen">
+
+  <!-- 左侧栏 -->
+  <aside class="w-64 bg-white border-r border-gray-100 flex flex-col">
+    <div class="p-5 border-b border-gray-100">
+      <div class="flex items-center gap-2.5 mb-4">
+        <div class="w-9 h-9 bg-teal-500 rounded-xl flex items-center justify-center text-white font-bold shadow-sm">R</div>
+        <div>
+          <div class="font-semibold text-sm text-gray-900">ResuMatch AI</div>
+          <div class="text-xs text-gray-400">智能简历助手</div>
+        </div>
+      </div>
+      <button onclick="location.href='/'" class="w-full flex items-center justify-center gap-1.5 bg-teal-50 text-teal-600 py-2.5 rounded-lg text-sm font-medium hover:bg-teal-100 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        新建诊断
+      </button>
+    </div>
+
+    <div class="flex-1 p-5 overflow-y-auto">
+      <div class="text-xs text-gray-400 mb-3">使用说明</div>
+      <div class="text-xs text-gray-500 leading-relaxed space-y-2">
+        <div class="flex gap-2"><span class="text-teal-500">①</span><span>上传 PDF 或 Word 简历</span></div>
+        <div class="flex gap-2"><span class="text-teal-500">②</span><span>填写意向职位和城市</span></div>
+        <div class="flex gap-2"><span class="text-teal-500">③</span><span>系统实时爬取最新岗位</span></div>
+        <div class="flex gap-2"><span class="text-teal-500">④</span><span>多智能体诊断 + 优化简历</span></div>
+      </div>
+    </div>
+
+    <div class="p-4 border-t border-gray-100 space-y-1 text-sm text-gray-600">
+      <div class="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer transition">
+        <span>📊</span><span>能力画像</span>
+      </div>
+      <div onclick="location.href='/frontend/history.html'" class="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-teal-50 text-teal-700 cursor-pointer transition">
+        <span>📁</span><span>历史记录</span>
+      </div>
+      <div onclick="location.href='/'" class="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer transition">
+        <span>⚙️</span><span>设置</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 主内容 -->
+  <main class="flex-1 overflow-y-auto">
+    <div class="max-w-4xl mx-auto p-8">
+
+      <div class="flex items-center justify-between mb-8 fade-in">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">诊断记录</h1>
+          <p class="text-sm text-gray-400 mt-1">查看历史诊断任务，点击卡片查看详情</p>
+        </div>
+        <button onclick="clearHistory()" class="text-xs text-gray-400 hover:text-red-500 transition">
+          🗑️ 清空历史
+        </button>
+      </div>
+
+      <div id="historyList" class="space-y-3"></div>
+
+      <div id="emptyState" class="hidden text-center py-24 fade-in">
+        <div class="text-6xl mb-4">📭</div>
+        <div class="text-gray-900 font-semibold text-lg mb-2">还没有诊断记录</div>
+        <div class="text-sm text-gray-400 mb-6">返回首页上传简历，开始你的第一次诊断</div>
+        <a href="/" class="inline-block bg-teal-500 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-teal-600 transition">
+          新建诊断
+        </a>
+      </div>
+
+    </div>
+  </main>
+
+</div>
+
+<script>
+  function loadHistory() {
+    const history = JSON.parse(localStorage.getItem('diagnosis_history') || '[]');
+    const list = document.getElementById('historyList');
+    const empty = document.getElementById('emptyState');
+
+    if (!history.length) {
+      list.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+
+    empty.classList.add('hidden');
+    list.innerHTML = history.map((item, i) => {
+      const d = new Date(item.created_at);
+      const timeStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      return `
+        <div class="bg-white rounded-2xl p-5 border border-gray-100 hover:border-teal-200 hover:shadow-md transition cursor-pointer fade-in"
+             style="animation-delay: ${i * 0.05}s"
+             onclick="goToResult('${item.task_id}')">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4 min-w-0 flex-1">
+              <div class="w-12 h-12 bg-teal-50 rounded-xl flex items-center justify-center text-2xl shrink-0">
+                🎯
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="font-semibold text-gray-900 truncate">${item.keyword}</div>
+                <div class="text-xs text-gray-400 mt-0.5 truncate">
+                  ${item.resume_name || '简历'} · ${item.city} · ${timeStr}
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center gap-3 shrink-0">
+              <span class="text-xs text-teal-600 bg-teal-50 px-2 py-1 rounded-full">查看</span>
+              <button onclick="event.stopPropagation(); deleteItem(${i})" class="text-gray-300 hover:text-red-500 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function goToResult(taskId) {
+    location.href = `/frontend/result.html?task_id=${taskId}`;
+  }
+
+  function deleteItem(index) {
+    const history = JSON.parse(localStorage.getItem('diagnosis_history') || '[]');
+    history.splice(index, 1);
+    localStorage.setItem('diagnosis_history', JSON.stringify(history));
+    loadHistory();
+  }
+
+  function clearHistory() {
+    if (!confirm('确定要清空所有历史记录吗？')) return;
+    localStorage.removeItem('diagnosis_history');
+    loadHistory();
+  }
+
+  loadHistory();
+</script>
+
+</body>
+</html>
