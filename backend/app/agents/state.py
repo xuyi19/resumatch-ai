@@ -13,7 +13,11 @@ class DiagnosisState(TypedDict, total=False):
     scores: dict
     gaps: list
     suggestions: list
-    optimized_resume: dict          # ★ 新增
+    optimized_resume: dict
+
+    # 追问相关
+    clarify_questions: list
+    user_answers: dict
 
     # 控制流
     error: str

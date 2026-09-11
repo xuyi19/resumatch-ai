@@ -1,9 +1,56 @@
+# ========== Python ==========
 __pycache__/
 *.py[cod]
-backend/.env
-*.log
+*$py.class
+*.so
+.Python
 .venv/
+venv/
+env/
+
+# ========== 环境变量（重要！）==========
+.env
+.env.*
+backend/.env
+backend/.env.dev
+backend/.env.prod
+!.env.example
+
+# ========== 日志 ==========
+*.log
+backend/logs/
+logs/
+
+# ========== 数据库文件 ==========
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+*.db-journal
+
+# ========== Node ==========
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+*.local
+
+# ========== IDE ==========
 .idea/
 .vscode/
+*.swp
+*.swo
+.workbuddy/
+
+# ========== 测试缓存 ==========
 .pytest_cache/
-data/*.db
+.coverage
+htmlcov/
+.mypy_cache/
+
+# ========== 系统 ==========
+.DS_Store
+Thumbs.db
+
+# ========== 运行时 ==========
+backend/data/tmp/
+*.pid

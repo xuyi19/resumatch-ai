@@ -2,13 +2,11 @@
   <div class="min-h-screen py-12">
     <div class="max-w-3xl mx-auto px-6">
 
-      <!-- 标题 -->
       <div class="mb-12">
         <h1 class="text-3xl font-semibold text-gray-800 mb-2">更新日志</h1>
         <p class="text-sm text-gray-600">ResuMatch AI 的版本历史与发布说明</p>
       </div>
 
-      <!-- 时间轴 -->
       <div class="relative pl-8">
         <div class="absolute left-[5px] top-2 bottom-2 w-px bg-[#b8bcc2]/60"></div>
 
@@ -60,16 +58,35 @@
 <script setup>
 import { RouterLink } from 'vue-router'
 
-// ★ 更新日志数据（维护时只改这里）
 const logs = [
   {
-    version: 'v0.4.0',
+    version: 'v0.5.0',
     date: '2026-09-11',
-    title: '仓库链接 + 更新日志页',
+    title: '简历编辑器 + PDF 导出 + 实时日志',
     items: [
-      { type: '新增', text: '首页底部添加 GitHub / Gitee 仓库入口' },
-      { type: '新增', text: '独立更新日志页面，按版本倒序展示' },
-      { type: '新增', text: '顶部导航新增"更新日志"入口' },
+      { type: '新增', text: '简历在线编辑器（左侧表单 + 右侧实时预览）' },
+      { type: '新增', text: '浏览器打印导出 PDF，所见即所得，无第三方依赖' },
+      { type: '新增', text: 'Word 导出保留，与 PDF 双通道下载' },
+      { type: '新增', text: 'Word 模板扩充至 8 套（经典/现代/简约/商务/学术/创意/两栏/紧凑）' },
+      { type: '新增', text: '诊断进度页新增实时日志面板与阶段追踪' },
+      { type: '新增', text: '独立 API 配置页（/settings），支持连接测试' },
+      { type: '新增', text: '顶部导航新增 GitHub / Gitee 仓库入口' },
+      { type: '优化', text: '编辑数据自动保存到 localStorage，刷新不丢失' },
+      { type: '优化', text: '打印区域与编辑区域彻底分离，避免打印污染' },
+      { type: '修复', text: '修复诊断进度页长时间空白无反馈的问题' },
+    ],
+  },
+  {
+    version: 'v0.4.0',
+    date: '2026-09-10',
+    title: '对答式优化 + 多模板 Word',
+    items: [
+      { type: '新增', text: '对答式优化：AI 追问 3-5 个关键信息，用户补充后精准生成' },
+      { type: '新增', text: 'ClarifyModal 弹窗组件，支持必答/选答区分' },
+      { type: '新增', text: '优化简历从主流程剥离为独立接口（/optimize/{task_id}）' },
+      { type: '新增', text: 'Word 模板扩充至 3 套（经典/现代/简约）' },
+      { type: '优化', text: '诊断流程从 5 Agent 优化到 4 Agent，缩短响应时间' },
+      { type: '优化', text: '结果页改为 Tab 结构（诊断/优化/面试/模拟面试）' },
     ],
   },
   {
@@ -80,8 +97,9 @@ const logs = [
       { type: '新增', text: '诊断历史记录持久化，服务重启后仍可查看' },
       { type: '新增', text: '全局错误处理 + 日志落盘（按天切分，错误单独存档）' },
       { type: '新增', text: 'CORS + 安全响应头（X-Frame-Options 等）' },
-      { type: '变更', text: '优化简历从主流程剥离，改为按需触发' },
+      { type: '新增', text: '一键启动脚本 start.bat' },
       { type: '变更', text: '数据库索引优化（jobs 表加 city+created / source+created 联合索引）' },
+      { type: '优化', text: '删除异步版爬虫、旧 HTML 前端等冗余文件' },
     ],
   },
   {

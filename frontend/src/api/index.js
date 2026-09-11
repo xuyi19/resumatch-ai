@@ -23,4 +23,23 @@ export default {
   getHistory: (params) => api.get('/history', { params }),
   getHistoryDetail: (taskId) => api.get(`/history/${taskId}`),
   deleteHistory: (taskId) => api.delete(`/history/${taskId}`),
+
+  // 优化
+  getClarifyQuestions: (taskId, llmConfig) =>
+    api.post(`/optimize/${taskId}/questions`, llmConfig || {}),
+  generateOptimizedResume: (taskId, answers, llmConfig) =>
+    api.post(`/optimize/${taskId}/generate`, {
+      answers,
+      llm_config: llmConfig || null,
+    }),
+  quickOptimize: (taskId, llmConfig) =>
+    api.post(`/optimize/${taskId}`, llmConfig || {}),
+
+  // Word 导出
+  exportDocx: (data) => api.post('/resumes/export-docx', data, {
+    responseType: 'blob',
+  }),
+
+  // 测试 LLM
+  testLLM: (config) => api.post('/settings/test-llm', config),
 }

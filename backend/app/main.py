@@ -3,8 +3,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from loguru import logger
 
-from app.api.v1 import health, history, job, live, match, resume
-from app.core.config import settings
+from app.api.v1 import health, history, job, live, match, optimize, resume, settings
+from app.core.config import settings as app_settings
 from app.core.db import Base, engine
 from app.models import entities  # noqa: F401
 
@@ -21,8 +21,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title=settings.APP_NAME,
-    version=settings.APP_VERSION,
+    title=app_settings.APP_NAME,
+    version=app_settings.APP_VERSION,
     lifespan=lifespan,
 )
 
@@ -33,8 +33,10 @@ app.include_router(resume.router, prefix="/api/v1")
 app.include_router(match.router, prefix="/api/v1")
 app.include_router(live.router, prefix="/api/v1")
 app.include_router(history.router, prefix="/api/v1")
+app.include_router(optimize.router, prefix="/api/v1")
+app.include_router(settings.router, prefix="/api/v1")
 
 
 @app.get("/")
 async def root():
-    return {"message": f"{settings.APP_NAME} API", "docs": "/docs"}
+    return {"message": f"{app_settings.APP_NAME} API", "docs": "/docs"}

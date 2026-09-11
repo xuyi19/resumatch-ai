@@ -82,15 +82,26 @@
         <p class="text-sm text-gray-600 mb-8">
           上传简历，3 分钟获得完整诊断报告
         </p>
-        <RouterLink to="/analyze"
-          class="inline-block px-8 py-3.5 text-sm font-medium rounded-xl
-            bg-[#6d5dfc] text-white
-            shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]
-            hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-            active:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2),inset_-4px_-4px_8px_rgba(255,255,255,0.1)]
-            transition-all duration-300 ease-in-out">
-          立即开始
-        </RouterLink>
+        <div class="flex gap-4 justify-center flex-wrap">
+          <RouterLink to="/analyze"
+            class="inline-block px-8 py-3.5 text-sm font-medium rounded-xl
+              bg-[#6d5dfc] text-white
+              shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]
+              hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
+              active:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2),inset_-4px_-4px_8px_rgba(255,255,255,0.1)]
+              transition-all duration-300 ease-in-out">
+            立即开始
+          </RouterLink>
+          <RouterLink to="/changelog"
+            class="inline-block px-8 py-3.5 text-sm font-medium rounded-xl
+              bg-[#e0e5ec] text-gray-700
+              shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]
+              hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
+              active:shadow-[inset_4px_4px_8px_#b8bcc2,inset_-4px_-4px_8px_#ffffff]
+              transition-all duration-300 ease-in-out">
+            📋 查看更新日志
+          </RouterLink>
+        </div>
       </div>
     </section>
 
