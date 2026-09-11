@@ -3,13 +3,16 @@ from datetime import datetime
 from uuid import uuid4
 
 from loguru import logger
+from sqlalchemy import select
 
 from app.core.db import AsyncSessionLocal
 from app.crawlers.pipeline import JobPipeline
 from app.crawlers.zhilian_sync import ZhilianCrawlerSync
+from app.models.entities import DiagnosisRecord, Job
 from app.services.diagnosis_service import DiagnosisService
 from app.services.match_service import MatchService
 
+# 内存任务表
 TASKS: dict[str, dict] = {}
 
 
@@ -48,8 +51,20 @@ class LivePipelineService:
         city: str = "北京",
         top_k: int = 10,
         llm_config: dict | None = None,
+        resume_name: str = "",
     ):
-        # ★ 记录本次爬取的所有 source_id，用于最终清理
+        # ---------- 落库：创建记录 ----------
+        async with AsyncSessionLocal() as session:
+            rec = DiagnosisRecord(
+                task_id=task_id,
+                keyword=keyword,
+                city=city,
+                resume_name=resume_name or "未命名简历",
+                status="running",
+            )
+            session.add(rec)
+            await session.commit()
+
         crawled_source_ids: list[str] = []
 
         try:
@@ -64,10 +79,7 @@ class LivePipelineService:
                 keyword=keyword, city=city, max_pages=2,
             )
 
-            # ★ 记录本次爬到的所有 source_id
-            crawled_source_ids = [
-                j["source_id"] for j in jobs if j.get("source_id")
-            ]
+            crawled_source_ids = [j["source_id"] for j in jobs if j.get("source_id")]
 
             cls._update(task_id, stage="入库", progress=30,
                         message=f"抓到 {len(jobs)} 条，正在去重入库...")
@@ -75,6 +87,7 @@ class LivePipelineService:
             if not jobs:
                 cls._update(task_id, status="failed",
                             error="未爬取到任何岗位，请换个关键词试试")
+                await cls._save_failed(task_id, "未爬取到任何岗位")
                 return
 
             # ---------- 阶段 2：入库 ----------
@@ -94,9 +107,8 @@ class LivePipelineService:
                 )
 
                 if not top_jobs:
-                    cls._update(task_id, status="failed",
-                                error="没有匹配到任何岗位")
-                    # ★ 提前 return 也要清理
+                    cls._update(task_id, status="failed", error="没有匹配到任何岗位")
+                    await cls._save_failed(task_id, "没有匹配到任何岗位")
                     await pipeline.delete_by_source_ids(crawled_source_ids)
                     return
 
@@ -105,11 +117,10 @@ class LivePipelineService:
                             message=f"匹配到 Top {len(top_jobs)}，开始多智能体诊断...")
 
                 # ---------- 阶段 4：诊断 ----------
-                from app.models.entities import Job
                 target_job = await session.get(Job, top_jobs[0]["job_id"])
                 if not target_job:
-                    cls._update(task_id, status="failed",
-                                error="目标岗位不存在")
+                    cls._update(task_id, status="failed", error="目标岗位不存在")
+                    await cls._save_failed(task_id, "目标岗位不存在")
                     await pipeline.delete_by_source_ids(crawled_source_ids)
                     return
 
@@ -129,40 +140,64 @@ class LivePipelineService:
                     resume_text, jd_text, llm_config=llm_config,
                 )
 
-            # ★ 保存结果（在删除岗位之前，把 target_job 的信息存到 result 里）
+            result_data = {
+                "keyword": keyword,
+                "city": city,
+                "crawled_count": len(jobs),
+                "inserted": inserted,
+                "top_jobs": top_jobs,
+                "diagnosis_target": {
+                    "job_id": target_job.id,
+                    "title": target_job.title,
+                    "company": target_job.company,
+                    "city": target_job.city,
+                },
+                "diagnosis": diagnosis,
+            }
+
             cls._update(
                 task_id,
                 stage="完成",
                 progress=100,
                 message="诊断完成",
                 status="success",
-                result={
-                    "keyword": keyword,
-                    "city": city,
-                    "crawled_count": len(jobs),
-                    "inserted": inserted,
-                    "top_jobs": top_jobs,   # 已存的内存快照，删库不影响
-                    "diagnosis_target": {
-                        "job_id": target_job.id,
-                        "title": target_job.title,
-                        "company": target_job.company,
-                        "city": target_job.city,
-                    },
-                    "diagnosis": diagnosis,
-                },
+                result=result_data,
             )
 
-            # ★★★ 分析完成，删除本次爬取的所有岗位 ★★★
+            # ---------- 落库：成功结果 ----------
+            async with AsyncSessionLocal() as session:
+                rec_res = await session.execute(
+                    select(DiagnosisRecord).where(DiagnosisRecord.task_id == task_id)
+                )
+                rec = rec_res.scalar_one_or_none()
+                if rec:
+                    rec.status = "success"
+                    rec.result = result_data
+                    await session.commit()
+
+            # 清理本次爬取的岗位
             deleted = await pipeline.delete_by_source_ids(crawled_source_ids)
             logger.info(f"[{task_id}] 任务完成，已清理 {deleted} 条岗位数据")
 
         except Exception as e:
             logger.exception(f"[{task_id}] 失败: {e}")
             cls._update(task_id, status="failed", error=str(e)[:500])
+            await cls._save_failed(task_id, str(e)[:500])
 
-            # ★ 出错也要清理
             try:
                 pipeline = JobPipeline()
                 await pipeline.delete_by_source_ids(crawled_source_ids)
             except Exception as cleanup_err:
                 logger.error(f"清理失败: {cleanup_err}")
+
+    @staticmethod
+    async def _save_failed(task_id: str, error: str):
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(DiagnosisRecord).where(DiagnosisRecord.task_id == task_id)
+            )
+            rec = result.scalar_one_or_none()
+            if rec:
+                rec.status = "failed"
+                rec.error = error
+                await session.commit()
