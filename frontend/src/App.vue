@@ -39,6 +39,14 @@
               : 'text-gray-600 hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]'">
             历史记录
           </RouterLink>
+          <RouterLink to="/changelog"
+            class="px-4 py-2 rounded-xl text-sm font-medium
+              transition-all duration-300 ease-in-out"
+            :class="route.path === '/changelog'
+              ? 'bg-[#e0e5ec] shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff] text-[#6d5dfc]'
+              : 'text-gray-600 hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]'">
+            更新日志
+          </RouterLink>
         </nav>
 
         <button @click="openSettings"

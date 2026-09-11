@@ -1,158 +1,170 @@
 <template>
-  <div class="min-h-screen py-12">
-    <div class="max-w-5xl mx-auto px-6">
+  <div class="max-w-6xl mx-auto px-6 md:px-8 py-12 md:py-20">
 
-      <!-- 标题 -->
-      <div class="mb-8">
-        <h1 class="text-3xl font-semibold text-gray-800 mb-2">历史记录</h1>
-        <p class="text-sm text-gray-600">查看过往的诊断任务，点击查看可恢复完整结果</p>
+    <!-- Hero -->
+    <section class="text-center py-8 md:py-16">
+      <div class="inline-flex items-center gap-2 px-4 py-2 rounded-2xl mb-8
+        bg-[#e0e5ec] shadow-[inset_4px_4px_8px_#b8bcc2,inset_-4px_-4px_8px_#ffffff]">
+        <span class="w-2 h-2 rounded-full bg-[#6d5dfc] animate-pulse" />
+        <span class="text-xs font-medium text-gray-600">多智能体引擎已就绪</span>
       </div>
 
-      <!-- 表格卡片（新拟物风） -->
-      <div class="bg-[#e0e5ec] rounded-2xl p-6
-        shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
+      <h1 class="text-4xl md:text-6xl font-semibold text-gray-800 leading-tight mb-6">
+        求职准备的<br />
+        <span class="text-[#6d5dfc]">数字核心引擎</span>
+      </h1>
+      <p class="text-base text-gray-600 max-w-xl mx-auto leading-relaxed mb-10">
+        基于大模型多智能体，为你提供简历诊断、岗位匹配、
+        STAR 改写建议与简历自动优化的一站式服务。
+      </p>
 
-        <a-table
-          v-if="records.length"
-          :data="records"
-          :loading="loading"
-          :pagination="records.length > 10 ? { pageSize: 10, showTotal: true } : false"
-          row-key="task_id"
-          :bordered="{ wrapper: false, cell: false }"
-        >
-          <template #columns>
-            <a-table-column title="关键词" data-index="keyword" :width="160">
-              <template #cell="{ record }">
-                <span class="font-medium text-[#6d5dfc]">{{ record.keyword }}</span>
-              </template>
-            </a-table-column>
+      <div class="flex gap-4 justify-center">
+        <RouterLink to="/analyze"
+          class="px-8 py-3.5 text-sm font-medium rounded-xl
+            bg-[#6d5dfc] text-white
+            shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]
+            hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
+            active:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2),inset_-4px_-4px_8px_rgba(255,255,255,0.1)]
+            transition-all duration-300 ease-in-out">
+          开始分析
+        </RouterLink>
+        <RouterLink to="/analyze"
+          class="px-8 py-3.5 text-sm font-medium rounded-xl
+            bg-[#e0e5ec] text-gray-700
+            shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]
+            hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
+            active:shadow-[inset_4px_4px_8px_#b8bcc2,inset_-4px_-4px_8px_#ffffff]
+            transition-all duration-300 ease-in-out">
+          了解更多
+        </RouterLink>
+      </div>
+    </section>
 
-            <a-table-column title="简历" data-index="resume_name">
-              <template #cell="{ record }">
-                <span class="text-gray-700 text-sm">{{ record.resume_name || '—' }}</span>
-              </template>
-            </a-table-column>
-
-            <a-table-column title="城市" data-index="city" :width="90">
-              <template #cell="{ record }">
-                <span class="text-gray-600 text-sm">{{ record.city || '—' }}</span>
-              </template>
-            </a-table-column>
-
-            <a-table-column title="状态" data-index="status" :width="100">
-              <template #cell="{ record }">
-                <a-tag :color="statusColor(record.status)" size="small">
-                  {{ statusText(record.status) }}
-                </a-tag>
-              </template>
-            </a-table-column>
-
-            <a-table-column title="时间" data-index="created_at" :width="160">
-              <template #cell="{ record }">
-                <span class="text-gray-500 text-xs">{{ formatTime(record.created_at) }}</span>
-              </template>
-            </a-table-column>
-
-            <a-table-column title="操作" :width="130" align="center">
-              <template #cell="{ record }">
-                <a-space>
-                  <a-link @click="viewDetail(record.task_id)">查看</a-link>
-                  <a-link status="danger" @click="confirmDelete(record.task_id)">删除</a-link>
-                </a-space>
-              </template>
-            </a-table-column>
-          </template>
-        </a-table>
-
-        <!-- 空状态（新拟物风） -->
-        <div v-if="!loading && !records.length" class="py-20 text-center">
-          <div class="inline-flex items-center justify-center w-24 h-24 rounded-3xl mb-6
-            bg-[#e0e5ec]
-            shadow-[inset_6px_6px_12px_#b8bcc2,inset_-6px_-6px_12px_#ffffff]">
-            <span class="text-4xl">📭</span>
+    <!-- 功能卡片 -->
+    <section class="py-8 md:py-16">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div v-for="f in features" :key="f.title"
+          class="bg-[#e0e5ec] rounded-2xl p-8
+            shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]
+            hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
+            transition-all duration-300 ease-in-out">
+          <div class="w-14 h-14 rounded-2xl bg-[#e0e5ec]
+            shadow-[inset_4px_4px_8px_#b8bcc2,inset_-4px_-4px_8px_#ffffff]
+            flex items-center justify-center text-2xl mb-5">
+            {{ f.icon }}
           </div>
-          <div class="text-gray-700 font-medium mb-1">还没有诊断记录</div>
-          <div class="text-xs text-gray-500 mb-8">上传简历，开始你的第一次诊断</div>
-          <RouterLink to="/analyze"
-            class="inline-block px-7 py-3 text-sm font-medium rounded-xl
-              bg-[#6d5dfc] text-white
-              shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]
-              hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-              active:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2),inset_-4px_-4px_8px_rgba(255,255,255,0.1)]
-              transition-all duration-300 ease-in-out">
-            新建诊断
-          </RouterLink>
+          <h3 class="text-lg font-semibold text-gray-800 mb-2">{{ f.title }}</h3>
+          <p class="text-sm text-gray-600 leading-relaxed">{{ f.desc }}</p>
         </div>
-
-        <!-- Loading 骨架 -->
-        <div v-if="loading && !records.length" class="py-20 text-center">
-          <a-spin :size="32" />
-          <div class="text-xs text-gray-500 mt-4">加载中...</div>
-        </div>
-
       </div>
-    </div>
+    </section>
+
+    <!-- 数据 -->
+    <section class="py-8 md:py-16">
+      <div class="bg-[#e0e5ec] rounded-2xl p-10
+        shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
+        <div class="grid grid-cols-3 gap-8 text-center">
+          <div v-for="s in stats" :key="s.label">
+            <div class="text-4xl md:text-5xl font-semibold text-gray-800 mb-2">{{ s.num }}</div>
+            <div class="text-xs md:text-sm text-gray-600">{{ s.label }}</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="py-8 md:py-16">
+      <div class="bg-[#e0e5ec] rounded-2xl p-12 md:p-16 text-center
+        shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
+        <h2 class="text-2xl md:text-4xl font-semibold text-gray-800 mb-4">
+          准备好优化你的简历了吗？
+        </h2>
+        <p class="text-sm text-gray-600 mb-8">
+          上传简历，3 分钟获得完整诊断报告
+        </p>
+        <RouterLink to="/analyze"
+          class="inline-block px-8 py-3.5 text-sm font-medium rounded-xl
+            bg-[#6d5dfc] text-white
+            shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]
+            hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
+            active:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2),inset_-4px_-4px_8px_rgba(255,255,255,0.1)]
+            transition-all duration-300 ease-in-out">
+          立即开始
+        </RouterLink>
+      </div>
+    </section>
+
+    <!-- ★ 仓库 + 更新日志 -->
+    <section class="py-8 md:py-16">
+      <div class="bg-[#e0e5ec] rounded-2xl p-8 md:p-10
+        shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
+        <div class="flex flex-wrap items-center justify-center gap-4">
+
+          <!-- GitHub -->
+          <a :href="REPO.github" target="_blank" rel="noopener"
+            class="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-medium
+              bg-[#e0e5ec] text-gray-700
+              shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
+              hover:shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]
+              active:shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]
+              transition-all duration-300 ease-in-out">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 .3a12 12 0 00-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2 0 1.9 1.2 1.9 1.2 1 1.8 2.8 1.3 3.5 1 0-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.2.5-2.3 1.2-3.1-.1-.4-.5-1.7.1-3.5 0 0 1-.3 3.3 1.2a11.5 11.5 0 016 0c2.3-1.5 3.3-1.2 3.3-1.2.7 1.8.3 3.1.1 3.5.8.8 1.2 1.9 1.2 3.1 0 4.7-2.8 5.7-5.5 6 .4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0012 .3"/>
+            </svg>
+            <span>GitHub</span>
+          </a>
+
+          <!-- Gitee -->
+          <a :href="REPO.gitee" target="_blank" rel="noopener"
+            class="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-medium
+              bg-[#e0e5ec] text-gray-700
+              shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
+              hover:shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]
+              active:shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]
+              transition-all duration-300 ease-in-out">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 1.5C6.2 1.5 1.5 6.2 1.5 12c0 4.6 3 8.5 7.2 9.8.5.1.7-.2.7-.5v-1.7c-2.9.6-3.5-1.4-3.5-1.4-.5-1.2-1.2-1.5-1.2-1.5-1-.7.1-.6.1-.6 1.1.1 1.7 1.1 1.7 1.1 1 1.7 2.5 1.2 3.1.9.1-.7.4-1.2.7-1.5-2.4-.3-4.9-1.2-4.9-5.3 0-1.2.4-2.1 1.1-2.9-.1-.3-.5-1.4.1-2.9 0 0 .9-.3 3 1.1a10.2 10.2 0 015.4 0c2.1-1.4 3-1.1 3-1.1.6 1.5.2 2.6.1 2.9.7.8 1.1 1.7 1.1 2.9 0 4.1-2.5 5-4.9 5.3.4.3.7 1 .7 2v3c0 .3.2.6.7.5A10.5 10.5 0 0022.5 12c0-5.8-4.7-10.5-10.5-10.5z"/>
+            </svg>
+            <span>Gitee</span>
+          </a>
+
+          <!-- 更新日志 -->
+          <RouterLink to="/changelog"
+            class="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-medium
+              bg-[#e0e5ec] text-[#6d5dfc]
+              shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
+              hover:shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]
+              active:shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]
+              transition-all duration-300 ease-in-out">
+            <span>📋</span>
+            <span>更新日志</span>
+          </RouterLink>
+
+        </div>
+      </div>
+    </section>
+
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRouter, RouterLink } from 'vue-router'
-import { Message, Modal } from '@arco-design/web-vue'
-import api from '../api'
+import { RouterLink } from 'vue-router'
 
-const router = useRouter()
-const records = ref([])
-const loading = ref(false)
-
-async function loadHistory() {
-  loading.value = true
-  try {
-    const res = await api.getHistory({ limit: 50 })
-    records.value = res.data.items || []
-  } catch (e) {
-    Message.error('加载失败：' + e.message)
-  } finally {
-    loading.value = false
-  }
+// ★ 换成你自己的仓库地址
+const REPO = {
+  github: 'https://github.com/your-username/resumatch-ai',
+  gitee: 'https://gitee.com/your-username/resumatch-ai',
 }
 
-function viewDetail(taskId) {
-  router.push(`/result/${taskId}`)
-}
+const features = [
+  { icon: '🕷️', title: '实时岗位爬取', desc: '根据意向职位，实时抓取智联招聘最新岗位数据' },
+  { icon: '🎯', title: '混合匹配算法', desc: '关键词硬匹配 + 语义向量相似度 + 加权综合排序' },
+  { icon: '🤖', title: '多智能体诊断', desc: '5 个 Agent 协同：解析·评分·差距·改写·优化' },
+]
 
-function confirmDelete(taskId) {
-  Modal.warning({
-    title: '确认删除',
-    content: '删除后不可恢复，确定继续？',
-    hideCancel: false,
-    okText: '删除',
-    cancelText: '取消',
-    onOk: async () => {
-      try {
-        await api.deleteHistory(taskId)
-        Message.success('已删除')
-        loadHistory()
-      } catch (e) {
-        Message.error('删除失败：' + e.message)
-      }
-    },
-  })
-}
-
-function statusColor(status) {
-  return { success: 'green', failed: 'red', running: 'blue', pending: 'gray' }[status] || 'gray'
-}
-
-function statusText(status) {
-  return { success: '成功', failed: '失败', running: '进行中', pending: '排队' }[status] || status
-}
-
-function formatTime(iso) {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
-onMounted(loadHistory)
+const stats = [
+  { num: '5', label: '智能体协同分析' },
+  { num: '6', label: '简历评分维度' },
+  { num: '3', label: '简历导出模板' },
+]
 </script>

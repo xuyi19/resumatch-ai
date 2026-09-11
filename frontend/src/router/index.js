@@ -8,5 +8,6 @@ export default createRouter({
     { path: '/analyze', name: 'analyze', component: () => import('../views/AnalyzeView.vue') },
     { path: '/result/:taskId', name: 'result', component: () => import('../views/ResultView.vue') },
     { path: '/history', name: 'history', component: () => import('../views/HistoryView.vue') },
+    { path: '/changelog', name: 'changelog', component: () => import('../views/ChangelogView.vue') },
   ],
 })
