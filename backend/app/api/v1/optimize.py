@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
-from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.graph import clarifier_graph, optimize_graph
+from app.agents.graph import optimize_graph
 from app.core.db import get_db
 from app.models.entities import DiagnosisRecord, Resume
 
@@ -17,10 +16,9 @@ class LLMConfig(BaseModel):
     model: str | None = None
 
 
-class GenerateRequest(BaseModel):
+class OptimizeRequest(BaseModel):
     answers: dict = {}
     llm_config: LLMConfig | None = None
-    skip_clarify: bool = False
 
 
 async def _load_record(db: AsyncSession, task_id: str) -> DiagnosisRecord:
@@ -35,7 +33,7 @@ async def _load_record(db: AsyncSession, task_id: str) -> DiagnosisRecord:
     return record
 
 
-async def _build_state(db: AsyncSession, record: DiagnosisRecord) -> dict:
+async def _build_state(db: AsyncSession, record: DiagnosisRecord, llm_config) -> dict:
     data = record.result or {}
     diagnosis = data.get("diagnosis", {})
     target = data.get("diagnosis_target", {})
@@ -43,17 +41,23 @@ async def _build_state(db: AsyncSession, record: DiagnosisRecord) -> dict:
     resume = await db.get(Resume, record.resume_id) if record.resume_id else None
     resume_text = resume.raw_text if resume else _rebuild(diagnosis)
 
-    jd_text = f"""岗位：{target.get('title', '')}
-公司：{target.get('company', '')}
-城市：{target.get('city', '')}"""
+    # 优先用诊断阶段持久化的完整 JD；旧记录无此字段时回退到标题拼接
+    jd_text = data.get("jd_text") or (
+        f"岗位：{target.get('title', '')}\n"
+        f"公司：{target.get('company', '')}\n"
+        f"城市：{target.get('city', '')}"
+    )
 
     return {
         "resume_text": resume_text,
         "jd_text": jd_text,
         "parsed": diagnosis.get("parsed", {}),
+        "job_analysis": diagnosis.get("job_analysis", {}),
         "scores": diagnosis.get("scores", {}),
         "gaps": diagnosis.get("gaps", []),
         "suggestions": diagnosis.get("suggestions", []),
+        "user_answers": {},
+        "llm_config": llm_config or {},
         "messages": [],
     }
 
@@ -70,39 +74,22 @@ def _rebuild(diagnosis: dict) -> str:
     return "\n".join(lines)
 
 
-# ============ 1. 生成追问 ============
-@router.post("/{task_id}/questions")
-async def get_questions(
+def _qa_context(answers: dict) -> str:
+    if not answers:
+        return ""
+    return "\n\n".join(f"Q: {q}\nA: {a}" for q, a in answers.items())
+
+
+@router.post("/{task_id}")
+async def optimize_resume(
     task_id: str,
-    llm_config: LLMConfig | None = None,
+    req: OptimizeRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """生成 AI 追问列表"""
+    """基于诊断结果（可选携带用户补充回答）生成优化简历"""
     record = await _load_record(db, task_id)
-    state = await _build_state(db, record)
-    state["llm_config"] = llm_config.model_dump() if llm_config else {}
-
-    final = await clarifier_graph.ainvoke(state)
-    questions = final.get("clarify_questions", [])
-
-    if not questions:
-        raise HTTPException(status_code=500, detail=final.get("error") or "生成追问失败")
-
-    return {"questions": questions}
-
-
-# ============ 2. 提交答案 + 生成简历 ============
-@router.post("/{task_id}/generate")
-async def generate_resume(
-    task_id: str,
-    req: GenerateRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    """用户提交答案后生成优化简历"""
-    record = await _load_record(db, task_id)
-    state = await _build_state(db, record)
-    state["llm_config"] = req.llm_config.model_dump() if req.llm_config else {}
-    state["user_answers"] = req.answers
+    state = await _build_state(db, record, req.llm_config)
+    state["user_answers"] = {"qa_context": _qa_context(req.answers)}
 
     final = await optimize_graph.ainvoke(state)
     optimized = final.get("optimized_resume", {})
@@ -119,15 +106,3 @@ async def generate_resume(
     await db.commit()
 
     return {"optimized_resume": optimized}
-
-
-# ============ 3. 快速生成（不追问）============
-@router.post("/{task_id}")
-async def quick_optimize(
-    task_id: str,
-    llm_config: LLMConfig | None = None,
-    db: AsyncSession = Depends(get_db),
-):
-    """一键生成，不追问"""
-    req = GenerateRequest(answers={}, llm_config=llm_config, skip_clarify=True)
-    return await generate_resume(task_id, req, db)

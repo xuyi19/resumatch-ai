@@ -1,3 +1,6 @@
+from pathlib import Path
+
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -8,17 +11,38 @@ from sqlalchemy.pool import AsyncAdaptedQueuePool
 
 from app.core.config import settings
 
-# 创建异步引擎
-engine = create_async_engine(
-    settings.DB_URL,
-    echo=settings.DEBUG,              # 开发时打印 SQL，生产环境关掉
-    future=True,
-    poolclass=AsyncAdaptedQueuePool,  # 异步专用连接池
-    pool_size=10,                     # 池中常驻连接数
-    max_overflow=20,                  # 峰值时最多额外创建的连接数
-    pool_recycle=1800,                # 30分钟回收，避免 MySQL 空闲断连
-    pool_pre_ping=True,               # 取连接前先 ping，自动重连
-)
+
+def _make_engine():
+    """SQLite（aiosqlite）单文件库：桌面版免安装，开发与分发同一套。
+
+    每个会话独立连接（QueuePool）+ WAL：请求会话与后台任务会话可并发读写，
+    StaticPool 的共享单连接会在并发 commit 时互相 reset 游标。
+    """
+    url = settings.DB_URL
+    db_path = url.split("///", 1)[1]
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    engine = create_async_engine(
+        url,
+        echo=settings.DEBUG,
+        future=True,
+        poolclass=AsyncAdaptedQueuePool,
+        connect_args={"check_same_thread": False, "timeout": 30},
+    )
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _sqlite_pragma(dbapi_connection, connection_record):
+        # WAL 允许多读单写并发；busy_timeout 缓解写锁竞争
+        cursor = dbapi_connection.cursor()
+        try:
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA busy_timeout=5000")
+        finally:
+            cursor.close()
+
+    return engine
+
+
+engine = _make_engine()
 
 # 异步 session 工厂
 AsyncSessionLocal = async_sessionmaker(

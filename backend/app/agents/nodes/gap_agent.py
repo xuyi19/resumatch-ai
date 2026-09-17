@@ -27,6 +27,9 @@ PROMPT = """你是资深技术面试官。下面是候选人简历和一份目�
 目标岗位 JD：
 {jd_text}
 
+JD 结构化要求：
+{job_analysis}
+
 简历解析：
 {parsed}
 
@@ -44,6 +47,7 @@ async def run(state: DiagnosisState) -> dict:
             PROMPT.format(
                 resume_text=state["resume_text"],
                 jd_text=state.get("jd_text", "（未提供）"),
+                job_analysis=state.get("job_analysis") or "（未提供）",
                 parsed=state.get("parsed", {}),
                 scores=state.get("scores", {}),
             ),
@@ -52,7 +56,7 @@ async def run(state: DiagnosisState) -> dict:
             llm_config=state.get("llm_config"),
         )
         gaps = [g.model_dump() for g in result.gaps]
-        gaps.append({"summary": result.summary})
+        gap_summary = result.summary
     except Exception as e:
         return {
             "error": f"差距分析失败: {e}",
@@ -61,5 +65,6 @@ async def run(state: DiagnosisState) -> dict:
 
     return {
         "gaps": gaps,
-        "messages": [{"role": "gap", "content": f"发现 {len(gaps) - 1} 条差距"}],
+        "gap_summary": gap_summary,
+        "messages": [{"role": "gap", "content": f"发现 {len(gaps)} 条差距"}],
     }

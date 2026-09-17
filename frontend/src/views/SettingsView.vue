@@ -8,7 +8,14 @@
 
     <div class="space-y-6">
 
-      <!-- 状态卡片 -->
+      <!-- 服务端预置提示（零配置分发） -->
+    <div v-if="serverManaged"
+      class="p-4 rounded-2xl text-sm bg-green-50 border border-green-200 text-green-700 leading-relaxed">
+      ✅ 本程序已由分发者预置 API Key，<strong>无需填写即可直接使用</strong>。
+      如需更换为自有 Key，可在下方填写并保存。
+    </div>
+
+    <!-- 状态卡片 -->
       <div class="bg-[#e0e5ec] rounded-2xl p-6
         shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
         <div class="flex items-center justify-between">
@@ -188,6 +195,16 @@ const form = reactive({ api_key: '', base_url: '', model: '' })
 const showKey = ref(false)
 const testing = ref(false)
 const testResult = ref(null)
+const serverManaged = ref(false)
+
+async function checkServerDefault() {
+  try {
+    const res = await api.llmDefault()
+    serverManaged.value = !!res.data?.server_key_configured
+  } catch (e) {
+    serverManaged.value = false
+  }
+}
 
 const presets = [
   { name: 'DeepSeek', base_url: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
@@ -259,5 +276,8 @@ async function testConnection() {
   }
 }
 
-onMounted(loadConfig)
+onMounted(() => {
+  loadConfig()
+  checkServerDefault()
+})
 </script>

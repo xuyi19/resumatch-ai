@@ -32,6 +32,9 @@ PROMPT = """你是一位简历优化专家。基于下面的简历、目标 JD�
 目标 JD：
 {jd_text}
 
+JD 结构化要求：
+{job_analysis}
+
 评分：
 {scores}
 
@@ -49,6 +52,7 @@ async def run(state: DiagnosisState) -> dict:
             PROMPT.format(
                 resume_text=state["resume_text"],
                 jd_text=state.get("jd_text", "（未提供）"),
+                job_analysis=state.get("job_analysis") or "（未提供）",
                 scores=state.get("scores", {}),
                 gaps=state.get("gaps", []),
             ),
@@ -57,7 +61,7 @@ async def run(state: DiagnosisState) -> dict:
             llm_config=state.get("llm_config"),
         )
         suggestions = [s.model_dump() for s in result.suggestions]
-        suggestions.append({"overall_advice": result.overall_advice})
+        overall_advice = result.overall_advice
     except Exception as e:
         return {
             "error": f"改写建议失败: {e}",
@@ -66,5 +70,6 @@ async def run(state: DiagnosisState) -> dict:
 
     return {
         "suggestions": suggestions,
-        "messages": [{"role": "rewriter", "content": f"生成 {len(suggestions) - 1} 条建议"}],
+        "overall_advice": overall_advice,
+        "messages": [{"role": "rewriter", "content": f"生成 {len(suggestions)} 条建议"}],
     }

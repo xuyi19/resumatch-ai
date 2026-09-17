@@ -3,19 +3,20 @@
 
     <!-- 进度页（带实时日志） -->
     <div v-if="status === 'running' || status === 'pending'"
-      class="max-w-3xl mx-auto py-12">
+         class="max-w-3xl mx-auto py-12">
 
       <div class="text-center mb-10">
         <div class="inline-block relative mb-6">
           <div class="w-16 h-16 rounded-2xl bg-[#e0e5ec]
             shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]"></div>
-          <div class="absolute inset-0 w-16 h-16 rounded-2xl border-4 border-transparent border-t-[#6d5dfc] animate-spin"></div>
+          <div
+              class="absolute inset-0 w-16 h-16 rounded-2xl border-4 border-transparent border-t-[#6d5dfc] animate-spin"></div>
         </div>
         <div class="text-xl font-semibold text-gray-800 mb-1">
           {{ message || '正在初始化...' }}
         </div>
         <div class="text-xs text-gray-500 mt-2">
-          实时爬取 + 多智能体诊断约需 90 秒
+          多智能体诊断约需 60 秒
         </div>
       </div>
 
@@ -28,7 +29,7 @@
         <div class="h-3 rounded-full bg-[#e0e5ec]
           shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff] overflow-hidden">
           <div class="h-full bg-[#6d5dfc] rounded-full transition-all duration-300"
-            :style="{ width: progress + '%' }" />
+               :style="{ width: progress + '%' }"/>
         </div>
       </div>
 
@@ -36,16 +37,16 @@
         shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
         <div class="space-y-3">
           <div v-for="(s, i) in stages" :key="i"
-            class="flex items-center gap-3 transition-all duration-300">
+               class="flex items-center gap-3 transition-all duration-300">
             <div class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs font-semibold"
-              :class="stageStatusClass(s.key)">
+                 :class="stageStatusClass(s.key)">
               <span v-if="isStageDone(s.key)">✓</span>
               <span v-else-if="isStageActive(s.key)"
-                class="inline-block w-3 h-3 rounded-full border-2 border-transparent border-t-current animate-spin"></span>
+                    class="inline-block w-3 h-3 rounded-full border-2 border-transparent border-t-current animate-spin"></span>
               <span v-else>{{ i + 1 }}</span>
             </div>
             <span class="text-sm font-medium transition-colors duration-300"
-              :class="isStageDone(s.key) ? 'text-gray-400 line-through' :
+                  :class="isStageDone(s.key) ? 'text-gray-400 line-through' :
                       isStageActive(s.key) ? 'text-[#6d5dfc]' :
                       'text-gray-500'">
               {{ s.label }}
@@ -63,7 +64,7 @@
         </div>
         <div ref="logRef" class="space-y-2 max-h-64 overflow-y-auto pr-2">
           <div v-for="(log, i) in logs" :key="i"
-            class="flex items-start gap-3 text-xs animate-fade-in">
+               class="flex items-start gap-3 text-xs animate-fade-in">
             <span class="text-gray-400 font-mono shrink-0">{{ log.time }}</span>
             <span class="text-gray-700 flex-1 leading-relaxed">{{ log.message }}</span>
           </div>
@@ -90,10 +91,10 @@
         <div class="inline-flex gap-2 p-1.5 rounded-2xl bg-[#e0e5ec]
           shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]">
           <button v-for="tab in tabs" :key="tab.key"
-            @click="activeTab = tab.key"
-            class="px-5 py-2.5 text-sm font-medium rounded-xl
+                  @click="activeTab = tab.key"
+                  class="px-5 py-2.5 text-sm font-medium rounded-xl
               transition-all duration-300 ease-in-out"
-            :class="activeTab === tab.key
+                  :class="activeTab === tab.key
               ? 'bg-[#e0e5ec] text-[#6d5dfc] shadow-[3px_3px_6px_#b8bcc2,-3px_-3px_6px_#ffffff]'
               : 'text-gray-600 hover:text-gray-800'">
             {{ tab.icon }} {{ tab.label }}
@@ -116,7 +117,7 @@
               <div class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">技能标签</div>
               <div class="flex flex-wrap gap-2">
                 <span v-for="s in result.diagnosis?.parsed?.skills || []" :key="s"
-                  class="px-3 py-1.5 rounded-xl text-xs font-medium
+                      class="px-3 py-1.5 rounded-xl text-xs font-medium
                     bg-[#e0e5ec] text-[#6d5dfc]
                     shadow-[3px_3px_6px_#b8bcc2,-3px_-3px_6px_#ffffff]">
                   {{ s }}
@@ -130,7 +131,7 @@
           <div class="lg:col-span-2 bg-[#e0e5ec] rounded-2xl p-6
             shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
             <h2 class="text-base font-semibold text-gray-800 mb-4">六维评分</h2>
-            <div ref="chartRef" style="width:100%; height:360px" />
+            <div ref="chartRef" style="width:100%; height:360px"/>
           </div>
 
           <div class="bg-[#e0e5ec] rounded-2xl p-6
@@ -140,36 +141,13 @@
           </div>
         </div>
 
-        <div class="bg-[#e0e5ec] rounded-2xl p-6
-          shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
-          <div class="flex items-center justify-between mb-4">
-            <h2 class="text-base font-semibold text-gray-800">推荐岗位</h2>
-            <span class="text-xs text-gray-500">Top {{ (result.top_jobs || []).length }}</span>
-          </div>
-          <div class="space-y-2">
-            <div v-for="(job, i) in result.top_jobs" :key="i"
-              class="flex items-center gap-4 py-3 px-4 rounded-xl
-                transition-all duration-300 ease-in-out
-                hover:shadow-[inset_2px_2px_4px_#b8bcc2,inset_-2px_-2px_4px_#ffffff]">
-              <div class="w-9 h-9 rounded-xl bg-[#e0e5ec] text-gray-600 text-xs font-semibold flex items-center justify-center shrink-0
-                shadow-[3px_3px_6px_#b8bcc2,-3px_-3px_6px_#ffffff]">
-                {{ i + 1 }}
-              </div>
-              <div class="flex-1 min-w-0">
-                <div class="text-sm font-medium text-gray-800 truncate">{{ job.title }}</div>
-                <div class="text-xs text-gray-500 truncate mt-0.5">{{ job.company }} · {{ job.city }}</div>
-              </div>
-              <div class="text-base font-semibold text-[#6d5dfc] shrink-0">{{ job.score }}</div>
-            </div>
-          </div>
-        </div>
-
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="bg-[#e0e5ec] rounded-2xl p-6
             shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
             <div class="flex items-center gap-3 mb-4">
               <div class="w-8 h-8 rounded-xl bg-[#e0e5ec] flex items-center justify-center text-green-600
-                shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]">✓</div>
+                shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]">✓
+              </div>
               <h2 class="text-base font-semibold text-gray-800">主要优势</h2>
             </div>
             <ul class="space-y-3 text-sm text-gray-700">
@@ -185,19 +163,23 @@
             shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
             <div class="flex items-center gap-3 mb-4">
               <div class="w-8 h-8 rounded-xl bg-[#e0e5ec] flex items-center justify-center text-amber-600
-                shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]">△</div>
+                shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]">△
+              </div>
               <h2 class="text-base font-semibold text-gray-800">待提升项</h2>
             </div>
             <ul class="space-y-3 text-sm text-gray-700">
               <li v-for="(g, i) in gaps" :key="i" class="flex gap-3 items-start">
                 <span :class="severityColor(g.severity)" class="shrink-0 mt-0.5">△</span>
                 <span>
-                  <span :class="severityColor(g.severity)" class="text-xs font-semibold">[{{ g.severity || '-' }}]</span>
+                  <span :class="severityColor(g.severity)" class="text-xs font-semibold">[{{
+                      g.severity || '-'
+                    }}]</span>
                   {{ g.description }}
                 </span>
               </li>
               <li v-if="!gaps.length" class="text-gray-400 text-sm">暂无差距分析</li>
             </ul>
+            <p v-if="gapSummary" class="mt-3 text-sm text-amber-700 leading-relaxed">{{ gapSummary }}</p>
           </div>
         </div>
 
@@ -206,7 +188,7 @@
           <h2 class="text-base font-semibold text-gray-800 mb-4">改写建议</h2>
           <div class="space-y-4">
             <div v-for="(s, i) in suggestions" :key="i"
-              class="p-5 rounded-xl bg-[#e0e5ec]
+                 class="p-5 rounded-xl bg-[#e0e5ec]
                 shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]">
               <div class="text-xs text-gray-500 mb-2">{{ s.target }}</div>
               <div class="text-sm text-gray-400 line-through mb-2">{{ s.original || '（新增内容）' }}</div>
@@ -225,8 +207,8 @@
       <!-- ============ Tab 2: 优化简历 ============ -->
       <div v-show="activeTab === 'optimize'">
 
-        <div v-if="!optimizedResume && !optimizing && !clarifying"
-          class="bg-[#e0e5ec] rounded-2xl p-12
+        <div v-if="!optimizedResume && !optimizing"
+             class="bg-[#e0e5ec] rounded-2xl p-12
             shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
           <div class="text-center mb-10">
             <div class="inline-flex items-center justify-center w-20 h-20 rounded-3xl mb-6
@@ -239,15 +221,15 @@
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-            <button @click="startClarify" :disabled="clarifying"
-              class="p-6 rounded-2xl text-left
-                bg-[#e0e5ec]
-                shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]
-                hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-                active:shadow-[inset_4px_4px_8px_#b8bcc2,inset_-4px_-4px_8px_#ffffff]
-                transition-all duration-300">
+            <button @click="$router.push(`/chat/${taskId}`)"
+                    class="p-6 rounded-2xl text-left
+    bg-[#e0e5ec]
+    shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]
+    hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
+    active:shadow-[inset_4px_4px_8px_#b8bcc2,inset_-4px_-4px_8px_#ffffff]
+    transition-all duration-300">
               <div class="text-2xl mb-3">💬</div>
-              <div class="font-semibold text-[#6d5dfc] mb-2">对话优化</div>
+              <div class="font-semibold text-[#6d5dfc] mb-2">对答式优化</div>
               <div class="text-xs text-gray-600 leading-relaxed">
                 AI 追问 3-5 个关键信息，你补充后生成更精准的简历
               </div>
@@ -255,7 +237,7 @@
             </button>
 
             <button @click="quickGenerate" :disabled="optimizing"
-              class="p-6 rounded-2xl text-left
+                    class="p-6 rounded-2xl text-left
                 bg-[#e0e5ec]
                 shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]
                 hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
@@ -271,18 +253,19 @@
           </div>
         </div>
 
-        <div v-else-if="optimizing || clarifying"
-          class="bg-[#e0e5ec] rounded-2xl p-16 text-center
+        <div v-else-if="optimizing"
+             class="bg-[#e0e5ec] rounded-2xl p-16 text-center
             shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
           <div class="inline-block relative mb-8">
             <div class="w-16 h-16 rounded-2xl bg-[#e0e5ec]
               shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]"></div>
-            <div class="absolute inset-0 w-16 h-16 rounded-2xl border-4 border-transparent border-t-[#6d5dfc] animate-spin"></div>
+            <div
+                class="absolute inset-0 w-16 h-16 rounded-2xl border-4 border-transparent border-t-[#6d5dfc] animate-spin"></div>
           </div>
           <div class="text-base font-semibold text-gray-800 mb-2">
-            {{ clarifying ? 'AI 正在分析...' : 'AI 正在重写简历...' }}
+            {{ 'AI 正在重写简历...' }}
           </div>
-          <div class="text-sm text-gray-500">{{ clarifying ? '约 20 秒' : '约 30 秒，请稍候' }}</div>
+          <div class="text-sm text-gray-500">{{ '约 30 秒，请稍候' }}</div>
         </div>
 
         <div v-else-if="optimizedResume" class="space-y-6">
@@ -292,23 +275,31 @@
               <p class="text-xs text-gray-500 mt-1">点击编辑可自定义内容，再导出</p>
             </div>
             <div class="flex gap-2">
+              <RouterLink :to="`/chat/${taskId}`"
+                          class="flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl
+    bg-[#6d5dfc] text-white
+    shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
+    hover:shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]
+    transition-all duration-300">
+                💬 对答式优化
+              </RouterLink>
               <RouterLink :to="`/editor/${taskId}`"
-                class="flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl
-                  bg-[#e0e5ec] text-gray-700
-                  shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-                  hover:shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]
-                  transition-all duration-300">
-                ✏️ 编辑简历
+                          class="flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl
+    bg-[#e0e5ec] text-gray-700
+    shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
+    hover:shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]
+    transition-all duration-300">
+                ✏️ 编辑
               </RouterLink>
               <button @click="downloadDocx" :disabled="downloading"
-                class="flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl
+                      class="flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl
                   bg-[#6d5dfc] text-white
                   shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
                   hover:shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]
                   disabled:opacity-50">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                 </svg>
                 <span>{{ downloading ? '生成中...' : '下载 Word' }}</span>
               </button>
@@ -320,9 +311,9 @@
             <div class="text-xs font-medium text-gray-500 mb-3">选择模板</div>
             <div class="flex gap-2 flex-wrap">
               <button v-for="t in templates" :key="t.key"
-                @click="currentTemplate = t.key"
-                class="px-5 py-2.5 text-sm font-medium rounded-xl transition-all duration-300"
-                :class="currentTemplate === t.key
+                      @click="currentTemplate = t.key"
+                      class="px-5 py-2.5 text-sm font-medium rounded-xl transition-all duration-300"
+                      :class="currentTemplate === t.key
                   ? 'bg-[#e0e5ec] text-[#6d5dfc] shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]'
                   : 'bg-[#e0e5ec] text-gray-600 shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]'">
                 {{ t.label }}
@@ -332,7 +323,7 @@
 
           <div class="rounded-xl bg-[#d1d5db] p-4 md:p-6 overflow-auto">
             <div class="mx-auto bg-white shadow-lg"
-              style="max-width: 720px; min-height: 500px; padding: 40px 44px;">
+                 style="max-width: 720px; min-height: 500px; padding: 40px 44px;">
               <div :class="`resume-paper ${currentTemplate}`">
                 <div class="r-name">{{ optimizedResume.name || '个人简历' }}</div>
                 <div v-if="optimizedResume.contact" class="r-contact">{{ optimizedResume.contact }}</div>
@@ -364,7 +355,7 @@
 
       <!-- ============ Tab 3: 面试准备 ============ -->
       <div v-show="activeTab === 'interview'"
-        class="bg-[#e0e5ec] rounded-2xl p-16 text-center
+           class="bg-[#e0e5ec] rounded-2xl p-16 text-center
           shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
         <div class="inline-flex items-center justify-center w-24 h-24 rounded-3xl mb-6
           bg-[#e0e5ec]
@@ -374,14 +365,14 @@
         <div class="text-lg font-semibold text-gray-800 mb-2">面试准备</div>
         <p class="text-sm text-gray-600 max-w-md mx-auto">
           基于简历与目标岗位，AI 生成面试官可能的问题、考察点与回答提示。
-          <br />
+          <br/>
           <span class="text-xs text-[#6d5dfc]">即将上线</span>
         </p>
       </div>
 
       <!-- ============ Tab 4: 模拟面试 ============ -->
       <div v-show="activeTab === 'mock'"
-        class="bg-[#e0e5ec] rounded-2xl p-16 text-center
+           class="bg-[#e0e5ec] rounded-2xl p-16 text-center
           shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
         <div class="inline-flex items-center justify-center w-24 h-24 rounded-3xl mb-6
           bg-[#e0e5ec]
@@ -391,7 +382,7 @@
         <div class="text-lg font-semibold text-gray-800 mb-2">模拟面试</div>
         <p class="text-sm text-gray-600 max-w-md mx-auto">
           与 AI 面试官实时对话，模拟真实面试场景。
-          <br />
+          <br/>
           <span class="text-xs text-[#6d5dfc]">即将上线</span>
         </p>
       </div>
@@ -400,12 +391,12 @@
 
     <!-- 失败 -->
     <div v-else-if="status === 'failed'"
-      class="max-w-2xl mx-auto bg-[#e0e5ec] rounded-2xl p-12 text-center mt-12
+         class="max-w-2xl mx-auto bg-[#e0e5ec] rounded-2xl p-12 text-center mt-12
         shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
       <div class="text-5xl mb-4">⚠️</div>
       <div class="text-base text-gray-700 mb-6">{{ errorMsg }}</div>
       <RouterLink to="/analyze"
-        class="inline-block px-6 py-3 text-sm font-medium rounded-xl
+                  class="inline-block px-6 py-3 text-sm font-medium rounded-xl
           bg-[#6d5dfc] text-white
           shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]
           hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
@@ -414,24 +405,15 @@
       </RouterLink>
     </div>
 
-    <ClarifyModal
-      v-if="clarifyOpen"
-      :questions="clarifyQuestions"
-      :generating="optimizing"
-      @close="clarifyOpen = false"
-      @submit="submitAnswers"
-    />
-
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import { useRoute, RouterLink } from 'vue-router'
-import { Message } from '@arco-design/web-vue'
+import {ref, computed, onMounted, onUnmounted, nextTick, watch} from 'vue'
+import {useRoute, RouterLink} from 'vue-router'
+import {Message} from '@arco-design/web-vue'
 import * as echarts from 'echarts'
 import api from '../api'
-import ClarifyModal from '../components/ClarifyModal.vue'
 
 const route = useRoute()
 const taskId = route.params.taskId
@@ -447,9 +429,6 @@ const activeTab = ref('diagnosis')
 const currentTemplate = ref('classic')
 const downloading = ref(false)
 const optimizing = ref(false)
-const clarifying = ref(false)
-const clarifyOpen = ref(false)
-const clarifyQuestions = ref([])
 const optimizedResumeLocal = ref(null)
 
 const logs = ref([])
@@ -457,14 +436,15 @@ const logRef = ref(null)
 const runningStage = ref('准备中')
 
 const stages = [
-  { key: '爬取岗位', label: '爬取岗位' },
-  { key: '入库', label: '去重入库' },
-  { key: '匹配', label: '语义匹配' },
-  { key: '诊断', label: '多智能体诊断' },
-  { key: '完成', label: '生成报告' },
+  {key: '解析简历', label: '解析简历'},
+  {key: '解析岗位', label: '解析岗位'},
+  {key: '六维评分', label: '六维评分'},
+  {key: '差距分析', label: '差距分析'},
+  {key: '改写建议', label: '改写建议'},
+  {key: '生成报告', label: '生成报告'},
 ]
 
-const stageOrder = ['准备中', '爬取岗位', '入库', '匹配', '诊断', '完成']
+const stageOrder = ['准备中', '解析简历', '解析岗位', '六维评分', '差距分析', '改写建议', '生成报告', '完成']
 
 const currentStage = computed(() => runningStage.value || '准备中')
 
@@ -494,24 +474,24 @@ watch(logs, () => {
       logRef.value.scrollTop = logRef.value.scrollHeight
     }
   })
-}, { deep: true })
+}, {deep: true})
 
 const tabs = [
-  { key: 'diagnosis', label: '诊断报告', icon: '📊' },
-  { key: 'optimize', label: '优化简历', icon: '📝' },
-  { key: 'interview', label: '面试准备', icon: '🎤' },
-  { key: 'mock', label: '模拟面试', icon: '🎬' },
+  {key: 'diagnosis', label: '诊断报告', icon: '📊'},
+  {key: 'optimize', label: '优化简历', icon: '📝'},
+  {key: 'interview', label: '面试准备', icon: '🎤'},
+  {key: 'mock', label: '模拟面试', icon: '🎬'},
 ]
 
 const templates = [
-  { key: 'classic', label: '经典' },
-  { key: 'modern', label: '现代' },
-  { key: 'minimal', label: '简约' },
-  { key: 'business', label: '商务' },
-  { key: 'academic', label: '学术' },
-  { key: 'creative', label: '创意' },
-  { key: 'twocol', label: '两栏' },
-  { key: 'compact', label: '紧凑' },
+  {key: 'classic', label: '经典'},
+  {key: 'modern', label: '现代'},
+  {key: 'minimal', label: '简约'},
+  {key: 'business', label: '商务'},
+  {key: 'academic', label: '学术'},
+  {key: 'creative', label: '创意'},
+  {key: 'twocol', label: '两栏'},
+  {key: 'compact', label: '紧凑'},
 ]
 
 let pollTimer = null
@@ -520,7 +500,7 @@ let chart = null
 const scores = computed(() => result.value.diagnosis?.scores || {})
 
 const optimizedResume = computed(() =>
-  optimizedResumeLocal.value || result.value.diagnosis?.optimized_resume || null
+    optimizedResumeLocal.value || result.value.diagnosis?.optimized_resume || null
 )
 
 const overallComment = computed(() => {
@@ -544,12 +524,10 @@ const strengths = computed(() => {
   return list
 })
 
-const gaps = computed(() => (result.value.diagnosis?.gaps || []).filter(g => !g.summary))
-const suggestions = computed(() => (result.value.diagnosis?.suggestions || []).filter(s => !s.overall_advice))
-const overallAdvice = computed(() => {
-  const arr = result.value.diagnosis?.suggestions || []
-  return arr.find(s => s.overall_advice)?.overall_advice || ''
-})
+const gaps = computed(() => result.value.diagnosis?.gaps || [])
+const gapSummary = computed(() => result.value.diagnosis?.gap_summary || '')
+const suggestions = computed(() => result.value.diagnosis?.suggestions || [])
+const overallAdvice = computed(() => result.value.diagnosis?.overall_advice || '')
 
 function severityColor(sev) {
   if (sev === 'high') return 'text-red-500'
@@ -602,45 +580,14 @@ async function poll() {
   }
 }
 
-async function startClarify() {
-  clarifying.value = true
-  try {
-    let cfg = {}
-    try { cfg = JSON.parse(localStorage.getItem('llm_config') || '{}') } catch (e) {}
-    const res = await api.getClarifyQuestions(taskId, cfg.api_key ? cfg : null)
-    clarifyQuestions.value = res.data.questions || []
-    clarifyOpen.value = true
-    Message.success(`AI 已生成 ${clarifyQuestions.value.length} 个追问`)
-  } catch (e) {
-    console.error(e)
-    Message.error('生成追问失败：' + (e.response?.data?.detail || e.message))
-  } finally {
-    clarifying.value = false
-  }
-}
-
-async function submitAnswers(answers) {
-  optimizing.value = true
-  try {
-    let cfg = {}
-    try { cfg = JSON.parse(localStorage.getItem('llm_config') || '{}') } catch (e) {}
-    const res = await api.generateOptimizedResume(taskId, answers, cfg.api_key ? cfg : null)
-    optimizedResumeLocal.value = res.data.optimized_resume
-    clarifyOpen.value = false
-    Message.success('优化完成')
-  } catch (e) {
-    console.error(e)
-    Message.error('优化失败：' + (e.response?.data?.detail || e.message))
-  } finally {
-    optimizing.value = false
-  }
-}
-
 async function quickGenerate() {
   optimizing.value = true
   try {
     let cfg = {}
-    try { cfg = JSON.parse(localStorage.getItem('llm_config') || '{}') } catch (e) {}
+    try {
+      cfg = JSON.parse(localStorage.getItem('llm_config') || '{}')
+    } catch (e) {
+    }
     const res = await api.quickOptimize(taskId, cfg.api_key ? cfg : null)
     optimizedResumeLocal.value = res.data.optimized_resume
     Message.success('优化完成')
@@ -684,31 +631,31 @@ function renderChart() {
   chart = echarts.init(chartRef.value)
   const s = scores.value
   const dims = [
-    { key: 'completeness', name: '信息完整' },
-    { key: 'quantification', name: '量化成果' },
-    { key: 'star_structure', name: 'STAR 结构' },
-    { key: 'skill_match', name: '技能含金量' },
-    { key: 'achievement', name: '业绩亮点' },
-    { key: 'readability', name: '可读性' },
+    {key: 'completeness', name: '信息完整'},
+    {key: 'quantification', name: '量化成果'},
+    {key: 'star_structure', name: 'STAR 结构'},
+    {key: 'skill_match', name: '技能含金量'},
+    {key: 'achievement', name: '业绩亮点'},
+    {key: 'readability', name: '可读性'},
   ]
   const values = dims.map(d => s[d.key]?.score || 0)
 
   chart.setOption({
     radar: {
-      indicator: dims.map(d => ({ name: d.name, max: 100 })),
+      indicator: dims.map(d => ({name: d.name, max: 100})),
       splitNumber: 5,
-      axisName: { color: '#6b7280', fontSize: 12, fontWeight: 500 },
-      splitLine: { lineStyle: { color: '#b8bcc2' } },
-      splitArea: { areaStyle: { color: ['#e0e5ec', '#e8ecf2'] } },
-      axisLine: { lineStyle: { color: '#b8bcc2' } },
+      axisName: {color: '#6b7280', fontSize: 12, fontWeight: 500},
+      splitLine: {lineStyle: {color: '#b8bcc2'}},
+      splitArea: {areaStyle: {color: ['#e0e5ec', '#e8ecf2']}},
+      axisLine: {lineStyle: {color: '#b8bcc2'}},
     },
     series: [{
       type: 'radar',
       data: [{
         value: values,
-        areaStyle: { color: 'rgba(109, 93, 252, 0.2)' },
-        lineStyle: { color: '#6d5dfc', width: 2 },
-        itemStyle: { color: '#6d5dfc' },
+        areaStyle: {color: 'rgba(109, 93, 252, 0.2)'},
+        lineStyle: {color: '#6d5dfc', width: 2},
+        itemStyle: {color: '#6d5dfc'},
       }],
     }],
   })
@@ -728,10 +675,19 @@ onUnmounted(() => {
 
 <style scoped>
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
-.animate-fade-in { animation: fadeInUp 0.3s ease-out; }
+
+.animate-fade-in {
+  animation: fadeInUp 0.3s ease-out;
+}
 
 .resume-paper {
   font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -739,106 +695,243 @@ onUnmounted(() => {
   line-height: 1.7;
   font-size: 13px;
 }
-.resume-paper .r-section { margin-top: 18px; }
-.resume-paper .r-line { margin: 3px 0; }
+
+.resume-paper .r-section {
+  margin-top: 18px;
+}
+
+.resume-paper .r-line {
+  margin: 3px 0;
+}
 
 .resume-paper.classic .r-name {
-  text-align: center; font-size: 26px; font-weight: 700;
-  color: #1f2937; margin-bottom: 6px;
+  text-align: center;
+  font-size: 26px;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 6px;
 }
+
 .resume-paper.classic .r-contact {
-  text-align: center; font-size: 12px; color: #9ca3af; margin-bottom: 24px;
+  text-align: center;
+  font-size: 12px;
+  color: #9ca3af;
+  margin-bottom: 24px;
 }
+
 .resume-paper.classic .r-section-title {
-  font-size: 14px; font-weight: 600; color: #0d9488;
-  padding-bottom: 4px; border-bottom: 1px solid #e5e7eb; margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0d9488;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 8px;
 }
 
 .resume-paper.modern .r-name {
-  font-size: 28px; font-weight: 700; color: #0f172a;
-  padding-bottom: 8px; border-bottom: 3px solid #14b8a6; margin-bottom: 6px;
+  font-size: 28px;
+  font-weight: 700;
+  color: #0f172a;
+  padding-bottom: 8px;
+  border-bottom: 3px solid #14b8a6;
+  margin-bottom: 6px;
 }
-.resume-paper.modern .r-contact { font-size: 12px; color: #9ca3af; margin-bottom: 24px; }
+
+.resume-paper.modern .r-contact {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-bottom: 24px;
+}
+
 .resume-paper.modern .r-section-title {
-  font-size: 14px; font-weight: 700; color: #0f172a;
-  display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
 }
+
 .resume-paper.modern .r-section-title::before {
-  content: ''; width: 4px; height: 15px; background: #14b8a6; border-radius: 2px;
+  content: '';
+  width: 4px;
+  height: 15px;
+  background: #14b8a6;
+  border-radius: 2px;
 }
-.resume-paper.modern .r-section .r-line { padding-left: 12px; }
+
+.resume-paper.modern .r-section .r-line {
+  padding-left: 12px;
+}
 
 .resume-paper.minimal .r-name {
-  text-align: center; font-size: 24px; font-weight: 700;
-  color: #000; letter-spacing: 6px; margin-bottom: 6px;
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+  color: #000;
+  letter-spacing: 6px;
+  margin-bottom: 6px;
 }
+
 .resume-paper.minimal .r-contact {
-  text-align: center; font-size: 11px; color: #999; margin-bottom: 28px;
+  text-align: center;
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 28px;
 }
+
 .resume-paper.minimal .r-section-title {
-  font-size: 11px; font-weight: 600; color: #666;
-  letter-spacing: 3px; text-transform: uppercase; margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #666;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
 }
 
 .resume-paper.business .r-name {
-  font-size: 26px; font-weight: 700; color: #0C294E;
-  padding-bottom: 8px; border-bottom: 2px solid #1E40AF; margin-bottom: 6px;
-}
-.resume-paper.business .r-contact { font-size: 12px; color: #666; margin-bottom: 24px; }
-.resume-paper.business .r-section-title {
-  font-size: 12px; font-weight: 700; color: #1E40AF;
-  letter-spacing: 2px; text-transform: uppercase;
-  padding-bottom: 4px; border-bottom: 1px solid #1E40AF; margin-bottom: 8px;
+  font-size: 26px;
+  font-weight: 700;
+  color: #0C294E;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #1E40AF;
+  margin-bottom: 6px;
 }
 
-.resume-paper.academic { font-family: Georgia, 'Times New Roman', 'Songti SC', serif; }
+.resume-paper.business .r-contact {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 24px;
+}
+
+.resume-paper.business .r-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1E40AF;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #1E40AF;
+  margin-bottom: 8px;
+}
+
+.resume-paper.academic {
+  font-family: Georgia, 'Times New Roman', 'Songti SC', serif;
+}
+
 .resume-paper.academic .r-name {
-  text-align: center; font-size: 22px; font-weight: 700;
-  color: #000; margin-bottom: 6px;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  color: #000;
+  margin-bottom: 6px;
   font-family: Georgia, 'Times New Roman', serif;
 }
+
 .resume-paper.academic .r-contact {
-  text-align: center; font-size: 12px; color: #666; margin-bottom: 24px;
+  text-align: center;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 24px;
 }
+
 .resume-paper.academic .r-section-title {
-  font-size: 14px; font-weight: 700; color: #444; margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #444;
+  margin-bottom: 8px;
   font-family: Georgia, 'Times New Roman', serif;
-  border-bottom: 1px solid #999; padding-bottom: 3px;
+  border-bottom: 1px solid #999;
+  padding-bottom: 3px;
 }
 
 .resume-paper.creative .r-name {
-  font-size: 30px; font-weight: 700; color: #7C2D12; margin-bottom: 6px;
+  font-size: 30px;
+  font-weight: 700;
+  color: #7C2D12;
+  margin-bottom: 6px;
 }
-.resume-paper.creative .r-contact { font-size: 12px; color: #888; margin-bottom: 24px; }
+
+.resume-paper.creative .r-contact {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 24px;
+}
+
 .resume-paper.creative .r-section-title {
-  font-size: 15px; font-weight: 700; color: #C2410C;
-  display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #C2410C;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
 }
+
 .resume-paper.creative .r-section-title::before {
-  content: '●'; color: #C2410C; font-size: 10px;
+  content: '●';
+  color: #C2410C;
+  font-size: 10px;
 }
-.resume-paper.creative .r-section .r-line { padding-left: 16px; }
+
+.resume-paper.creative .r-section .r-line {
+  padding-left: 16px;
+}
 
 .resume-paper.twocol .r-name {
-  font-size: 24px; font-weight: 700; color: #1F2937;
-  padding-bottom: 4px; border-bottom: 1px solid #E5E7EB; margin-bottom: 6px;
-}
-.resume-paper.twocol .r-contact { font-size: 12px; color: #888; margin-bottom: 20px; }
-.resume-paper.twocol .r-section-title {
-  font-size: 14px; font-weight: 700; color: #0D9488; margin-bottom: 6px;
+  font-size: 24px;
+  font-weight: 700;
+  color: #1F2937;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #E5E7EB;
+  margin-bottom: 6px;
 }
 
-.resume-paper.compact { font-size: 12px; }
+.resume-paper.twocol .r-contact {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 20px;
+}
+
+.resume-paper.twocol .r-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0D9488;
+  margin-bottom: 6px;
+}
+
+.resume-paper.compact {
+  font-size: 12px;
+}
+
 .resume-paper.compact .r-name {
-  text-align: center; font-size: 20px; font-weight: 700;
-  color: #000; margin-bottom: 4px;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 700;
+  color: #000;
+  margin-bottom: 4px;
 }
+
 .resume-paper.compact .r-contact {
-  text-align: center; font-size: 11px; color: #888; margin-bottom: 18px;
+  text-align: center;
+  font-size: 11px;
+  color: #888;
+  margin-bottom: 18px;
 }
-.resume-paper.compact .r-section { margin-top: 12px; }
+
+.resume-paper.compact .r-section {
+  margin-top: 12px;
+}
+
 .resume-paper.compact .r-section-title {
-  font-size: 12px; font-weight: 700; color: #000; margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #000;
+  margin-bottom: 6px;
 }
-.resume-paper.compact .r-line { margin: 2px 0; }
+
+.resume-paper.compact .r-line {
+  margin: 2px 0;
+}
 </style>

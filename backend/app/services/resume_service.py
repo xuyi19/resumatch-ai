@@ -1,3 +1,5 @@
+import asyncio
+
 from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,12 +16,12 @@ class ResumeService:
         """上传简历 → 解析文本 → 入库"""
         logger.info(f"收到简历上传: {filename}，{len(content)} 字节")
 
-        raw_text = parse_bytes(content, filename)
+        # PDF/DOCX 解析是 CPU 密集同步操作，放线程池避免阻塞事件循环
+        raw_text = await asyncio.to_thread(parse_bytes, content, filename)
 
         resume = Resume(
             filename=filename,
             raw_text=raw_text,
-            parsed={},  # 结构化解析留给多智能体诊断阶段做
         )
         self.db.add(resume)
         await self.db.commit()

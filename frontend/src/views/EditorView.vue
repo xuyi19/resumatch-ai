@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen bg-[#e0e5ec]">
 
-    <!-- 屏幕上显示的界面 -->
+    <!-- 屏幕界面 -->
     <div class="editor-screen">
 
       <!-- 顶部工具条 -->
@@ -207,7 +207,7 @@
 
   </div>
 
-  <!-- ★ 打印专用区域：Teleport 到 body，只打印这一块 -->
+  <!-- 打印专用区域 -->
   <Teleport to="body">
     <div class="print-root">
       <ResumePreview :data="data" :template="currentTemplate" />
@@ -226,6 +226,7 @@ const route = useRoute()
 const taskId = route.params.taskId
 
 const STORAGE_KEY = `resume_edit_${taskId}`
+const SESSION_KEY = `resume_optimized_${taskId}`
 
 const currentTemplate = ref('blue')
 const downloading = ref(false)
@@ -256,17 +257,115 @@ watch(() => data.value.certificates, (v) => {
   if (joined !== certText.value) certText.value = joined
 })
 
+/**
+ * ★ 智能解析教育/工作/项目字符串行
+ * 输入示例：
+ *   "2017.09-2021.06 河海大学 新闻传播学 硕士"
+ *   "2021.07 - 2024.07 某互联网公司 后端开发工程师"
+ * 输出：结构化的对象
+ */
+function parseLine(line, type) {
+  if (!line) return null
+  // 匹配时间格式
+  const timePatterns = [
+    /(\d{4}[.\-/]\d{1,2}\s*[-—~]\s*\d{4}[.\-/]\d{1,2})/,
+    /(\d{4}\s*[-—~]\s*\d{4})/,
+    /(\d{4}[.\-/]\d{1,2}\s*[-—~]\s*(?:至今|现在|今))/,
+  ]
+  let time = ''
+  for (const p of timePatterns) {
+    const m = line.match(p)
+    if (m) { time = m[0].trim(); break }
+  }
+
+  let rest = time ? line.replace(time, '').trim() : line
+  rest = rest.replace(/^[\s,，、\-—~]+/, '').trim()
+
+  const parts = rest.split(/\s+/).filter(Boolean)
+
+  if (type === 'education') {
+    return {
+      school: parts[0] || '',
+      major: parts[1] || '',
+      degree: parts[2] || '',
+      time,
+      courses: '',
+    }
+  }
+  if (type === 'experience') {
+    return {
+      company: parts[0] || '',
+      position: parts.slice(1).join(' ') || '',
+      time,
+      desc: '',
+    }
+  }
+  if (type === 'projects') {
+    return {
+      name: parts[0] || '',
+      role: parts.slice(1).join(' ') || '',
+      time,
+      desc: '',
+    }
+  }
+  return null
+}
+
+/**
+ * 兼容后端返回的多种格式：
+ * A. ["2017.09-2021.06 XX大学 计算机 本科"]
+ * B. [{school: "...", major: "..."}]
+ * C. ["2017.09-2021.06 XX大学 计算机 本科\n- 主修课程：xxx"]
+ */
+function normalizeArray(arr, type) {
+  if (!Array.isArray(arr)) return []
+  const result = []
+  for (const item of arr) {
+    if (typeof item === 'object' && item !== null) {
+      // 已经是对象
+      result.push({
+        school: item.school || '',
+        company: item.company || '',
+        name: item.name || '',
+        major: item.major || '',
+        position: item.position || '',
+        role: item.role || '',
+        degree: item.degree || '',
+        time: item.time || '',
+        courses: item.courses || '',
+        desc: item.desc || '',
+      })
+    } else if (typeof item === 'string') {
+      // 字符串 → 解析
+      const lines = item.split('\n').filter(l => l.trim())
+      const firstLine = lines[0] || ''
+      const descLines = lines.slice(1).map(l => l.replace(/^[-•·]\s*/, '').trim())
+      const parsed = parseLine(firstLine, type)
+      if (parsed) {
+        parsed.desc = descLines.join('\n') || parsed.desc || ''
+        parsed.courses = parsed.courses || ''
+        result.push(parsed)
+      }
+    }
+  }
+  return result
+}
+
 async function loadData() {
-  // 1. localStorage 优先
+  console.log('[Editor] 开始加载数据, taskId =', taskId)
+
+  // ========== 第 1 层：localStorage（用户编辑过的）==========
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
     if (saved) {
       const parsed = JSON.parse(saved)
-      // 只有非空数据才用 localStorage
-      if (parsed.name || parsed.phone || parsed.education?.length || parsed.experience?.length) {
+      const hasData = parsed.name || parsed.phone || parsed.summary ||
+                      parsed.education?.length || parsed.experience?.length ||
+                      parsed.projects?.length || parsed.skills?.length
+      if (hasData) {
         Object.assign(data.value, parsed)
         certText.value = (data.value.certificates || []).join('\n')
-        console.log('[Editor] 从 localStorage 加载成功', data.value)
+        console.log('[Editor] 从 localStorage 恢复', data.value)
         return
       }
     }
@@ -274,55 +373,75 @@ async function loadData() {
     console.warn('[Editor] localStorage 加载失败', e)
   }
 
-  // 2. 从后端拉
+  // ========== 第 2 层：sessionStorage（刚从 ChatView 生成过来）==========
+  let opt = null
   try {
-    const res = await api.getHistoryDetail(taskId)
-    console.log('[Editor] 后端返回数据', res.data)
-
-    const opt = res.data?.result?.diagnosis?.optimized_resume
-    if (!opt) {
-      console.warn('[Editor] 没有找到 optimized_resume，可能需要先生成优化简历')
-      Message.warning('尚未生成优化简历，请先返回报告页生成')
-      return
-    }
-
-    console.log('[Editor] 优化简历数据', opt)
-
-    data.value.name = opt.name || ''
-    data.value.job_intention = opt.job_intention || ''
-    data.value.phone = opt.contact || ''
-    data.value.email = ''
-    data.value.wechat = ''
-    data.value.location = ''
-    data.value.summary = opt.summary || ''
-
-    if (Array.isArray(opt.education)) {
-      data.value.education = opt.education.map(line => ({
-        school: typeof line === 'string' ? line : (line.school || ''),
-        major: '', degree: '', time: '', courses: '',
-      }))
-    }
-    if (Array.isArray(opt.experience)) {
-      data.value.experience = opt.experience.map(line => ({
-        company: typeof line === 'string' ? line : (line.company || ''),
-        position: '', time: '', desc: '',
-      }))
-    }
-    if (Array.isArray(opt.projects)) {
-      data.value.projects = opt.projects.map(line => ({
-        name: typeof line === 'string' ? line : (line.name || ''),
-        role: '', time: '', desc: '',
-      }))
-    }
-    if (Array.isArray(opt.skills)) {
-      data.value.skills = [...opt.skills]
+    const cached = sessionStorage.getItem(SESSION_KEY)
+    if (cached) {
+      opt = JSON.parse(cached)
+      console.log('[Editor] 从 sessionStorage 拿到数据', opt)
     }
   } catch (e) {
-    console.error('[Editor] 加载失败', e)
-    Message.error('加载简历数据失败：' + (e.response?.data?.detail || e.message))
+    console.warn('[Editor] sessionStorage 加载失败', e)
   }
+
+  // ========== 第 3 层：后端 /chat/history（对话生成的结果）==========
+  if (!opt) {
+    try {
+      const res = await api.getChatHistory(taskId)
+      console.log('[Editor] /chat/history 返回', res.data)
+      if (res.data?.exists && res.data.optimized_resume) {
+        opt = res.data.optimized_resume
+        console.log('[Editor] 从 /chat/history 拿到数据')
+      }
+    } catch (e) {
+      console.warn('[Editor] /chat/history 加载失败', e)
+    }
+  }
+
+  // ========== 第 4 层：后端 /history（一键优化的兜底）==========
+  if (!opt) {
+    try {
+      const res = await api.getHistoryDetail(taskId)
+      const fallback = res.data?.result?.diagnosis?.optimized_resume
+      if (fallback) {
+        opt = fallback
+        console.log('[Editor] 从 /history 拿到数据')
+      }
+    } catch (e) {
+      console.warn('[Editor] /history 加载失败', e)
+    }
+  }
+
+  // ========== 数据都拿不到 ==========
+  if (!opt) {
+    console.warn('[Editor] 所有数据源都没有 optimized_resume')
+    Message.warning('尚未生成优化简历，请先返回报告页生成')
+    return
+  }
+
+  // ========== 应用到 data ==========
+  data.value.name = opt.name || ''
+  data.value.job_intention = opt.job_intention || ''
+  data.value.phone = opt.contact || opt.phone || ''
+  data.value.email = opt.email || ''
+  data.value.wechat = opt.wechat || ''
+  data.value.location = opt.location || ''
+  data.value.summary = opt.summary || ''
+
+  // 智能映射：兼容字符串数组和对象数组
+  data.value.education = normalizeArray(opt.education, 'education')
+  data.value.experience = normalizeArray(opt.experience, 'experience')
+  data.value.projects = normalizeArray(opt.projects, 'projects')
+  data.value.skills = Array.isArray(opt.skills) ? [...opt.skills] : []
+  data.value.certificates = Array.isArray(opt.certificates) ? [...opt.certificates] : []
+
+  certText.value = data.value.certificates.join('\n')
+
+  console.log('[Editor] 数据映射完成', data.value)
 }
 
+// 防抖自动保存
 let saveTimer = null
 watch(data, () => {
   clearTimeout(saveTimer)
@@ -348,10 +467,7 @@ function addSkill() {
 }
 
 function downloadPdf() {
-  // 给 Vue 一点时间确保 Teleport 渲染好
-  setTimeout(() => {
-    window.print()
-  }, 150)
+  setTimeout(() => window.print(), 150)
 }
 
 async function downloadWord() {
@@ -402,46 +518,32 @@ async function downloadWord() {
 onMounted(loadData)
 </script>
 
-<!-- ★ 全局样式（不加 scoped），用于打印 -->
+<!-- 打印样式（全局） -->
 <style>
-/* 平时：打印区域完全隐藏，不占空间 */
 .print-root {
   display: none;
 }
 
 @media print {
-  @page {
-    size: A4;
-    margin: 0;
-  }
+  @page { size: A4; margin: 0; }
 
-  /* 打印时：把 body 里所有直接子元素隐藏 */
-  body > * {
-    display: none !important;
-  }
+  body > * { display: none !important; }
+  body > .print-root { display: block !important; position: static !important; width: 100% !important; }
 
-  /* 只显示 print-root（Teleport 到 body 的那个） */
-  body > .print-root {
-    display: block !important;
-    position: static !important;
-    width: 100% !important;
-  }
-
-  /* 打印时背景纯白 */
   html, body {
     background: #ffffff !important;
     margin: 0 !important;
     padding: 0 !important;
   }
 
-  /* 打印时去掉阴影、圆角 */
   .print-root,
   .print-root * {
     box-shadow: none !important;
     border-radius: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
-  /* 简历纸张铺满 A4 */
   .print-root .blue-page {
     width: 210mm !important;
     min-height: 297mm !important;
@@ -449,17 +551,9 @@ onMounted(loadData)
     padding: 15mm 15mm !important;
   }
 
-  /* 章节避免跨页断开 */
   .print-root .blue-section,
   .print-root .blue-item {
     page-break-inside: avoid;
-  }
-
-  /* 保留颜色 */
-  .print-root,
-  .print-root * {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
   }
 }
 </style>

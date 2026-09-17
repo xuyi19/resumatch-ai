@@ -3,6 +3,8 @@ import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
   plugins: [vue()],
+  // 桌面版与后端同域挂载，用相对 base + hash 路由，无需 SPA 回退
+  base: './',
   server: {
     host: '0.0.0.0',
     port: 5173,

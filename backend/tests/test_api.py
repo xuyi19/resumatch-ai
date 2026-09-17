@@ -45,16 +45,13 @@ async def test_upload_invalid_file():
 
 
 @pytest.mark.asyncio
-async def test_match_recommend():
-    """测试纯匹配接口（不用 LLM，快）"""
+async def test_live_analyze_validation():
+    """JD 文本过短应返回 400"""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        r = await client.post("/api/v1/match/recommend", json={
-            "resume_text": "学历：本科 工作年限：3年 技能：Python, FastAPI, MySQL",
-            "top_k": 5,
-            "use_semantic": False,   # 关掉语义，加快测试
+        r = await client.post("/api/v1/live/analyze", json={
+            "resume_id": 999999,
+            "jd_input_type": "text",
+            "jd_text": "太短",
         })
-        assert r.status_code == 200
-        data = r.json()
-        assert data["count"] <= 5
-        assert isinstance(data["results"], list)
+        assert r.status_code == 400

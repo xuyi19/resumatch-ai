@@ -6,7 +6,6 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
-from app.services.diagnosis_service import DiagnosisService
 from app.services.resume_service import ResumeService
 from app.utils.docx_generator import generate_resume_docx
 
@@ -19,14 +18,9 @@ class ResumeOut(BaseModel):
     text_length: int
 
 
-class DiagnoseRequest(BaseModel):
-    resume_text: str
-    jd_text: str = ""
-
-
 class ExportDocxRequest(BaseModel):
     optimized_resume: dict
-    template: str = "classic"        # ★ 新增
+    template: str = "classic"
 @router.post("/upload", response_model=ResumeOut)
 async def upload_resume(
     file: UploadFile = File(...),
@@ -65,12 +59,6 @@ async def get_resume(resume_id: int, db: AsyncSession = Depends(get_db)):
         filename=resume.filename,
         text_length=len(resume.raw_text),
     )
-
-
-@router.post("/diagnose")
-async def diagnose(req: DiagnoseRequest):
-    service = DiagnosisService()
-    return await service.diagnose(req.resume_text, req.jd_text)
 
 
 @router.post("/export-docx")

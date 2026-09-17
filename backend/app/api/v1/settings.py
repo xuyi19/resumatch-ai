@@ -3,6 +3,7 @@ from loguru import logger
 from pydantic import BaseModel
 
 from app.agents.llm import get_llm
+from app.core.config import settings
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -11,6 +12,16 @@ class TestLLMRequest(BaseModel):
     api_key: str
     base_url: str
     model: str
+
+
+@router.get("/llm-default")
+async def llm_default():
+    """返回服务端是否已通过 config.json 预置 Key（零配置分发用）。"""
+    return {
+        "server_key_configured": bool(settings.LLM_API_KEY),
+        "base_url": settings.LLM_BASE_URL,
+        "model": settings.LLM_MODEL,
+    }
 
 
 @router.post("/test-llm")

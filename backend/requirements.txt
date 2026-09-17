@@ -1,6 +1,6 @@
 # ==========================================================
 # ResuMatch AI · 后端依赖
-# 生成自实际运行环境（Python 3.11 + conda env: resumatch-ai）
+# Python 3.11+ · 数据库为内置 SQLite（无需另装数据库服务）
 # 安装：pip install -r requirements.txt
 # ==========================================================
 
@@ -8,11 +8,10 @@
 fastapi==0.141.1
 uvicorn==0.52.4
 python-multipart==0.0.32        # 文件上传（UploadFile）必需
-sse-starlette==3.4.11           # SSE 实时进度推送
 
-# ---------- 数据库（MySQL 异步） ----------
+# ---------- 数据库（SQLite 异步，零配置） ----------
 sqlalchemy==2.0.52
-asyncmy==0.2.14                 # MySQL 异步驱动，需配合 MySQL 8.0+
+aiosqlite==0.21.0
 
 # ---------- 配置与数据校验 ----------
 pydantic==2.13.5
@@ -22,23 +21,15 @@ pydantic-settings==2.15.0
 langgraph==1.2.11               # 诊断工作流编排
 langchain-openai==1.6.2         # OpenAI 协议兼容（DeepSeek / 通义 / 智谱等）
 
-# ---------- 语义匹配 ----------
-sentence-transformers==6.0.1
-# 注意：torch 默认会拉 CUDA 版本（数 GB）。仅需 CPU 推理时请先单独执行：
-#   pip install torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu
-torch==2.14.0
-numpy==2.2.6
+# ---------- JD 链接抓取（可选；抓取失败可改用「粘贴 JD 文本」） ----------
+playwright==1.62.0              # 安装后还需执行：playwright install chromium
 
 # ---------- 简历文件解析 ----------
 pymupdf==1.28.2                 # PDF 文本提取
 python-docx==1.2.0              # DOCX 读取与生成
 
-# ---------- 岗位爬取 ----------
-playwright==1.62.0              # 安装后还需执行：playwright install chromium
-
 # ---------- 工具 / 日志 ----------
 loguru==0.7.3
-tenacity==9.1.4                 # 爬虫重试
 httpx==0.28.1
 
 # ---------- 测试（可选） ----------

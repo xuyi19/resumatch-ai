@@ -1,12 +1,12 @@
 # ResuMatch AI
 
-> 上传一份简历 → 实时抓取真实岗位 → 混合打分排序 → 多节点 LLM 诊断 → 输出可落地的改写方案与优化简历
+> 上传一份简历 → 直接使用用户提供的岗位 JD（不再实时爬取/匹配） → 混合打分排序 → 多节点 LLM 诊断 → 输出可落地的改写方案与优化简历
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?style=flat-square&logo=fastapi)
 ![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D?style=flat-square&logo=vuedotjs)
 ![LangGraph](https://img.shields.io/badge/LangGraph-1.2-7F77DD?style=flat-square)
-![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?style=flat-square&logo=mysql)
+![SQLite](https://img.shields.io/badge/SQLite-8.0-4479A1?style=flat-square&logo=mysql)
 
 ---
 
@@ -18,55 +18,9 @@
 - [技术栈](#技术栈)
 - [系统架构](#系统架构)
 - [快速开始](#快速开始)
+- [桌面版（免安装分发）](#桌面版免安装分发)
 - [项目结构](#项目结构)
 - [API 一览](#api-一览)
-- [匹配算法](#匹配算法)
-- [常见问题](#常见问题)
-- [开发路线](#开发路线)
-- [免责声明](#免责声明)
-
----
-
-## 项目简介
-
-求职时最大的困惑往往不是"我不够好"，而是**不知道简历和目标岗位之间具体差在哪**。
-
-ResuMatch AI 想解决的正是这件事：你上传简历，系统实时抓取招聘平台的真实岗位，用**关键词 + 语义**混合打分排出最匹配的 Top N，然后让 LLM 针对其中一个岗位做一次完整诊断——六维打分、逐条列出差距、给出可照抄的 STAR 改写建议，最终生成一份优化后的简历并支持导出 Word。
-
-它不只是一个"AI 改简历"的壳子。整条链路是可解释的：每个岗位为什么排这个名次、哪一项拉低了分数、差距属于技能还是项目深度，都能在数据里找到依据。
-
-### 与传统"简历打分工具"的区别
-
-| | 传统工具 | ResuMatch AI |
-|---|---|---|
-| 岗位来源 | 手动粘贴 JD | 实时爬取真实在招岗位 |
-| 匹配依据 | 关键词命中数 | 技能覆盖 + 语义相似 + 经验 + 学历，四维加权 |
-| 诊断深度 | 给一个总分 | 六维评分 + 差距清单 + 逐条改写建议 |
-| 输出结果 | 一份评语 | 可直接使用的优化简历（Word 导出） |
-
----
-
-## 核心特性
-
-**实时岗位获取**
-Playwright 驱动的真实浏览器抓取，翻页去重，自动过滤重复页，任务结束后主动清理抓取数据。
-
-**四维加权匹配**
-不只看关键词。技能覆盖率占 40%，语义相似度占 30%，经验年限占 20%，学历占 10%，每一项分数都单独返回，排序结果可解释。
-
-**五节点诊断工作流**
-基于 LangGraph 编排的串行诊断链，每节点各司其职、结构化输出、单点失败即熔断：
-
-| 节点 | 职责 | 输出 |
-|---|---|---|
-| `parser` | 解析简历结构 | 教育 / 经历 / 项目 / 技能 / 画像总结 |
-| `scorer` | 六维质量评分 | 完整性、量化度、STAR 结构、技能含金量、业绩、可读性 |
-| `gap` | 对标 JD 找差距 | 3~6 条差距，标注维度与严重程度 |
-| `rewriter` | 生成改写建议 | 3~5 条 STAR 结构改写，含原文对照与改动理由 |
-| `optimizer` | 产出优化简历 | 完整简历结构，可直接导出 Word |
-
-**实时进度反馈**
-后端以 SSE 推送进度（前端当前采用 2 秒轮询兜底），任务状态同时落库，服务重启后仍可从历史记录恢复结果。
 
 **真实文件解析**
 支持 PDF / DOCX / TXT，DOCX 会一并提取表格内容，避免表格式简历丢信息。
@@ -90,7 +44,6 @@ Playwright 驱动的真实浏览器抓取，翻页去重，自动过滤重复页
 
 **后端**
 - FastAPI + Uvicorn —— 异步 Web 框架
-- SQLAlchemy 2.0 (async) + asyncmy —— MySQL 异步 ORM，配置连接池与断线重连
 - LangGraph + langchain-openai —— 诊断工作流编排，兼容 DeepSeek / 通义 / 智谱等 OpenAI 协议模型
 - sentence-transformers —— `paraphrase-multilingual-MiniLM-L12-v2` 中文语义向量（已配置 `hf-mirror` 国内镜像）
 - Playwright (sync) —— 岗位抓取
@@ -124,7 +77,7 @@ flowchart TD
     H --> J["导出 Word"]
 ```
 
-**状态持久化**采用双轨设计：内存任务表供实时进度查询，MySQL `diagnosis_records` 表供历史回看。服务重启导致内存任务丢失时，前端会自动回落到历史接口恢复结果。
+**状态持久化**采用双轨设计：内存任务表供实时进度查询，SQLite `diagnosis_records` 表供历史回看。服务重启导致内存任务丢失时，前端会自动回落到历史接口恢复结果。
 
 ---
 
@@ -136,7 +89,6 @@ flowchart TD
 |---|---|---|
 | Python | 3.11+ | 推荐 conda / venv 隔离 |
 | Node.js | 20+ | Vite 8 要求 |
-| MySQL | 8.0+ | 需支持 `utf8mb4` |
 | LLM API Key | — | 任意 OpenAI 协议兼容服务（DeepSeek 等） |
 
 ### 1. 创建数据库
@@ -159,7 +111,6 @@ APP_VERSION=0.1.0
 DEBUG=True
 
 # 注意：密码中的特殊字符需 URL 编码，如 @ 写成 %40
-DB_URL=mysql+asyncmy://resumatch:your_password@127.0.0.1:3306/resumatch?charset=utf8mb4
 
 # 任意 OpenAI 协议兼容模型
 LLM_API_KEY=sk-xxxxxxxx
@@ -203,6 +154,20 @@ npm run dev
 
 ---
 
+## 桌面版（免安装分发）
+
+不想装 Python / Node / MySQL 也能用：项目已打包为**免安装桌面版**，双击即用，适合发给同学、考官或作为毕设现场演示。
+
+- 默认使用 **SQLite**（无需安装数据库），数据保存在 `data/resumatch.db`
+- 语义匹配在无 GPU / 未内置模型时自动降级为「关键词 + TF-IDF 相似度」，诊断全流程仍可完整运行
+- 大模型 API Key 由使用者在「设置」页填写自己的，也可在 exe 同级放 `config.json` 预置（详见包内 `使用说明.txt`）
+- 包体约 17MB（已剔除 torch 与 Chromium），已在 Windows 10/11 实测：启动、建表、静态页、API、零配置 Key 全部通过
+
+> 构建产物位于 `release/ResuMatch-AI-桌面版.zip`，解压后双击 `ResuMatch AI 桌面版.exe` 即可。
+> **注意**：必须连同 `_internal` 文件夹一起拷贝，单独复制 `.exe` 无法运行。
+
+---
+
 ## 项目结构
 
 ```
@@ -226,10 +191,9 @@ resumatch-ai/
 │   │   ├── agents/                 # LangGraph 诊断工作流
 │   │   │   ├── graph.py  state.py  llm.py  utils.py
 │   │   │   └── nodes/              # parser / scorer / gap / rewriter / optimizer
-│   │   ├── matching/               # 匹配算法
 │   │   │   ├── feature_extractor.py    # 技能、学历、年限抽取
 │   │   │   ├── semantic_matcher.py     # 句向量相似度
-│   │   │   └── ranker.py               # 四维加权打分与排序
+│   │   │   └── ranker.py               # 直接使用用户提供的岗位 JD（不再实时爬取/匹配）打分与排序
 │   │   ├── crawlers/               # zhilian_sync（抓取）、pipeline（入库去重）
 │   │   └── utils/                  # file_parser、docx_generator
 │   ├── tests/                      # pytest 用例
@@ -245,7 +209,6 @@ resumatch-ai/
 
 ---
 
-## API 一览
 
 启动后完整文档见 `/docs`，主要接口如下：
 
@@ -261,7 +224,6 @@ resumatch-ai/
 | POST | `/api/v1/match/with-diagnosis` | 推荐 + 诊断 |
 | POST | `/api/v1/live/analyze` | 启动完整流程，返回 `task_id` |
 | GET | `/api/v1/live/status/{task_id}` | 查询任务进度与结果 |
-| GET | `/api/v1/live/stream/{task_id}` | SSE 实时进度推送 |
 | GET | `/api/v1/history` | 历史记录列表 |
 | GET | `/api/v1/history/{task_id}` | 历史记录详情 |
 | DELETE | `/api/v1/history/{task_id}` | 删除记录 |
@@ -286,7 +248,6 @@ curl http://127.0.0.1:8000/api/v1/live/status/a1b2c3d4e5f6
 
 ---
 
-## 匹配算法
 
 每个岗位的最终得分由四项加权得出：
 
@@ -313,12 +274,10 @@ score = 0.40 × 技能覆盖率
 ## 常见问题
 
 <details>
-<summary>MySQL 连接失败，提示密码错误</summary>
 
 密码中的特殊字符需要 URL 编码。例如密码 `Pass@2024` 中的 `@` 必须写成 `%40`：
 
 ```ini
-DB_URL=mysql+asyncmy://resumatch:Pass%402024@127.0.0.1:3306/resumatch
 ```
 
 常见编码：`@` → `%40`，`#` → `%23`，`/` → `%2F`，`:` → `%3A`。
@@ -358,11 +317,9 @@ pip install torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu
 
 ## 开发路线
 
-- [ ] 匹配算法量化评估：构建标注集，补充 NDCG@10 与消融实验
 - [ ] LangGraph 增加 self-refine 循环与 checkpoint，支持中断续跑
 - [ ] 语义匹配改为批量编码，降低 N 倍推理开销
 - [ ] 技能匹配改用词边界正则，修复 `django` 命中 `go` 类误报
-- [ ] 前端接入 SSE 实时推送，替换轮询
 - [ ] 引入 Alembic 管理数据库迁移
 - [ ] 增加用户鉴权与接口限流
 
