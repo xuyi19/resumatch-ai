@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.graph import optimize_graph
 from app.core.db import get_db
+from app.core.deps import get_owner_id
 from app.models.entities import DiagnosisRecord, Resume
 
 router = APIRouter(prefix="/optimize", tags=["optimize"])
@@ -21,9 +22,12 @@ class OptimizeRequest(BaseModel):
     llm_config: LLMConfig | None = None
 
 
-async def _load_record(db: AsyncSession, task_id: str) -> DiagnosisRecord:
+async def _load_record(db: AsyncSession, task_id: str, owner_id: str) -> DiagnosisRecord:
     result = await db.execute(
-        select(DiagnosisRecord).where(DiagnosisRecord.task_id == task_id)
+        select(DiagnosisRecord).where(
+            DiagnosisRecord.task_id == task_id,
+            DiagnosisRecord.owner_id == owner_id,
+        )
     )
     record = result.scalar_one_or_none()
     if not record:
@@ -85,9 +89,10 @@ async def optimize_resume(
     task_id: str,
     req: OptimizeRequest,
     db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
 ):
     """基于诊断结果（可选携带用户补充回答）生成优化简历"""
-    record = await _load_record(db, task_id)
+    record = await _load_record(db, task_id, owner_id)
     state = await _build_state(db, record, req.llm_config)
     state["user_answers"] = {"qa_context": _qa_context(req.answers)}
 

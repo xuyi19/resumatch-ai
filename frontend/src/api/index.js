@@ -45,6 +45,19 @@ export default {
     responseType: 'blob',
   }),
 
+  // 简历模板目录（导出 Word 用的多套版式）
+  listTemplates: () => api.get('/resumes/templates'),
+
+  // 证件照（嵌入导出的 Word）
+  uploadPhoto: (file) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post('/resumes/photo', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  deletePhoto: (photoId) => api.delete(`/resumes/photo/${photoId}`),
+
   // 测试 LLM
   testLLM: (config) => api.post('/settings/test-llm', config),
   // 服务端是否已预置 Key（零配置分发）

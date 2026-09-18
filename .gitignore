@@ -26,6 +26,10 @@ data/*.db
 data/*.sqlite
 data/*.sqlite3
 *.db-journal
+*.db-shm
+*.db-wal
+backend/data/
+data/photos/
 
 # ========== Node ==========
 node_modules/
@@ -54,3 +58,8 @@ Thumbs.db
 # ========== 运行时 ==========
 backend/data/tmp/
 *.pid
+
+# ========== 打包产物 ==========
+release/
+build/
+*.spec.bak

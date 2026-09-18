@@ -54,7 +54,6 @@
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-3 mb-1">
                 <span class="font-semibold text-gray-800">{{ r.keyword }}</span>
-                <span class="text-xs text-gray-400">{{ r.city }}</span>
               </div>
               <div class="text-xs text-gray-500 truncate">
                 {{ r.resume_name || '未命名简历' }} · {{ formatTime(r.created_at) }}

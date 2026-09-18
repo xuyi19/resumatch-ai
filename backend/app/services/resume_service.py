@@ -12,7 +12,7 @@ class ResumeService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def upload_and_parse(self, filename: str, content: bytes) -> Resume:
+    async def upload_and_parse(self, filename: str, content: bytes, owner_id: str = "local") -> Resume:
         """上传简历 → 解析文本 → 入库"""
         logger.info(f"收到简历上传: {filename}，{len(content)} 字节")
 
@@ -22,6 +22,7 @@ class ResumeService:
         resume = Resume(
             filename=filename,
             raw_text=raw_text,
+            owner_id=owner_id,
         )
         self.db.add(resume)
         await self.db.commit()
@@ -30,14 +31,17 @@ class ResumeService:
         logger.info(f"简历已入库，id={resume.id}")
         return resume
 
-    async def get_by_id(self, resume_id: int) -> Resume | None:
+    async def get_by_id(self, resume_id: int, owner_id: str = "local") -> Resume | None:
         result = await self.db.execute(
-            select(Resume).where(Resume.id == resume_id)
+            select(Resume).where(Resume.id == resume_id, Resume.owner_id == owner_id)
         )
         return result.scalar_one_or_none()
 
-    async def list_recent(self, limit: int = 20) -> list[Resume]:
+    async def list_recent(self, limit: int = 20, owner_id: str = "local") -> list[Resume]:
         result = await self.db.execute(
-            select(Resume).order_by(Resume.id.desc()).limit(limit)
+            select(Resume)
+            .where(Resume.owner_id == owner_id)
+            .order_by(Resume.id.desc())
+            .limit(limit)
         )
         return list(result.scalars().all())

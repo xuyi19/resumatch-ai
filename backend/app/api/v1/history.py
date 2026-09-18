@@ -3,6 +3,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
+from app.core.deps import get_owner_id
 from app.models.entities import DiagnosisRecord
 
 router = APIRouter(prefix="/history", tags=["history"])
@@ -13,10 +14,12 @@ async def list_records(
     limit: int = 20,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
 ):
-    """分页查询诊断历史（摘要，不含 result）"""
+    """分页查询诊断历史（摘要，不含 result；按会话隔离）"""
     stmt = (
         select(DiagnosisRecord)
+        .where(DiagnosisRecord.owner_id == owner_id)
         .order_by(desc(DiagnosisRecord.id))
         .limit(limit)
         .offset(offset)
@@ -32,7 +35,6 @@ async def list_records(
                 "task_id": r.task_id,
                 "resume_name": r.resume_name,
                 "keyword": r.keyword,
-                "city": r.city,
                 "status": r.status,
                 "created_at": r.created_at.isoformat() if r.created_at else "",
             }
@@ -42,10 +44,17 @@ async def list_records(
 
 
 @router.get("/{task_id}")
-async def get_record(task_id: str, db: AsyncSession = Depends(get_db)):
+async def get_record(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
     """查询单条记录（含完整结果）"""
     result = await db.execute(
-        select(DiagnosisRecord).where(DiagnosisRecord.task_id == task_id)
+        select(DiagnosisRecord).where(
+            DiagnosisRecord.task_id == task_id,
+            DiagnosisRecord.owner_id == owner_id,
+        )
     )
     record = result.scalar_one_or_none()
     if not record:
@@ -54,7 +63,6 @@ async def get_record(task_id: str, db: AsyncSession = Depends(get_db)):
     return {
         "task_id": record.task_id,
         "keyword": record.keyword,
-        "city": record.city,
         "resume_name": record.resume_name,
         "status": record.status,
         "result": record.result,
@@ -64,10 +72,17 @@ async def get_record(task_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.delete("/{task_id}")
-async def delete_record(task_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_record(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
     """删除某条记录"""
     result = await db.execute(
-        select(DiagnosisRecord).where(DiagnosisRecord.task_id == task_id)
+        select(DiagnosisRecord).where(
+            DiagnosisRecord.task_id == task_id,
+            DiagnosisRecord.owner_id == owner_id,
+        )
     )
     record = result.scalar_one_or_none()
     if not record:

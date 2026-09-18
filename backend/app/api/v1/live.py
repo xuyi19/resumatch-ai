@@ -1,12 +1,16 @@
 import asyncio
-from typing import Literal
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 from pydantic import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.db import get_db
+from app.core.deps import get_owner_id
+from app.models.entities import DiagnosisRecord
 from app.services.live_pipeline_service import LivePipelineService
 from app.services.resume_service import ResumeService
 
@@ -24,68 +28,67 @@ class LLMConfig(BaseModel):
 
 class AnalyzeRequest(BaseModel):
     resume_id: int
-
-    # ★ JD 两种输入方式
-    jd_input_type: Literal["text", "url"] = "text"
-    jd_text: str | None = None       # 方式 A：粘贴文本
-    jd_url: str | None = None        # 方式 B：粘贴链接
-
-    city: str = "北京"
+    jd_text: str = ""
     llm_config: LLMConfig | None = None
     resume_name: str = ""
 
 
-async def _resolve_jd_text(req: AnalyzeRequest) -> str:
-    """根据用户选择的输入方式，解析出统一的 JD 文本"""
-    if req.jd_input_type == "text":
-        text = (req.jd_text or "").strip()
-        if len(text) < 20:
-            raise HTTPException(400, "JD 文本过短，请至少粘贴 20 个字")
-        return text
+async def _check_web_quota(db: AsyncSession, owner_id: str, llm_config: LLMConfig | None):
+    """web 态使用服务端 Key 时按每日配额限流（用户自带 Key 不限）"""
+    if settings.APP_MODE != "web":
+        return
+    uses_server_key = not (llm_config and llm_config.api_key)
+    if not uses_server_key or not settings.LLM_API_KEY:
+        return
 
-    if req.jd_input_type == "url":
-        url = (req.jd_url or "").strip()
-        if not url.startswith("http"):
-            raise HTTPException(400, "请提供合法的 JD 链接")
-        try:
-            # 惰性加载：桌面版未打包 Playwright/Chromium 时不影响其它入口
-            from app.crawlers.jd_fetcher import fetch_jd_from_url
-
-            text = await fetch_jd_from_url(url)
-            if len(text) < 20:
-                raise RuntimeError("抓取内容过短")
-            return text
-        except Exception as e:
-            logger.warning(f"JD 链接抓取失败: {e}")
-            raise HTTPException(
-                400,
-                f"链接抓取失败（{str(e)[:80]}）。建议改用「粘贴 JD 文本」方式",
-            )
-
-    raise HTTPException(400, f"不支持的输入方式: {req.jd_input_type}")
+    # SQLite 存 UTC naive 时间，按 UTC 日界统计
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    cnt_res = await db.execute(
+        select(func.count(DiagnosisRecord.id)).where(
+            DiagnosisRecord.owner_id == owner_id,
+            DiagnosisRecord.created_at >= today_start,
+        )
+    )
+    used = cnt_res.scalar() or 0
+    if used >= settings.WEB_DAILY_LIMIT:
+        raise HTTPException(
+            429,
+            f"今日免费诊断次数已用完（{settings.WEB_DAILY_LIMIT} 次/天），"
+            f"可在设置中填写自己的 API Key 继续使用",
+        )
 
 
 @router.post("/analyze")
-async def start_analyze(req: AnalyzeRequest, db: AsyncSession = Depends(get_db)):
-    """启动分析任务（支持两种 JD 输入方式）"""
-    jd_text = await _resolve_jd_text(req)
+async def start_analyze(
+    req: AnalyzeRequest,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """启动诊断任务（JD 由用户粘贴文本提供）"""
+    jd_text = (req.jd_text or "").strip()
+    if len(jd_text) < 20:
+        raise HTTPException(400, "JD 文本过短，请至少粘贴 20 个字")
+
+    await _check_web_quota(db, owner_id, req.llm_config)
 
     resume_service = ResumeService(db)
-    resume = await resume_service.get_by_id(req.resume_id)
+    resume = await resume_service.get_by_id(req.resume_id, owner_id)
     if not resume:
         raise HTTPException(404, "简历不存在")
 
     logger.info(f"JD 已解析，长度 {len(jd_text)} 字")
 
-    task_id = LivePipelineService.create_task()
+    task_id = LivePipelineService.create_task(
+        resume_id=resume.id,
+        resume_name=req.resume_name,
+        owner_id=owner_id,
+    )
     task = asyncio.create_task(
         LivePipelineService.run(
             task_id=task_id,
             resume_text=resume.raw_text,
             jd_text=jd_text,
-            city=req.city,
             llm_config=req.llm_config.model_dump() if req.llm_config else None,
-            resume_name=req.resume_name,
         )
     )
     _RUNNING_TASKS.add(task)

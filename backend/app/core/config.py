@@ -59,8 +59,20 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
 
+    # 运行形态：local=桌面/本机单用户；web=线上部署（cookie 会话隔离 + 配额）
+    APP_MODE: str = "local"
+
+    # web 态匿名会话（HttpOnly cookie）
+    SESSION_COOKIE: str = "rmsid"
+    SESSION_TTL_DAYS: int = 30
+    # web 态使用服务端 Key 时的每日诊断配额（用户自带 Key 不限）
+    WEB_DAILY_LIMIT: int = 10
+
     # SQLite 单文件库（data/resumatch.db）
     DB_URL: str = _default_db_url()
+
+    # 证件照存放目录
+    PHOTOS_DIR: str = str((BASE_DIR / "data" / "photos").resolve())
 
     LLM_API_KEY: str = ""
     LLM_BASE_URL: str = ""

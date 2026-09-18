@@ -28,7 +28,11 @@ def _cleanup_expired_tasks():
 class LivePipelineService:
 
     @staticmethod
-    def create_task() -> str:
+    def create_task(
+        resume_id: int | None = None,
+        resume_name: str = "",
+        owner_id: str = "local",
+    ) -> str:
         _cleanup_expired_tasks()
         task_id = uuid4().hex[:12]
         TASKS[task_id] = {
@@ -39,6 +43,9 @@ class LivePipelineService:
             "message": "",
             "logs": [],
             "created_at": datetime.now().isoformat(),
+            "resume_id": resume_id,
+            "resume_name": resume_name,
+            "owner_id": owner_id,
             "result": None,
             "error": None,
         }
@@ -81,7 +88,7 @@ class LivePipelineService:
         task_id: str,
         resume_text: str,
         jd_text: str,
-        city: str = "北京",
+        city: str = "",
         llm_config: dict | None = None,
         resume_name: str = "",
     ):
@@ -89,13 +96,19 @@ class LivePipelineService:
         用户提供 jd_text → 5 节点 Agent 链（解析简历 ∥ 解析岗位 → 评分 → 差距 → 改写）
         每个节点完成时通过 on_progress 实时上报进度。
         """
-        # 落库：创建记录
+        info = TASKS.get(task_id) or {}
+        owner_id = info.get("owner_id", "local")
+        resume_id = info.get("resume_id")
+        resume_name = resume_name or info.get("resume_name") or "未命名简历"
+
+        # 落库：创建记录（owner 归属 + resume 关联在创建时写入）
         async with AsyncSessionLocal() as session:
             rec = DiagnosisRecord(
                 task_id=task_id,
+                resume_id=resume_id,
                 keyword="用户输入",
-                city=city,
-                resume_name=resume_name or "未命名简历",
+                resume_name=resume_name,
+                owner_id=owner_id,
                 status="running",
             )
             session.add(rec)
@@ -124,14 +137,18 @@ class LivePipelineService:
             cls._update(task_id, stage="生成报告", progress=93,
                         message="📊 生成最终报告...")
 
+            # keyword 回填岗位名：优先用 JD 解析出的一句话总结
+            summary = (diagnosis.get("job_analysis") or {}).get("summary", "").strip()
+            job_title = summary[:24] if summary else "用户输入"
+
             result_data = {
-                "keyword": "用户输入",
+                "keyword": job_title,
                 "city": city,
                 # 完整 JD 持久化：chat/optimize 阶段复用，避免上下文缩水
                 "jd_text": jd_text,
                 "diagnosis_target": {
                     "job_id": 0,
-                    "title": "用户提供的岗位",
+                    "title": job_title,
                     "company": "",
                     "city": city,
                 },
@@ -156,6 +173,7 @@ class LivePipelineService:
                 rec = rec_res.scalar_one_or_none()
                 if rec:
                     rec.status = "success"
+                    rec.keyword = job_title
                     rec.result = result_data
                     await session.commit()
 

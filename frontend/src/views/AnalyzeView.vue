@@ -3,7 +3,7 @@
     <div class="max-w-2xl mx-auto">
       <div class="mb-12 text-center">
         <h1 class="text-4xl md:text-5xl font-semibold tracking-tight text-black mb-3">新建诊断</h1>
-        <p class="text-base text-gray-500">上传简历 + 提供岗位信息，AI 生成针对性诊断</p>
+        <p class="text-base text-gray-500">上传简历 + 粘贴岗位 JD，AI 生成针对性诊断</p>
       </div>
 
       <div class="bg-white rounded-2xl p-8 md:p-12 shadow-[0_4px_12px_rgba(0,0,0,0.06)]">
@@ -30,64 +30,21 @@
             </label>
           </div>
 
-          <!-- 2. 岗位信息（三种方式）-->
+          <!-- 2. 岗位 JD -->
           <div>
             <div class="flex items-center gap-3 mb-4">
               <span class="w-7 h-7 rounded-full bg-[#0071e3] text-white text-sm font-semibold flex items-center justify-center">2</span>
-              <span class="text-base font-semibold tracking-tight text-black">岗位信息</span>
+              <span class="text-base font-semibold tracking-tight text-black">岗位 JD</span>
             </div>
-
-            <!-- 方式切换 -->
-            <div class="flex gap-2 mb-5">
-              <button v-for="mode in inputModes" :key="mode.key"
-                @click="jdInputType = mode.key"
-                class="flex-1 px-4 py-3 text-sm font-medium rounded-xl border transition-all duration-200"
-                :class="jdInputType === mode.key
-                  ? 'border-[#0071e3] bg-[#0071e3] text-white shadow-sm'
-                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'">
-                <div>{{ mode.icon }}</div>
-                <div class="text-xs mt-1">{{ mode.label }}</div>
-              </button>
+            <textarea v-model="jdText" rows="8"
+              placeholder="粘贴目标岗位的 JD 文本&#10;&#10;可以从 BOSS、智联、拉勾等平台复制岗位描述，直接粘贴到此处。"
+              class="w-full px-4 py-3 text-sm text-black placeholder-gray-400
+                bg-[#f5f5f7] rounded-xl border-0 resize-none
+                focus:outline-none focus:ring-2 focus:ring-[#0071e3]
+                transition-all duration-200" />
+            <div class="text-xs text-gray-400 mt-2">
+              已输入 {{ jdText.length }} 字（至少 20 字）
             </div>
-
-            <!-- 方式 A：粘贴文本 -->
-            <div v-if="jdInputType === 'text'">
-              <textarea v-model="jdText" rows="8"
-                placeholder="直接粘贴岗位 JD 文本（推荐）&#10;&#10;可以从 BOSS、智联、拉勾等平台复制岗位描述，直接粘贴到此处。"
-                class="w-full px-4 py-3 text-sm text-black placeholder-gray-400
-                  bg-[#f5f5f7] rounded-xl border-0 resize-none
-                  focus:outline-none focus:ring-2 focus:ring-[#0071e3]
-                  transition-all duration-200" />
-              <div class="text-xs text-gray-400 mt-2">
-                已输入 {{ jdText.length }} 字
-              </div>
-            </div>
-
-            <!-- 方式 B：粘贴链接 -->
-            <div v-if="jdInputType === 'url'">
-              <input v-model="jdUrl" type="text"
-                placeholder="粘贴岗位详情页链接，例如：https://www.zhipin.com/job_detail/xxx.html"
-                class="w-full px-4 py-3 text-sm text-black placeholder-gray-400
-                  bg-[#f5f5f7] rounded-xl border-0
-                  focus:outline-none focus:ring-2 focus:ring-[#0071e3]
-                  transition-all duration-200" />
-              <div class="text-xs text-gray-400 mt-2">
-                ⚠️ 部分网站有反爬保护，如抓取失败请改用「粘贴 JD 文本」
-              </div>
-            </div>
-          </div>
-
-          <!-- 3. 城市 -->
-          <div>
-            <div class="flex items-center gap-3 mb-4">
-              <span class="w-7 h-7 rounded-full bg-[#0071e3] text-white text-sm font-semibold flex items-center justify-center">3</span>
-              <span class="text-base font-semibold tracking-tight text-black">期望城市</span>
-            </div>
-            <select v-model="city"
-              class="w-full px-4 py-3 text-sm text-black bg-[#f5f5f7] rounded-xl border-0
-                focus:outline-none focus:ring-2 focus:ring-[#0071e3]">
-              <option v-for="c in ['北京','上海','深圳','广州','杭州']" :key="c">{{ c }}</option>
-            </select>
           </div>
 
           <!-- 提交 -->
@@ -120,23 +77,11 @@ import api from '../api'
 const router = useRouter()
 
 const file = ref(null)
-const city = ref('北京')
+const jdText = ref('')
 const loading = ref(false)
 
-const jdInputType = ref('text')
-const jdText = ref('')
-const jdUrl = ref('')
-
-const inputModes = [
-  { key: 'text', label: '粘贴 JD 文本', icon: '📋' },
-  { key: 'url', label: '粘贴 JD 链接', icon: '🔗' },
-]
-
 const canSubmit = computed(() => {
-  if (!file.value) return false
-  if (jdInputType.value === 'text') return jdText.value.trim().length >= 20
-  if (jdInputType.value === 'url') return jdUrl.value.trim().startsWith('http')
-  return false
+  return !!file.value && jdText.value.trim().length >= 20
 })
 
 function onFileChange(e) {
@@ -145,7 +90,7 @@ function onFileChange(e) {
 
 async function startAnalyze() {
   if (!canSubmit.value) {
-    Message.warning('请完整填写信息')
+    Message.warning('请上传简历并粘贴至少 20 字的岗位 JD')
     return
   }
 
@@ -161,14 +106,10 @@ async function startAnalyze() {
 
     const body = {
       resume_id: resumeId,
-      jd_input_type: jdInputType.value,
-      city: city.value,
+      jd_text: jdText.value.trim(),
       resume_name: file.value?.name || '',
     }
     if (cfg.api_key) body.llm_config = cfg
-
-    if (jdInputType.value === 'text') body.jd_text = jdText.value
-    if (jdInputType.value === 'url') body.jd_url = jdUrl.value
 
     // 3. 启动
     const res = await api.startLiveAnalyze(body)

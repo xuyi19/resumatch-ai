@@ -61,3 +61,40 @@ class Base(DeclarativeBase):
 async def get_db() -> AsyncSession:
     async with AsyncSessionLocal() as session:
         yield session
+
+
+# 老库升级：create_all 不会给已存在的表加列，这里用 PRAGMA 检查后 ALTER TABLE 补列。
+# 新增列统一登记在这里（表名 → [(列名, DDL 类型), ...]），lifespan 启动时调用。
+_SCHEMA_NEW_COLUMNS: dict[str, list[tuple[str, str]]] = {
+    "resumes": [("owner_id", "VARCHAR(64) DEFAULT 'local'")],
+    "diagnosis_records": [("owner_id", "VARCHAR(64) DEFAULT 'local'")],
+    "conversations": [("owner_id", "VARCHAR(64) DEFAULT 'local'")],
+}
+
+
+async def ensure_schema_columns() -> None:
+    """老库补列 + 回填默认值（幂等，可重复执行）。"""
+    from sqlalchemy import text
+
+    async with engine.begin() as conn:
+        for table, columns in _SCHEMA_NEW_COLUMNS.items():
+            res = await conn.execute(text(f"PRAGMA table_info({table})"))
+            existing = {row[1] for row in res.fetchall()}
+            if not existing:
+                continue  # 表不存在（新库由 create_all 建全）
+            for col_name, col_ddl in columns:
+                if col_name not in existing:
+                    await conn.execute(
+                        text(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_ddl}")
+                    )
+        # 老库已有行补默认归属
+        for table in _SCHEMA_NEW_COLUMNS:
+            res = await conn.execute(text(f"PRAGMA table_info({table})"))
+            existing = {row[1] for row in res.fetchall()}
+            if "owner_id" in existing:
+                await conn.execute(
+                    text(
+                        f"UPDATE {table} SET owner_id = 'local' "
+                        f"WHERE owner_id IS NULL OR owner_id = ''"
+                    )
+                )

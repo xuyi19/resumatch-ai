@@ -12,6 +12,7 @@ class Resume(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     filename: Mapped[str] = mapped_column(String(255))
     raw_text: Mapped[str] = mapped_column(Text)
+    owner_id: Mapped[str] = mapped_column(String(64), default="local", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
@@ -24,6 +25,7 @@ class DiagnosisRecord(Base):
     resume_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     keyword: Mapped[str] = mapped_column(String(64), index=True)
     city: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    owner_id: Mapped[str] = mapped_column(String(64), default="local", index=True)
     status: Mapped[str] = mapped_column(String(16), default="running")
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -40,6 +42,7 @@ class Conversation(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     task_id: Mapped[str] = mapped_column(String(32), index=True)
     type: Mapped[str] = mapped_column(String(16), index=True)         # optimize / interview
+    owner_id: Mapped[str] = mapped_column(String(64), default="local", index=True)
     skill: Mapped[str | None] = mapped_column(String(16), nullable=True)
     questions: Mapped[list] = mapped_column(JSON, default=list)
     answers: Mapped[dict] = mapped_column(JSON, default=dict)

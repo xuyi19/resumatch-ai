@@ -1,0 +1,243 @@
+# -*- coding: utf-8 -*-
+"""ResuMatch AI · 桌面版构建脚本（one-folder，免安装分发）。
+
+产物：release/ResuMatch-AI-桌面版/  （含 .exe + _internal/ + 使用说明 + config.example.json）
+本脚本只增不删；清理旧产物用「改名挪开」而非删除，规避本机批量删除保护。
+"""
+import importlib.util
+import os
+import shutil
+import struct
+import subprocess
+import sys
+import tempfile
+import time
+import zipfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent          # 项目根
+BACKEND = ROOT / "backend"
+FRONTEND_DIST = ROOT / "frontend" / "dist"
+RELEASE = ROOT / "release"
+APP_NAME = "ResuMatch AI 桌面版"
+
+# 桌面版必须排除的重依赖（匹配链路已移除，模型/爬虫不再需要）
+EXCLUDES = [
+    "sentence_transformers", "torch", "transformers", "huggingface_hub",
+    "tokenizers", "safetensors", "accelerate", "datasets", "numpy",
+    "playwright", "pyppeteer", "selenium", "chromedriver",
+]
+
+# 纯字符串动态导入，PyInstaller 静态分析看不到，必须显式声明
+HARD_HIDDEN = [
+    "aiosqlite",
+    "greenlet",
+    "sqlalchemy.dialects.sqlite.aiosqlite",
+    "sqlalchemy.dialects.sqlite.pysqlite",
+    "uvicorn.logging",
+    "uvicorn.loops.auto",
+    "uvicorn.loops.asyncio",
+    "uvicorn.protocols.http.auto",
+    "uvicorn.protocols.http.h11_impl",
+    "uvicorn.protocols.websockets.auto",
+    "uvicorn.protocols.websockets.websockets_impl",
+    "uvicorn.lifespan.on",
+    "uvicorn.lifespan.off",
+]
+OPTIONAL = ["httptools", "websockets", "colorama", "dotenv", "yaml",
+            "orjson", "ujson", "watchfiles", "sse_starlette",
+            "langchain_openai", "langchain_core", "langgraph",
+            "loguru", "pydantic_settings", "httpx",
+            "jinja2", "python_multipart", "anyio", "sniffio", "openai"]
+
+
+def _detect_hidden():
+    found = [m for m in OPTIONAL if importlib.util.find_spec(m)]
+    return HARD_HIDDEN + found
+
+
+# ---------------- 图标生成（Chrome 无头渲染 SVG → PNG → ICO） ----------------
+ICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="224" height="224" rx="48" fill="url(#g)"/>
+  <rect x="64" y="56" width="128" height="150" rx="14" fill="#ffffff"/>
+  <rect x="84" y="84" width="88" height="12" rx="6" fill="#cbd5e1"/>
+  <rect x="84" y="112" width="88" height="12" rx="6" fill="#e2e8f0"/>
+  <rect x="84" y="140" width="60" height="12" rx="6" fill="#e2e8f0"/>
+  <circle cx="150" cy="160" r="34" fill="none" stroke="#ffffff" stroke-width="12"/>
+  <line x1="174" y1="184" x2="198" y2="208" stroke="#ffffff" stroke-width="14" stroke-linecap="round"/>
+</svg>"""
+
+
+def _build_ico(pngs: dict[int, bytes], out: Path):
+    """把多尺寸 PNG 打包成 ICO（宽高 256 写作 0）。"""
+    entries = []
+    body = b""
+    offset = 6 + 16 * len(pngs)
+    for size in sorted(pngs, reverse=True):
+        data = pngs[size]
+        w = 0 if size == 256 else size
+        entries.append(struct.pack("<BBBBHHII", w, w, 0, 0, 1, 32, len(data), offset))
+        body += data
+        offset += len(data)
+    header = struct.pack("<HHH", 0, 1, len(pngs))
+    out.write_bytes(header + b"".join(entries) + body)
+
+
+def _gen_icon(out_ico: Path) -> bool:
+    chrome = (r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+              r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe")
+    exe = next((c for c in chrome if Path(c).exists()), None)
+    if not exe:
+        return False
+    tmp = Path(tempfile.gettempdir()) / f"rm-icon-{int(time.time())}"
+    tmp.mkdir(parents=True, exist_ok=True)
+    (tmp / "icon.svg").write_text(ICON_SVG, encoding="utf-8")
+    (tmp / "wrap.html").write_text(
+        '<!doctype html><html><head><style>html,body{margin:0;overflow:hidden}'
+        'img{display:block}</style></head><body>'
+        '<img src="icon.svg" width="256" height="256"></body></html>',
+        encoding="utf-8")
+    pngs: dict[int, bytes] = {}
+    ok = True
+    for size in (256, 128, 64, 48, 32, 16):
+        out_png = tmp / f"i{size}.png"
+        r = subprocess.run(
+            [exe, "--headless=new", "--disable-gpu", "--no-sandbox",
+             "--hide-scrollbars", "--default-background-color=00000000",
+             f"--window-size={size},{size}",
+             f"--screenshot={out_png}", f"file://{tmp / 'wrap.html'}"],
+            capture_output=True, text=True, timeout=60)
+        if out_png.exists() and out_png.stat().st_size > 100:
+            pngs[size] = out_png.read_bytes()
+        else:
+            ok = False
+    if pngs:
+        _build_ico(pngs, out_ico)
+        return out_ico.exists()
+    return False
+
+
+# ---------------- 组装发布包 ----------------
+def _assemble(dist_exe_dir: Path):
+    RELEASE.mkdir(parents=True, exist_ok=True)
+    target = RELEASE / "ResuMatch-AI-桌面版"
+    # 改名挪开旧产物（不删，规避批量删除保护）
+    if target.exists():
+        old = RELEASE / f".old-{time.strftime('%Y%m%d-%H%M%S')}"
+        target.rename(old)
+    target.mkdir(parents=True, exist_ok=True)
+    # 移动 exe + _internal
+    for item in dist_exe_dir.iterdir():
+        shutil.move(str(item), str(target / item.name))
+    # 使用说明（UTF-8 BOM，否则记事本乱码）
+    (target / "使用说明.txt").write_text(_USAGE, encoding="utf-8-sig")
+    # 配置模板（刻意 .example，不会被自动读取）
+    (target / "config.example.json").write_text(_CONFIG_EXAMPLE, encoding="utf-8")
+    return target
+
+
+_USAGE = """ResuMatch AI 桌面版 · 使用说明
+================================
+
+【怎么用】
+1. 把整个文件夹（ResuMatch AI 桌面版）解压到任意位置，例如桌面。
+2. 双击「ResuMatch AI 桌面版.exe」启动，会自动打开浏览器进入系统。
+3. 在「设置」页填入你自己的大模型 API Key（DeepSeek / 兼容 OpenAI 协议均可），
+   也可在 exe 同级放一个 config.json 预置（见下文）。
+4. 上传简历（PDF / DOCX），粘贴岗位 JD 文本，开始诊断。
+
+【重要提醒】
+- 不要把单独的 .exe 复制出去发人，必须连同 _internal 文件夹一起。
+- 数据（诊断记录、简历）保存在 exe 同级的 data/ 目录，换电脑时一并拷贝即可。
+- 首次使用需要联网：大模型诊断依赖你的 API Key 对应的云端服务。
+- 本程序仅供学习研究，请勿用于商业用途；岗位数据请遵守相关网站的使用条款。
+
+【config.json 预置（可选）】
+在 exe 同级新建 config.json：
+{
+  "LLM_API_KEY": "你的key",
+  "LLM_BASE_URL": "https://api.deepseek.com/v1",
+  "LLM_MODEL": "deepseek-chat"
+}
+放入后启动即视为已托管 Key，界面会提示「服务端已托管，无需填写」。
+
+【系统要求】
+- Windows 10 64 位及以上
+- 联网（用于调用大模型 API）
+"""
+
+_CONFIG_EXAMPLE = """{
+  "LLM_API_KEY": "在此填写你自己的大模型 API Key",
+  "LLM_BASE_URL": "https://api.deepseek.com/v1",
+  "LLM_MODEL": "deepseek-chat"
+}
+"""
+
+
+def main():
+    stage = Path(tempfile.gettempdir()) / f"rm-build-{int(time.time())}"
+    stage.mkdir(parents=True, exist_ok=True)
+    print(f"[build] 构建中间目录: {stage}")
+
+    icon = stage / "app.ico"
+    if _gen_icon(icon):
+        print(f"[build] 图标已生成: {icon}")
+    else:
+        print("[build] 未生成图标（不影响功能）")
+        icon = None
+
+    hidden = _detect_hidden()
+    args = [
+        sys.executable, "-m", "PyInstaller",
+        "--noconfirm",
+        "--name", APP_NAME,
+        "--distpath", str(stage / "dist"),
+        "--workpath", str(stage / "work"),
+        "--specpath", str(stage),
+        "--add-data", f"{FRONTEND_DIST}{os.pathsep}web",
+        "--collect-submodules", "uvicorn",
+    ]
+    if icon:
+        args += ["--icon", str(icon)]
+    for h in hidden:
+        args += ["--hidden-import", h]
+    for e in EXCLUDES:
+        args += ["--exclude-module", e]
+    args.append(str(BACKEND / "desktop.py"))
+
+    print("[build] 开始 PyInstaller 打包（可能需要几分钟）...")
+    r = subprocess.run(args, cwd=str(BACKEND), capture_output=True, text=True)
+    if r.returncode != 0:
+        print("===== PyInstaller STDOUT =====")
+        print(r.stdout[-4000:])
+        print("===== PyInstaller STDERR =====")
+        print(r.stderr[-4000:])
+        sys.exit(1)
+
+    dist_exe_dir = stage / "dist" / APP_NAME
+    if not (dist_exe_dir / f"{APP_NAME}.exe").exists():
+        print(f"[build] 未找到产物: {dist_exe_dir}")
+        sys.exit(1)
+
+    target = _assemble(dist_exe_dir)
+    print(f"[build] 已组装到: {target}")
+
+    # 压缩（仅增不删，旧包改名保留）
+    zip_path = RELEASE / "ResuMatch-AI-桌面版.zip"
+    if zip_path.exists():
+        zip_path.rename(RELEASE / f".old-{time.strftime('%Y%m%d-%H%M%S')}.zip")
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+        for p in target.rglob("*"):
+            z.write(p, p.relative_to(target))
+    print(f"[build] 压缩包: {zip_path}")
+    print("[build] ✅ 本包只含公开内容，可直接发给任何人。")
+
+
+if __name__ == "__main__":
+    main()

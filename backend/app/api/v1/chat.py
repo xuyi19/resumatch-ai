@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.graph import optimize_graph
 from app.agents.nodes.interactive_opt_agent import generate_questions
 from app.core.db import get_db
+from app.core.deps import get_owner_id
 from app.models.entities import Conversation, DiagnosisRecord, Resume
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -31,9 +32,12 @@ class FinishRequest(BaseModel):
     llm_config: LLMConfig | None = None
 
 
-async def _load_context(task_id: str, db: AsyncSession):
+async def _load_context(task_id: str, db: AsyncSession, owner_id: str):
     rec_res = await db.execute(
-        select(DiagnosisRecord).where(DiagnosisRecord.task_id == task_id)
+        select(DiagnosisRecord).where(
+            DiagnosisRecord.task_id == task_id,
+            DiagnosisRecord.owner_id == owner_id,
+        )
     )
     record = rec_res.scalar_one_or_none()
     if not record:
@@ -43,6 +47,11 @@ async def _load_context(task_id: str, db: AsyncSession):
 
     resume = await db.get(Resume, record.resume_id) if record.resume_id else None
     resume_text = resume.raw_text if resume else ""
+    if not resume_text:
+        # 旧版本创建的记录没有 resume_id 关联，对答优化必须基于原简历，直接拒绝
+        raise HTTPException(
+            400, "该记录未关联原始简历，无法进行对答式优化，请重新发起诊断"
+        )
 
     data = record.result or {}
     diagnosis = data.get("diagnosis", {})
@@ -60,12 +69,14 @@ async def start_chat(
     task_id: str,
     req: StartRequest,
     db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
 ):
-    record, resume_text, jd_text, diagnosis = await _load_context(task_id, db)
+    record, resume_text, jd_text, diagnosis = await _load_context(task_id, db, owner_id)
 
     existing = await db.execute(
         select(Conversation).where(
             Conversation.task_id == task_id,
+            Conversation.owner_id == owner_id,
             Conversation.type == "optimize",
         )
     )
@@ -86,6 +97,7 @@ async def start_chat(
 
         conv = Conversation(
             task_id=task_id,
+            owner_id=owner_id,
             type="optimize",
             questions=questions,
             answers={},
@@ -118,10 +130,12 @@ async def reply_chat(
     task_id: str,
     req: ReplyRequest,
     db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
 ):
     result = await db.execute(
         select(Conversation).where(
             Conversation.task_id == task_id,
+            Conversation.owner_id == owner_id,
             Conversation.type == "optimize",
         )
     )
@@ -157,12 +171,14 @@ async def finish_chat(
     task_id: str,
     req: FinishRequest,
     db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
 ):
-    record, resume_text, jd_text, diagnosis = await _load_context(task_id, db)
+    record, resume_text, jd_text, diagnosis = await _load_context(task_id, db, owner_id)
 
     result = await db.execute(
         select(Conversation).where(
             Conversation.task_id == task_id,
+            Conversation.owner_id == owner_id,
             Conversation.type == "optimize",
         )
     )
@@ -215,10 +231,15 @@ async def finish_chat(
 
 
 @router.get("/history/{task_id}")
-async def get_chat_history(task_id: str, db: AsyncSession = Depends(get_db)):
+async def get_chat_history(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
     result = await db.execute(
         select(Conversation).where(
             Conversation.task_id == task_id,
+            Conversation.owner_id == owner_id,
             Conversation.type == "optimize",
         )
     )

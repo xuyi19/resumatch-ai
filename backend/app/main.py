@@ -10,7 +10,7 @@ from sqlalchemy import update
 from app import __author__, __build_tag__, __email__, __github__, __version__
 from app.api.v1 import chat, health, history, live, optimize, resume, settings
 from app.core.config import BASE_DIR, settings as app_settings
-from app.core.db import Base, engine
+from app.core.db import Base, ensure_schema_columns, engine
 from app.core.watermark import get_author_fingerprint
 from app.models import entities  # noqa: F401
 
@@ -30,7 +30,10 @@ async def lifespan(app: FastAPI):
     logger.info("启动中，创建数据库表...")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # ★ 启动补偿：内存任务表随进程消失，残留的 running 记录标记为失败
+    # ★ 老库补列（owner_id 会话隔离等），需在 create_all 之后执行
+    await ensure_schema_columns()
+    # ★ 启动补偿：内存任务表随进程消失，残留的 running 记录标记为失败
+    async with engine.begin() as conn:
         await conn.execute(
             update(entities.DiagnosisRecord)
             .where(entities.DiagnosisRecord.status == "running")

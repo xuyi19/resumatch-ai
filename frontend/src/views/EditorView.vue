@@ -21,7 +21,9 @@
               class="px-3 py-2 text-sm rounded-xl bg-[#e0e5ec] border-0
                 shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]
                 focus:outline-none">
-              <option value="blue">蓝色专业</option>
+              <option v-for="t in templateList" :key="t.id" :value="t.id">
+                {{ t.name }} · {{ t.desc }}
+              </option>
             </select>
 
             <button @click="downloadWord" :disabled="downloading"
@@ -53,9 +55,32 @@
 
           <!-- 基本信息 -->
           <div class="bg-[#e0e5ec] rounded-2xl p-5 shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]">
-            <div class="flex items-center gap-2 mb-4">
-              <span class="text-base">👤</span>
-              <span class="text-sm font-semibold text-gray-800">基本信息</span>
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-2">
+                <span class="text-base">👤</span>
+                <span class="text-sm font-semibold text-gray-800">基本信息</span>
+              </div>
+              <!-- 证件照：上传后嵌入导出的 Word（右上角一寸照位） -->
+              <div class="flex items-center gap-3">
+                <div v-if="photoUrl"
+                  class="relative w-[64px] h-[86px] rounded-lg overflow-hidden border border-[#b8bcc2]/50">
+                  <img :src="photoUrl" class="w-full h-full object-cover" alt="证件照" />
+                  <button @click="removePhoto"
+                    class="absolute inset-x-0 bottom-0 bg-black/50 text-white text-[10px] py-0.5">
+                    移除
+                  </button>
+                </div>
+                <label v-else
+                  class="w-[64px] h-[86px] rounded-lg border border-dashed border-[#b8bcc2]
+                    flex flex-col items-center justify-center cursor-pointer text-gray-400
+                    hover:text-[#6d5dfc] hover:border-[#6d5dfc] transition-colors">
+                  <span class="text-lg leading-none">📷</span>
+                  <span class="text-[10px] mt-1">证件照</span>
+                  <input type="file" accept="image/jpeg,image/png" class="hidden"
+                    @change="onPhotoChange" />
+                </label>
+                <div v-if="photoUploading" class="text-xs text-gray-400">上传中…</div>
+              </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
@@ -195,8 +220,11 @@
         <div class="preview-area">
           <div class="sticky top-24">
             <div class="bg-[#d1d5db] rounded-2xl p-6 overflow-auto max-h-[calc(100vh-120px)]">
+              <div class="text-xs text-gray-500 mb-3 text-center">
+                预览为示意样式 · 导出 Word 按上方所选模板排版
+              </div>
               <div class="shadow-2xl mx-auto">
-                <ResumePreview :data="data" :template="currentTemplate" />
+                <ResumePreview :data="data" :template="currentTemplate" :photo-url="photoUrl" />
               </div>
             </div>
           </div>
@@ -210,7 +238,7 @@
   <!-- 打印专用区域 -->
   <Teleport to="body">
     <div class="print-root">
-      <ResumePreview :data="data" :template="currentTemplate" />
+      <ResumePreview :data="data" :template="currentTemplate" :photo-url="photoUrl" />
     </div>
   </Teleport>
 </template>
@@ -228,10 +256,68 @@ const taskId = route.params.taskId
 const STORAGE_KEY = `resume_edit_${taskId}`
 const SESSION_KEY = `resume_optimized_${taskId}`
 
-const currentTemplate = ref('blue')
+const currentTemplate = ref('classic')
 const downloading = ref(false)
 const newSkill = ref('')
 const certText = ref('')
+
+// ---- 模板目录（后端下发，失败时用内置兜底） ----
+const templateList = ref([
+  { id: 'classic', name: '经典居中', desc: '稳重通用' },
+  { id: 'sidebar', name: '侧栏双栏', desc: '推荐配照片' },
+  { id: 'business', name: '商务蓝', desc: '国企外企风' },
+  { id: 'elegant', name: '典雅衬线', desc: '庄重雅致' },
+  { id: 'modern', name: '现代竖标', desc: '简洁活力' },
+  { id: 'minimal', name: '极简黑白', desc: '技术设计岗' },
+  { id: 'academic', name: '学术衬线', desc: '高校科研' },
+  { id: 'creative', name: '活力橙', desc: '运营市场' },
+  { id: 'twocol', name: '单行页眉', desc: '节省空间' },
+  { id: 'compact', name: '紧凑单页', desc: '内容多' },
+])
+
+// ---- 证件照 ----
+const photoUrl = ref('')       // 本地预览
+const photoId = ref('')        // 上传成功后的服务端 ID
+const photoUploading = ref(false)
+
+async function onPhotoChange(e) {
+  const file = e.target.files?.[0]
+  e.target.value = ''
+  if (!file) return
+  if (!['image/jpeg', 'image/png'].includes(file.type)) {
+    Message.error('仅支持 JPG / PNG 格式照片')
+    return
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    Message.error('照片不能超过 5MB')
+    return
+  }
+  photoUploading.value = true
+  try {
+    // 先本地预览，再上传拿 photo_id（导出时随请求带上）
+    if (photoUrl.value) URL.revokeObjectURL(photoUrl.value)
+    photoUrl.value = URL.createObjectURL(file)
+    const res = await api.uploadPhoto(file)
+    photoId.value = res.data.photo_id
+    Message.success('照片已就绪，导出 Word 时自动嵌入')
+  } catch (err) {
+    photoUrl.value = ''
+    photoId.value = ''
+    Message.error('照片上传失败：' + (err.response?.data?.detail || err.message))
+  } finally {
+    photoUploading.value = false
+  }
+}
+
+async function removePhoto() {
+  if (photoUrl.value) URL.revokeObjectURL(photoUrl.value)
+  const oldId = photoId.value
+  photoUrl.value = ''
+  photoId.value = ''
+  if (oldId) {
+    try { await api.deletePhoto(oldId) } catch (e) { /* 静默清理 */ }
+  }
+}
 
 const data = ref({
   name: '',
@@ -473,9 +559,18 @@ function downloadPdf() {
 async function downloadWord() {
   downloading.value = true
   try {
+    const contacts = [
+      data.value.phone && `电话：${data.value.phone}`,
+      data.value.email && `邮箱：${data.value.email}`,
+      data.value.wechat && `微信：${data.value.wechat}`,
+      data.value.location && `现居：${data.value.location}`,
+    ].filter(Boolean)
+
     const wordData = {
       name: data.value.name,
-      contact: [data.value.phone, data.value.email].filter(Boolean).join(' | '),
+      job_intention: data.value.job_intention,
+      contacts,
+      contact: contacts.join(' | '),
       summary: data.value.summary,
       education: data.value.education.map(e =>
         [e.time, e.school, e.major, e.degree].filter(Boolean).join(' ')
@@ -489,11 +584,13 @@ async function downloadWord() {
         ...(p.desc || '').split('\n').map(l => l.trim()).filter(Boolean),
       ]),
       skills: data.value.skills,
+      certificates: data.value.certificates,
     }
 
     const res = await api.exportDocx({
       optimized_resume: wordData,
-      template: 'classic',
+      template: currentTemplate.value,
+      photo_id: photoId.value || undefined,
     })
     const blob = new Blob([res.data], {
       type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -515,7 +612,13 @@ async function downloadWord() {
   }
 }
 
-onMounted(loadData)
+onMounted(() => {
+  loadData()
+  // 模板目录以后端为准（与 Word 导出实现保持同步）
+  api.listTemplates().then(res => {
+    if (res.data?.items?.length) templateList.value = res.data.items
+  }).catch(() => { /* 用内置兜底列表 */ })
+})
 </script>
 
 <!-- 打印样式（全局） -->
