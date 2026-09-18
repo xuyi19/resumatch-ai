@@ -221,7 +221,7 @@
           <div class="sticky top-24">
             <div class="bg-[#d1d5db] rounded-2xl p-6 overflow-auto max-h-[calc(100vh-120px)]">
               <div class="text-xs text-gray-500 mb-3 text-center">
-                预览为示意样式 · 导出 Word 按上方所选模板排版
+                预览按所选模板实时排版 · 导出 Word 版式一致
               </div>
               <div class="shadow-2xl mx-auto">
                 <ResumePreview :data="data" :template="currentTemplate" :photo-url="photoUrl" />
@@ -647,15 +647,19 @@ onMounted(() => {
     print-color-adjust: exact !important;
   }
 
-  .print-root .blue-page {
+  .print-root .page {
     width: 210mm !important;
     min-height: 297mm !important;
     margin: 0 auto !important;
     padding: 15mm 15mm !important;
   }
 
-  .print-root .blue-section,
-  .print-root .blue-item {
+  .print-root .page.is-sidebar {
+    padding: 0 !important;
+  }
+
+  .print-root .r-section,
+  .print-root .r-item {
     page-break-inside: avoid;
   }
 }
