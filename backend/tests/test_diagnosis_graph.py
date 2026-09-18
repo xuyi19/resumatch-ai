@@ -28,7 +28,7 @@ class FakeResult:
 
 def _fake_payloads():
     """各节点应返回的 schema 化数据，按调用顺序排列：
-    parser → job_analyze → scorer → gap → rewriter
+    parser → job_analyze → scorer → gap → rewriter → refine（复用 RewriteResult）
     （parser 与 job_analyze 并行，顺序可能互换，见 payload 匹配逻辑）
     """
     return {
@@ -95,7 +95,7 @@ def mock_llm():
 
 @pytest.mark.asyncio
 async def test_diagnose_full_flow(mock_llm):
-    """5 个节点全部执行，结果结构完整，进度回调逐节点触发"""
+    """6 个节点全部执行（含 self-refine 精修），结果结构完整，进度回调逐节点触发"""
     progress_events = []
 
     result = await DiagnosisService().diagnose(
@@ -104,10 +104,11 @@ async def test_diagnose_full_flow(mock_llm):
         on_progress=lambda step, total, stage: progress_events.append((step, total, stage)),
     )
 
-    # 5 个节点全部被调用（不关心并行分支的先后）
+    # 6 次 LLM 调用：5 个诊断节点 + refine 复用 RewriteResult schema
     assert result["error"] == "", f"诊断出错: {result['error']}"
     assert sorted(mock_llm) == [
-        "GapAnalysis", "JobAnalysis", "ParsedResume", "ResumeScores", "RewriteResult",
+        "GapAnalysis", "JobAnalysis", "ParsedResume", "ResumeScores",
+        "RewriteResult", "RewriteResult",
     ]
     assert result["parsed"]["summary"] == "后端工程师"
     assert result["job_analysis"]["summary"] == "Python 后端岗"
@@ -116,9 +117,31 @@ async def test_diagnose_full_flow(mock_llm):
     assert len(result["suggestions"]) == 1
     assert result["overall_advice"] == "补充量化数据"
 
-    # 进度回调：5 次，覆盖全部阶段
-    assert len(progress_events) == 5
-    assert progress_events[-1][0] == 5
+    # 进度回调：6 次，覆盖全部阶段（含精修优化）
+    assert len(progress_events) == 6
+    assert progress_events[-1][0] == 6
+    stages = [e[2] for e in progress_events]
+    assert set(stages) == {
+        "解析简历", "解析岗位", "六维评分", "差距分析", "改写建议", "精修优化",
+    }
+
+
+@pytest.mark.asyncio
+async def test_diagnose_refine_disabled(mock_llm):
+    """enable_refine=False：跳过精修节点，只有 5 次 LLM 调用与 5 个阶段"""
+    progress_events = []
+
+    result = await DiagnosisService().diagnose(
+        "学历：本科 技能：Python",
+        "岗位：Python 后端",
+        on_progress=lambda step, total, stage: progress_events.append((step, total, stage)),
+        enable_refine=False,
+    )
+
+    assert result["error"] == ""
+    assert sorted(mock_llm) == [
+        "GapAnalysis", "JobAnalysis", "ParsedResume", "ResumeScores", "RewriteResult",
+    ]
     stages = [e[2] for e in progress_events]
     assert set(stages) == {"解析简历", "解析岗位", "六维评分", "差距分析", "改写建议"}
 

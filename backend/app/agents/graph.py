@@ -35,7 +35,16 @@ def build_diagnosis_graph():
 
     wf.add_edge("scorer", "gap")
     wf.add_edge("gap", "rewriter")
-    wf.add_edge("rewriter", END)
+
+    # self-refine（M6）：rewriter 后追加一轮自我批判精修，enable_refine=False 时跳过；
+    # refine 自身失败只记日志不熔断，保留一轮改写结果即可
+    wf.add_node("refine", rewriter_agent.refine)
+    wf.add_conditional_edges(
+        "rewriter",
+        lambda s: "refine" if (s.get("enable_refine", True) and not s.get("error")) else "end",
+        {"refine": "refine", "end": END},
+    )
+    wf.add_edge("refine", END)
 
     return wf.compile()
 

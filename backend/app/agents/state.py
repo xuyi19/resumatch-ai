@@ -12,6 +12,7 @@ class DiagnosisState(TypedDict, total=False):
     resume_text: str
     jd_text: str
     llm_config: dict
+    enable_refine: bool  # rewriter 后是否追加 self-refine 精修（默认开）
 
     # 各 Agent 输出
     parsed: dict

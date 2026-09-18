@@ -27,6 +27,10 @@ class DiagnosisRecord(Base):
     city: Mapped[str | None] = mapped_column(String(32), nullable=True)
     owner_id: Mapped[str] = mapped_column(String(64), default="local", index=True)
     status: Mapped[str] = mapped_column(String(16), default="running")
+    # 进度快照（M6）：节流写入，服务重启后 /live/status 可回退 DB 读取
+    stage: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    progress: Mapped[int | None] = mapped_column(nullable=True)
+    logs: Mapped[list | None] = mapped_column(JSON, nullable=True)
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

@@ -1,3 +1,5 @@
+import json
+
 from pydantic import BaseModel, Field
 
 from app.agents.state import DiagnosisState
@@ -72,4 +74,67 @@ async def run(state: DiagnosisState) -> dict:
         "suggestions": suggestions,
         "overall_advice": overall_advice,
         "messages": [{"role": "rewriter", "content": f"生成 {len(suggestions)} 条建议"}],
+    }
+
+
+# ---------------- self-refine：一轮自我批判精修（可配置开关） ----------------
+
+REFINE_PROMPT = """你是一位严苛的简历评审专家。下面是你此前给出的简历改写建议，请逐条自我批判并修正：
+1. 改写内容是否忠实于原简历事实（不得凭空编造经历或数据；缺数据时给出"建议补充量化"的占位写法）
+2. 是否紧扣目标 JD 的关键要求
+3. STAR 结构是否完整、表述是否简洁专业
+4. 条目之间是否重复
+
+有问题就修正该条；价值不大的条目可删除；最多保留 5 条。输出修正后的完整建议列表。
+
+简历：
+{resume_text}
+
+目标 JD：
+{jd_text}
+
+当前建议（JSON）：
+{suggestions}
+
+整体建议：
+{overall_advice}
+"""
+
+
+async def refine(state: DiagnosisState) -> dict:
+    """对 rewriter 输出做一轮自我批判修正；失败/为空时保留原建议，不熔断主流程。"""
+    if state.get("error"):
+        return {}
+
+    suggestions = state.get("suggestions") or []
+    if not suggestions:
+        return {}
+
+    try:
+        result = await call_llm_for_json(
+            REFINE_PROMPT.format(
+                resume_text=state["resume_text"],
+                jd_text=state.get("jd_text", "（未提供）"),
+                suggestions=json.dumps(suggestions, ensure_ascii=False, indent=2),
+                overall_advice=state.get("overall_advice", ""),
+            ),
+            RewriteResult,
+            temperature=0.3,
+            llm_config=state.get("llm_config"),
+        )
+        refined = [s.model_dump() for s in result.suggestions]
+    except Exception as e:
+        return {
+            "messages": [{"role": "refine", "content": f"精修失败，保留原建议: {e}"}],
+        }
+
+    if not refined:
+        return {
+            "messages": [{"role": "refine", "content": "精修未产出有效建议，保留原建议"}],
+        }
+
+    return {
+        "suggestions": refined,
+        "overall_advice": result.overall_advice or state.get("overall_advice", ""),
+        "messages": [{"role": "refine", "content": f"精修后保留 {len(refined)} 条建议"}],
     }

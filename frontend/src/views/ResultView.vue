@@ -434,17 +434,23 @@ const optimizedResumeLocal = ref(null)
 const logs = ref([])
 const logRef = ref(null)
 const runningStage = ref('准备中')
+const refineEnabled = ref(true)  // self-refine 开关由后端首帧下发
 
-const stages = [
+const allStages = [
   {key: '解析简历', label: '解析简历'},
   {key: '解析岗位', label: '解析岗位'},
   {key: '六维评分', label: '六维评分'},
   {key: '差距分析', label: '差距分析'},
   {key: '改写建议', label: '改写建议'},
+  {key: '精修优化', label: '精修优化'},
   {key: '生成报告', label: '生成报告'},
 ]
 
-const stageOrder = ['准备中', '解析简历', '解析岗位', '六维评分', '差距分析', '改写建议', '生成报告', '完成']
+const stages = computed(() =>
+  refineEnabled.value ? allStages : allStages.filter(s => s.key !== '精修优化')
+)
+
+const stageOrder = ['准备中', '解析简历', '解析岗位', '六维评分', '差距分析', '改写建议', '精修优化', '生成报告', '完成']
 
 const currentStage = computed(() => runningStage.value || '准备中')
 
@@ -495,6 +501,7 @@ const templates = [
 ]
 
 let pollTimer = null
+let es = null
 let chart = null
 
 const scores = computed(() => result.value.diagnosis?.scores || {})
@@ -535,48 +542,105 @@ function severityColor(sev) {
   return 'text-gray-500'
 }
 
+function handleTaskData(t) {
+  status.value = t.status
+  message.value = t.message
+  progress.value = t.progress
+  runningStage.value = t.stage || '准备中'
+  if (typeof t.refine === 'boolean') refineEnabled.value = t.refine
+
+  if (t.logs && Array.isArray(t.logs)) {
+    logs.value = t.logs
+  }
+
+  if (t.status === 'success') {
+    result.value = t.result
+    stopTracking()
+    nextTick(() => renderChart())
+  } else if (t.status === 'failed') {
+    errorMsg.value = t.error || '任务失败'
+    stopTracking()
+  }
+}
+
+function stopTracking() {
+  if (es) {
+    try { es.close() } catch (e) {}
+    es = null
+  }
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
+async function fallbackToHistory() {
+  try {
+    const hres = await api.getHistoryDetail(taskId)
+    const record = hres.data
+    if (record.status === 'success' && record.result) {
+      status.value = 'success'
+      result.value = record.result
+      await nextTick()
+      renderChart()
+    } else {
+      status.value = 'failed'
+      errorMsg.value = record.error || '任务已过期'
+    }
+  } catch (err) {
+    status.value = 'failed'
+    errorMsg.value = '任务不存在'
+  }
+}
+
 async function poll() {
   try {
     const res = await api.getTaskStatus(taskId)
-    const t = res.data
-    status.value = t.status
-    message.value = t.message
-    progress.value = t.progress
-    runningStage.value = t.stage || '准备中'
-
-    if (t.logs && Array.isArray(t.logs)) {
-      logs.value = t.logs
-    }
-
-    if (t.status === 'success') {
-      result.value = t.result
-      clearInterval(pollTimer)
-      await nextTick()
-      renderChart()
-    } else if (t.status === 'failed') {
-      errorMsg.value = t.error || '任务失败'
-      clearInterval(pollTimer)
-    }
+    handleTaskData(res.data)
   } catch (e) {
     if (e.response?.status === 404) {
-      clearInterval(pollTimer)
-      try {
-        const hres = await api.getHistoryDetail(taskId)
-        const record = hres.data
-        if (record.status === 'success' && record.result) {
-          status.value = 'success'
-          result.value = record.result
-          await nextTick()
-          renderChart()
-        } else {
-          status.value = 'failed'
-          errorMsg.value = record.error || '任务已过期'
-        }
-      } catch (err) {
-        status.value = 'failed'
-        errorMsg.value = '任务不存在'
-      }
+      stopTracking()
+      await fallbackToHistory()
     }
+  }
+}
+
+function startPolling() {
+  if (pollTimer) return
+  poll()
+  pollTimer = setInterval(poll, 2000)
+}
+
+function startTracking() {
+  // SSE 优先（1s 推送，替代轮询）；连接失败/中断自动回退轮询
+  try {
+    es = new EventSource(`/api/v1/live/stream/${taskId}`)
+  } catch (e) {
+    startPolling()
+    return
+  }
+  es.onmessage = (ev) => {
+    try {
+      handleTaskData(JSON.parse(ev.data))
+    } catch (e) {
+      console.error(e)
+    }
+  }
+  es.addEventListener('fatal', (ev) => {
+    stopTracking()
+    let detail = ''
+    try { detail = JSON.parse(ev.data).detail } catch (e) {}
+    if (detail === '任务不存在') {
+      fallbackToHistory()
+    } else {
+      status.value = 'failed'
+      errorMsg.value = detail || '任务已断开'
+    }
+  })
+  es.onerror = () => {
+    // 正常完成后已 stopTracking，此处只会是连接中断
+    stopTracking()
+    startPolling()
   }
 }
 
@@ -662,13 +726,12 @@ function renderChart() {
 }
 
 onMounted(() => {
-  poll()
-  pollTimer = setInterval(poll, 2000)
+  startTracking()
   window.addEventListener('resize', () => chart?.resize())
 })
 
 onUnmounted(() => {
-  clearInterval(pollTimer)
+  stopTracking()
   chart?.dispose()
 })
 </script>

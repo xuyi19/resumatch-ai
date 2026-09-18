@@ -67,7 +67,12 @@ async def get_db() -> AsyncSession:
 # 新增列统一登记在这里（表名 → [(列名, DDL 类型), ...]），lifespan 启动时调用。
 _SCHEMA_NEW_COLUMNS: dict[str, list[tuple[str, str]]] = {
     "resumes": [("owner_id", "VARCHAR(64) DEFAULT 'local'")],
-    "diagnosis_records": [("owner_id", "VARCHAR(64) DEFAULT 'local'")],
+    "diagnosis_records": [
+        ("owner_id", "VARCHAR(64) DEFAULT 'local'"),
+        ("stage", "VARCHAR(32) DEFAULT ''"),
+        ("progress", "INTEGER DEFAULT 0"),
+        ("logs", "JSON"),
+    ],
     "conversations": [("owner_id", "VARCHAR(64) DEFAULT 'local'")],
 }
 

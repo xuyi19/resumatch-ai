@@ -1,12 +1,13 @@
 from app.agents.graph import diagnosis_graph
 
-# 节点 → 前端展示的阶段名（与 ResultView 的 stages 对齐）
+# 节点 → 前端展示的阶段名（与 ResultView 的 stages 对齐；refine 为 M6 self-refine 精修）
 NODE_STAGES = {
     "parser": "解析简历",
     "job_analyze": "解析岗位",
     "scorer": "六维评分",
     "gap": "差距分析",
     "rewriter": "改写建议",
+    "refine": "精修优化",
 }
 
 
@@ -17,11 +18,13 @@ class DiagnosisService:
         jd_text: str = "",
         llm_config: dict | None = None,
         on_progress=None,
+        enable_refine: bool = True,
     ) -> dict:
         initial_state = {
             "resume_text": resume_text,
             "jd_text": jd_text,
             "llm_config": llm_config or {},
+            "enable_refine": enable_refine,
             "messages": [],
         }
 

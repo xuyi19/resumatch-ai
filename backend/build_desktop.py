@@ -181,6 +181,16 @@ _CONFIG_EXAMPLE = """{
 
 
 def main():
+    # conda 环境的 DLL 目录前置到 PATH：PyInstaller 收集二进制依赖时按 PATH 搜索，
+    # 否则可能抓到 base Anaconda（或其他程序）的旧版 libssl/libcrypto，
+    # 产物 exe 会报 "DLL load failed while importing _ssl: 找不到指定的程序"
+    env_bin = Path(sys.prefix) / "Library" / "bin"
+    os.environ["PATH"] = (
+        f"{env_bin}{os.pathsep}{sys.prefix}{os.pathsep}"
+        f"{os.environ.get('PATH', '')}"
+    )
+    print(f"[build] DLL 搜索目录前置: {env_bin}")
+
     stage = Path(tempfile.gettempdir()) / f"rm-build-{int(time.time())}"
     stage.mkdir(parents=True, exist_ok=True)
     print(f"[build] 构建中间目录: {stage}")

@@ -1,7 +1,9 @@
 import asyncio
+import json
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -31,6 +33,7 @@ class AnalyzeRequest(BaseModel):
     jd_text: str = ""
     llm_config: LLMConfig | None = None
     resume_name: str = ""
+    enable_refine: bool | None = None  # self-refine 开关；None 用服务端默认
 
 
 async def _check_web_quota(db: AsyncSession, owner_id: str, llm_config: LLMConfig | None):
@@ -78,10 +81,15 @@ async def start_analyze(
 
     logger.info(f"JD 已解析，长度 {len(jd_text)} 字")
 
+    enable_refine = (
+        req.enable_refine if req.enable_refine is not None else settings.ENABLE_SELF_REFINE
+    )
+
     task_id = LivePipelineService.create_task(
         resume_id=resume.id,
         resume_name=req.resume_name,
         owner_id=owner_id,
+        enable_refine=enable_refine,
     )
     task = asyncio.create_task(
         LivePipelineService.run(
@@ -89,6 +97,7 @@ async def start_analyze(
             resume_text=resume.raw_text,
             jd_text=jd_text,
             llm_config=req.llm_config.model_dump() if req.llm_config else None,
+            enable_refine=enable_refine,
         )
     )
     _RUNNING_TASKS.add(task)
@@ -98,8 +107,73 @@ async def start_analyze(
 
 
 @router.get("/status/{task_id}")
-async def get_task_status(task_id: str):
+async def get_task_status(task_id: str, owner_id: str = Depends(get_owner_id)):
+    """任务状态：优先内存，过期/重启后回退 DB 快照（含 owner 校验）"""
     task = LivePipelineService.get_task(task_id)
-    if not task:
+    if task is None:
+        task = await LivePipelineService.get_task_from_db(task_id, owner_id)
+        if task:
+            return task
+        raise HTTPException(404, "任务不存在")
+    if task.get("owner_id") and task["owner_id"] != owner_id:
         raise HTTPException(404, "任务不存在")
     return task
+
+
+@router.get("/stream/{task_id}")
+async def stream_task(task_id: str, owner_id: str = Depends(get_owner_id)):
+    """SSE 实时推送任务进度；终态后服务端关流，前端收到 fatal 事件表示异常。"""
+
+    async def event_gen():
+        last_payload = None
+        ticks = 0
+        while True:
+            task = LivePipelineService.get_task(task_id)
+            if task is None:
+                task = await LivePipelineService.get_task_from_db(task_id, owner_id)
+                if not task:
+                    yield _fatal("任务不存在")
+                    return
+            elif task.get("owner_id") and task["owner_id"] != owner_id:
+                yield _fatal("任务不存在")
+                return
+
+            payload = json.dumps(
+                {
+                    "status": task.get("status", "pending"),
+                    "stage": task.get("stage", ""),
+                    "progress": task.get("progress", 0),
+                    "message": task.get("message", ""),
+                    "logs": task.get("logs", []),
+                    "refine": task.get("refine", True),
+                    "result": task.get("result"),
+                    "error": task.get("error"),
+                },
+                ensure_ascii=False,
+            )
+            if payload != last_payload:
+                last_payload = payload
+                yield f"data: {payload}\n\n"
+
+            if task.get("status") in ("success", "failed"):
+                return
+
+            ticks += 1
+            if ticks > 600:  # 10 分钟兜底断开，防止悬挂连接
+                yield _fatal("任务超时未完成")
+                return
+            await asyncio.sleep(1)
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+def _fatal(detail: str) -> str:
+    return f"event: fatal\ndata: {json.dumps({'detail': detail}, ensure_ascii=False)}\n\n"

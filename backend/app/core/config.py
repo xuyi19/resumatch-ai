@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     # web 态使用服务端 Key 时的每日诊断配额（用户自带 Key 不限）
     WEB_DAILY_LIMIT: int = 10
 
+    # rewriter 后追加一轮自我批判精修（self-refine，多一次 LLM 调用换建议质量）
+    ENABLE_SELF_REFINE: bool = True
+
     # SQLite 单文件库（data/resumatch.db）
     DB_URL: str = _default_db_url()
 
