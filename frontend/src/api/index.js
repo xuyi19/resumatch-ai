@@ -8,6 +8,8 @@ const api = axios.create({
 export default {
   // 健康
   health: () => api.get('/health'),
+  // 运行形态（桌面版 / 网页版界面切换依据）
+  getMeta: () => api.get('/meta'),
 
   // 简历
   uploadResume: (file) => {

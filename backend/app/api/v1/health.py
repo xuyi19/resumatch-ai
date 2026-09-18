@@ -42,3 +42,21 @@ async def signature():
         "f": get_author_fingerprint(),
         "t": __build_tag__,
     }
+
+
+@router.get("/meta")
+async def meta():
+    """运行形态元信息：前端据此切换桌面版 / 网页版界面。
+
+    local（桌面/本机）：单用户、数据全在本机，界面走紧凑 App 风格
+    web（线上网站）：匿名会话隔离 + 服务端 Key 每日配额
+    """
+    return {
+        "app_mode": settings.APP_MODE,
+        "app_name": settings.APP_NAME,
+        "version": settings.APP_VERSION,
+        "build_tag": __build_tag__,
+        "daily_limit": settings.WEB_DAILY_LIMIT,
+        # 服务端是否预置了 Key（预置才涉及配额）
+        "has_server_key": bool(settings.LLM_API_KEY),
+    }

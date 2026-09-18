@@ -77,16 +77,23 @@ def _health_is_resumatch(port: int) -> bool:
     try:
         import httpx
 
-        r = httpx.get(f"http://127.0.0.1:{port}/api/v1/health", timeout=1.0)
+        r = httpx.get(f"http://127.0.0.1:{port}/api/v1/health", timeout=1.5,
+                      trust_env=False)  # 不走系统代理，避免 localhost 请求被代理拖慢
         return r.status_code == 200 and "ResuMatch AI" in r.text
     except Exception:
         return False
 
 
 def _find_running_port(preferred: int = 8765, span: int = 50) -> int | None:
-    """扫描顺延区间找已在运行的 ResuMatch（不能只看 8765：
-    8765 常被其它应用占用，本应用会顺延到 8766+，硬编码端口会漏判并重复启动）。"""
+    """扫描顺延区间找已在运行的 ResuMatch。
+
+    必须先用 bind 探测短路：本机对「已关闭端口」做 TCP 连接不会立刻拒绝，
+    而是静默挂到超时，逐个端口发 HTTP 请求探测 50 个端口要白等 50 秒（实测启动 52s）。
+    bind 是纯本地操作，瞬时返回，只有被真正占用的端口才值得去 connect 验证身份。
+    """
     for p in range(preferred, preferred + span):
+        if _port_free(p):
+            continue  # 无监听，不可能是 ResuMatch
         if _health_is_resumatch(p):
             return p
     return None
@@ -95,9 +102,10 @@ def _find_running_port(preferred: int = 8765, span: int = 50) -> int | None:
 def _wait_ready(port: int, timeout: float = 25.0) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if _health_is_resumatch(port):
+        # 端口还没监听时不要去 connect：本机对关闭端口会挂满超时，白等
+        if not _port_free(port) and _health_is_resumatch(port):
             return True
-        time.sleep(0.3)
+        time.sleep(0.2)
     return False
 
 

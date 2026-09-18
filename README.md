@@ -40,21 +40,21 @@ ResuMatch AI 是一个**简历诊断工具**：你上传一份简历，再粘贴
 - **10 套简历模板**：经典居中 / 侧栏双栏 / 商务蓝 / 典雅衬线 / 现代竖标 / 极简黑白 / 学术衬线 / 活力橙 / 单行页眉 / 紧凑单页
 - **证件照嵌入**：上传 JPG/PNG 证件照，导出 Word 时自动排入一寸照位（侧栏双栏等模板）
 - **编辑器实时预览 + PDF 打印**：改完即看，支持浏览器打印为 PDF
-- **双形态交付**：桌面 exe（免安装双击即用）+ 网站（匿名会话隔离、无需注册）
+- **双形态交付**：桌面 exe（免安装双击即用）+ 网站（匿名会话隔离、无需注册）；界面按运行形态自适应——桌面版走紧凑 App 风格、隐藏外链并强调「数据只在本机」，网页版保留开源引流与每日配额提示
 
 ## 界面演示
 
-| 首页 | 新建诊断 |
-|---|---|
-| ![首页](docs/images/home.png) | ![新建诊断](docs/images/analyze.png) |
+**首页** —— landing 长页，顶部快入口条随滚动吸附，随时一键直达诊断
 
-| 诊断报告 | 历史记录 |
-|---|---|
-| ![诊断报告](docs/images/result.png) | ![历史记录](docs/images/history.png) |
+![首页](docs/images/home.png)
 
-| 设置（自带 API Key） |
-|---|
-| ![设置](docs/images/settings.png) |
+| 新建诊断 | 诊断报告 |
+|---|---|
+| ![新建诊断](docs/images/analyze.png) | ![诊断报告](docs/images/result.png) |
+
+| 历史记录 | 设置（自带 API Key） |
+|---|---|
+| ![历史记录](docs/images/history.png) | ![设置](docs/images/settings.png) |
 
 ## 技术栈
 
