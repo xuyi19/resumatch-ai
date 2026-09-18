@@ -50,6 +50,23 @@ OPTIONAL = ["httptools", "websockets", "colorama", "dotenv", "yaml",
             "loguru", "pydantic_settings", "httpx",
             "jinja2", "python_multipart", "anyio", "sniffio", "openai"]
 
+# pywebview 原生窗口：平台后端是动态导入，PyInstaller 静态分析看不到；
+# 只保留 Windows 的 WebView2（edgechromium）后端，其余平台后端与 GUI 框架排除以缩小体积
+PYWEBVIEW_HIDDEN = [
+    "webview.platforms.edgechromium",
+    "webview.platforms.winforms",
+    "clr",
+    "pythonnet",
+]
+PYWEBVIEW_EXCLUDES = [
+    "webview.platforms.qt",
+    "webview.platforms.gtk",
+    "webview.platforms.cocoa",
+    "webview.platforms.cef",
+    "webview.platforms.android",
+    "PyQt5", "PyQt6", "PySide2", "PySide6", "gi", "cefpython3",
+]
+
 
 def _detect_hidden():
     found = [m for m in OPTIONAL if importlib.util.find_spec(m)]
@@ -147,14 +164,21 @@ _USAGE = """ResuMatch AI 桌面版 · 使用说明
 
 【怎么用】
 1. 把整个文件夹（ResuMatch AI 桌面版）解压到任意位置，例如桌面。
-2. 双击「ResuMatch AI 桌面版.exe」启动，会自动打开浏览器进入系统。
+2. 双击「ResuMatch AI 桌面版.exe」启动，会打开独立应用窗口（不是浏览器标签页）。
 3. 在「设置」页填入你自己的大模型 API Key（DeepSeek / 兼容 OpenAI 协议均可），
    也可在 exe 同级放一个 config.json 预置（见下文）。
 4. 上传简历（PDF / DOCX），粘贴岗位 JD 文本，开始诊断。
 
+【窗口说明】
+- 窗口依赖系统自带的 WebView2 运行时（Win10/11 一般已内置；缺失时首次启动会自动下载组件，需联网）。
+- 若窗口无法打开，程序会自动改用默认浏览器打开；也可加参数启动：
+    启动参数 --browser   强制用浏览器打开
+    启动参数 --no-browser  只启动后台服务，不开窗口
+
 【重要提醒】
 - 不要把单独的 .exe 复制出去发人，必须连同 _internal 文件夹一起。
 - 数据（诊断记录、简历）保存在 exe 同级的 data/ 目录，换电脑时一并拷贝即可。
+- 运行日志在 data/logs/app.log（窗口模式无控制台，排查问题看这里）。
 - 首次使用需要联网：大模型诊断依赖你的 API Key 对应的云端服务。
 - 本程序仅供学习研究，请勿用于商业用途；岗位数据请遵守相关网站的使用条款。
 
@@ -206,6 +230,7 @@ def main():
     args = [
         sys.executable, "-m", "PyInstaller",
         "--noconfirm",
+        "--windowed",  # 无控制台黑窗；日志改落 data/logs/app.log
         "--name", APP_NAME,
         "--distpath", str(stage / "dist"),
         "--workpath", str(stage / "work"),
@@ -219,6 +244,19 @@ def main():
         args += ["--hidden-import", h]
     for e in EXCLUDES:
         args += ["--exclude-module", e]
+
+    # 原生窗口：pywebview 存在则一并打包（含前端 JS 资源与 WebView2 后端），
+    # 缺失时产物仍可用，desktop.py 会自动回退浏览器打开
+    if importlib.util.find_spec("webview"):
+        args += ["--collect-all", "webview"]
+        for h in PYWEBVIEW_HIDDEN:
+            args += ["--hidden-import", h]
+        for e in PYWEBVIEW_EXCLUDES:
+            args += ["--exclude-module", e]
+        print("[build] 已启用 pywebview 原生窗口")
+    else:
+        print("[build] 未检测到 pywebview，产物将回退浏览器模式（pip install pywebview 可启用原生窗口）")
+
     args.append(str(BACKEND / "desktop.py"))
 
     print("[build] 开始 PyInstaller 打包（可能需要几分钟）...")

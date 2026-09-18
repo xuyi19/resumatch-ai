@@ -1,6 +1,6 @@
 # ==========================================================
 # ResuMatch AI · 后端依赖
-# Python 3.11+ · 数据库为内置 SQLite（无需另装数据库服务）
+# Python 3.10+ · 数据库为内置 SQLite（无需另装数据库服务）
 # 安装：pip install -r requirements.txt
 # ==========================================================
 
@@ -21,17 +21,18 @@ pydantic-settings==2.15.0
 langgraph==1.2.11               # 诊断工作流编排
 langchain-openai==1.6.2         # OpenAI 协议兼容（DeepSeek / 通义 / 智谱等）
 
-# ---------- JD 链接抓取（可选；抓取失败可改用「粘贴 JD 文本」） ----------
-playwright==1.62.0              # 安装后还需执行：playwright install chromium
-
 # ---------- 简历文件解析 ----------
 pymupdf==1.28.2                 # PDF 文本提取
 python-docx==1.2.0              # DOCX 读取与生成
+
+# ---------- 桌面版原生窗口（Windows 走 WebView2；缺失则自动回退浏览器） ----------
+pywebview==5.4                  # 依赖 pythonnet（Windows 自动安装）
 
 # ---------- 工具 / 日志 ----------
 loguru==0.7.3
 httpx==0.28.1
 
-# ---------- 测试（可选） ----------
+# ---------- 测试 / 打包（可选） ----------
 pytest==9.1.1
 pytest-asyncio==1.4.0
+pyinstaller==6.22.3

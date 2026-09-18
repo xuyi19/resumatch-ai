@@ -164,6 +164,7 @@ python build_desktop.py    # 任意 shell 可跑，产物在 release/ResuMatch-A
 ```
 
 - **pywebview 原生窗口**：默认窗口模式运行（Edge WebView2），异常时自动回退浏览器；`--no-browser` / `--browser` 可强制
+- **无黑窗控制台**：`--windowed` 打包，运行日志写到 exe 同级 `data/logs/app.log`
 - **单实例锁**：重复启动会自动聚焦已有窗口（识别 ResuMatch 健康响应，不误伤其它应用）
 - 默认 **SQLite** 免安装，数据保存在 exe 同级 `data/resumatch.db`
 - 大模型 API Key 由使用者在「设置」页填写，也可在 exe 同级放 `config.json` 预置（零配置分发）
