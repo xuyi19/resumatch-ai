@@ -65,6 +65,3 @@ backend/data/tmp/
 release/
 build/
 *.spec.bak
-
-# ========== 本地私有文档（答辩梳理，不入仓库）==========
-docs/毕设-技术知识点梳理.md

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -6,9 +7,15 @@ from app import __author__, __build_tag__, __email__, __github__, __version__
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.watermark import get_author_fingerprint
-from app.models.schemas import HealthOut
 
 router = APIRouter(tags=["health"])
+
+
+class HealthOut(BaseModel):
+    status: str
+    app: str
+    version: str
+    db: str
 
 
 @router.get("/health", response_model=HealthOut)

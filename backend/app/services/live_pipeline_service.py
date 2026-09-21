@@ -63,6 +63,18 @@ class LivePipelineService:
         _cleanup_expired_tasks()
         return TASKS.get(task_id)
 
+    # 视为「进行中」的状态：新诊断发起前用于重复防护
+    _ACTIVE_STATUSES = ("pending", "running", "waiting_clarify")
+
+    @classmethod
+    def has_active_task(cls, owner_id: str) -> bool:
+        """该用户是否已有未完成的诊断任务（防重复发起浪费 LLM 调用）。"""
+        _cleanup_expired_tasks()
+        return any(
+            t.get("owner_id") == owner_id and t.get("status") in cls._ACTIVE_STATUSES
+            for t in TASKS.values()
+        )
+
     @staticmethod
     async def get_task_from_db(task_id: str, owner_id: str | None = None) -> dict | None:
         """内存任务过期/服务重启后，从 DB 还原进度快照（含 owner 校验）。"""

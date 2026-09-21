@@ -7,7 +7,8 @@
     python scripts/evaluate.py --ablation --case 2 # 指定消融用例
     python scripts/evaluate.py --api-key sk-xxx --model deepseek-chat
 
-产出：docs/评估报告.md（评分均值/标准差、改写覆盖度、证据引用覆盖/推断率、消融表）
+产出：docs/ 下独立评估报告（评分均值/标准差、改写覆盖度、证据引用覆盖/推断率、消融表）；
+      历史结果已并入 docs/ResuMatch-AI-技术说明文档.md 第 13 章
 
 说明：语义匹配采用轻量词面重叠指标（不引入 embedding/torch，
 避免桌面版体积膨胀；LLM 链路本身即语义匹配主通道）。

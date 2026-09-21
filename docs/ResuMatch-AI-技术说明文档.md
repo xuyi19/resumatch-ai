@@ -18,6 +18,8 @@
 - [9. 系统运行与部署](#9-系统运行与部署)
 - [10. 已知问题与改进计划](#10-已知问题与改进计划)
 - [11. 附录](#11-附录)
+- [12. 开发踩坑记录（精华）](#12-开发踩坑记录精华)
+- [13. 质量评估（真实 LLM 实测）](#13-质量评估真实-llm-实测)
 
 ---
 
@@ -144,7 +146,7 @@ Word 导出端（python-docx）实现 10 套版式（居中/左对齐/同行页�
 
 项目全程使用异步数据库访问（`create_async_engine` + `AsyncSession`）。核心原因是诊断接口涉及多次串行的大模型网络调用，单次耗时可达数十秒；同步 ORM 会让每个请求长时间独占工作线程。
 
-迁移到 SQLite 后有两个关键工程点（踩坑详见《问题解决记录》）：
+迁移到 SQLite 后有两个关键工程点（踩坑详见第 12 章）：
 
 1. **连接池选型**：使用 `AsyncAdaptedQueuePool`（每会话独立连接）而非 `StaticPool`（全局共享单连接）——共享单连接在请求会话与后台任务会话并发 commit 时会互相 reset 游标。
 2. **WAL 模式**：连接建立时统一执行 `PRAGMA journal_mode=WAL` + `busy_timeout=5000`，允许多读单写并发，缓解写锁竞争。
@@ -429,15 +431,30 @@ stateDiagram-v2
     parser --> [*]: 解析失败（熔断）
     job_analyze --> [*]: JD 解析失败（熔断）
     scorer --> gap
-    gap --> rewriter
-    rewriter --> [*]
+    gap --> clarify_plan
+    clarify_plan --> clarify_wait: 有信息缺口（0-3 问）
+    clarify_plan --> rewriter: 信息充分（0 问）
+    clarify_wait --> rewriter: 用户回答后 Command(resume)
+    rewriter --> refine
+    refine --> [*]
 ```
 
 parser 与 job_analyze 输入独立（简历 / JD），从 START 同时出发并行执行，两分支写不同 state key，汇合进 scorer 无冲突；任一分支出错通过条件边直达 END 熔断。后续节点在入口处再次检查 `error` 直接返回空更新（幂等保护）。
 
 另有独立优化图：`START → optimizer → END`，接收诊断全部产出生成结构化优化简历；对答式场景由 interactive_opt 驱动（生成追问 + 整合回答产出优化简历）。
 
-#### 6.4.2 共享状态
+#### 6.4.2 动态追问与人在回路（LangGraph interrupt，M11）
+
+`clarify_plan / clarify_wait` 双节点实现「按信息缺口动态追问」，解决固定轮次问答的机械感：
+
+1. `clarify_plan`：LLM 基于差距 + 解析结果 + 岗位要求判断信息是否充分——充分则返回 0 问直接放行（不为问而问），否则生成 1-3 个针对性问题；**先提交 state 再 `interrupt()`**，保证恢复执行时不重复 LLM 调用；节点失败自动跳过不熔断诊断主链路
+2. `clarify_wait`：同步节点，图执行在此暂停，问题经 SSE 推送前端问题卡片
+3. 用户作答 → `POST /live/clarify/{task_id}` → `Command(resume=answers)` 恢复图 → 续跑 rewriter / refine 并正常落库
+4. 状态由 **MemorySaver checkpointer** 保管，任务终态 `delete_thread` 释放
+
+**Python 3.10 兼容决策**：langgraph 的 `interrupt()` 在 async 节点中依赖的 contextvar 行为 3.11+ 才正确。采用官方兼容解——交互图用同步节点包装 + worker 线程驱动同步 stream（`build_interactive_diagnosis_graph()`）；离线图（无追问）保持 async 不受影响。两图按是否有 thread_id 选择。
+
+#### 6.4.3 共享状态
 
 ```python
 class DiagnosisState(TypedDict, total=False):
@@ -457,7 +474,7 @@ class DiagnosisState(TypedDict, total=False):
     messages: Annotated[list, operator.add]     # 执行轨迹自动累积
 ```
 
-#### 6.4.3 五个 Agent 的职责与参数
+#### 6.4.4 各 Agent 的职责与参数
 
 | Agent | 职责 | 温度 | 设计考量 |
 | --- | --- | --- | --- |
@@ -469,7 +486,7 @@ class DiagnosisState(TypedDict, total=False):
 
 链路依赖："上游产出即下游上下文"——gap 的 Prompt 注入解析与 JD 分析结果，rewriter 注入评分与差距，保证最终建议与前面的分析逻辑一致。
 
-#### 6.4.4 结构化输出的容错机制
+#### 6.4.5 结构化输出的容错机制
 
 ```mermaid
 flowchart TD
@@ -488,7 +505,7 @@ flowchart TD
 
 针对低价模型的输出怪癖还做了防御性校验，如 `scorer` 的 `overall` 字段用 `field_validator(mode="before")` 兼容模型偶发输出 `{"score": 74}` 而非 `74` 的情况。
 
-#### 6.4.5 模型可插拔
+#### 6.4.6 模型可插拔
 
 `llm.py` 工厂函数接受可选的 `api_key/base_url/model`，未提供时回退到全局配置（`.env` 或 exe 同级 `config.json` 预置）：
 
@@ -521,6 +538,33 @@ if not final_key:
 ### 6.7 证件照模块
 
 `POST /resumes/photo` 上传：魔数白名单校验（JPG `\xff\xd8\xff` / PNG `\x89PNG`）、≤5MB、以 `uuid4().hex`（32 位十六进制）为文件名落盘——文件名即 photo_id，且 photo_id 参与正则白名单 `^[0-9a-f]{32}$` 校验，天然防路径穿越。`export-docx` 携带 `photo_id` 时定位文件嵌入一寸照位。
+
+### 6.8 RAG 证据接地模块（M11/M12 核心创新）
+
+**设计定位：任务内证据库**（区别于传统外挂知识库 RAG）——把当前用户的简历 + JD 切成证据块建临时索引，让 LLM 每条诊断结论回链简历原文，实现**可解释 + 抗幻觉**。实现全部在 `app/core/evidence.py`，零外部向量库依赖。
+
+#### 6.8.1 四步流水线
+
+1. **分块** `chunk_text()`：按行切分，bullet 行（`-•·*▪`）独立成块（每条经历/成果单独可引用）；目标 200 字符，超长硬切、过短并块；稳定 id：简历块 `R1, R2…`、JD 块 `J1, J2…`
+2. **索引** `build_evidence_index()`：优先 OpenAI 协议 `/embeddings` 向量化（`LLM_EMBEDDING_MODEL` 可配）；不可用（未配 Key / 429 / 超时）自动**降级 IDF 关键词检索**，进程级熔断防重复超时
+3. **检索** `retrieval_pool()`：多查询合并去重 Top-K 组证据池（gap ≤10 条、scorer 每维度 ≤3 条）；关键词打分（M12 升级为 BM25-lite）：`Σ IDF(命中词) × √查询覆盖度 ÷ √块长度`，IDF = `log(1 + N/df)` 让区分词（如 Kubernetes）比高频通用词（如 负责）值钱；DF 表缓存在 index 上每任务复用
+4. **校验** `filter_valid_ids()`：LLM 输出的 `evidence_ids` 逐一验真（只留索引中存在的 id）、去重；引用被丢光的差距自动置 `is_inferred=true`
+
+#### 6.8.2 三个消费节点
+
+| 节点 | 检索查询 | 证据注入 | 输出约束 |
+| --- | --- | --- | --- |
+| `scorer` | 六维度名 + 简历摘要 | 每维度 Top-3 入评分 prompt | 评分带 evidence_ids |
+| `gap` | **JD 原文块**交叉检索简历证据 | 证据池 ≤10 条；prompt 明令空池必须留空数组 + is_inferred，严禁编造 id | 每条差距带 evidence 原文片段 |
+| `rewriter` | 复用差距引用的证据 | 要求严格忠于证据原文、不得编造 | 建议带 evidence_ids |
+
+#### 6.8.3 防幻觉四层体系
+
+① 证据原文注入 prompt（grounding）→ ② prompt 级约束只许引用池内 id → ③ `filter_valid_ids` 输出校验（代码级）→ ④ 无据标「推断」而非删除（信息保留）。消融实验（第 13 章）证明：证据接地贡献 +8 分、引用率 100% vs 0%、无据推断完全消除。
+
+#### 6.8.4 前端呈现
+
+`ResultView.vue` 差距条目显示 `[R3]` 前缀 + 引用的简历原文片段，无据显示「推断」角标；改写建议标注依据证据 id——诊断结论可溯源。
 
 ---
 
@@ -713,8 +757,8 @@ python -m pytest tests/    # 15 项：API / 模板目录 / 照片上传导出 / 
 | 编号 | 事项 | 说明 | 方向 |
 | --- | --- | --- | --- |
 | ~~I-01~~ | ~~HTML 预览与 Word 排版存在像素级差异~~ | ✅ 已解决（M10）：编辑器预览改为直接渲染导出的 Word 文件（docx-preview），与下载版式完全一致 | — |
-| I-02 | 语义匹配未启用 | 早期版本的关键词/向量混合匹配已随爬取方案一并移除；LLM 链路（岗位解析/差距分析）本身即语义主通道 | 如需岗位推荐可基于本地 JD 库重建 |
-| I-03 | 对话式优化的追问轮次固定 | `interactive_opt_agent` 按预设维度追问 | 动态规划追问策略 |
+| I-02 | 语义匹配未启用 | 早期版本的关键词/向量混合匹配已随爬取方案一并移除；LLM 链路（岗位解析/差距分析）本身即语义主通道；M11 的 RAG 证据检索已覆盖任务内语义匹配 | 如需岗位推荐可基于本地 JD 库重建（见 13.4 展望） |
+| ~~I-03~~ | ~~对话式优化的追问轮次固定~~ | ✅ 已解决（M11）：clarify_plan 按信息缺口动态生成 0-3 问（LangGraph interrupt 人在回路），信息充分不打断 | — |
 
 ---
 
@@ -761,9 +805,110 @@ pytest / httpx         # 测试
 | 文档 | 内容 |
 | --- | --- |
 | `README.md` | 快速上手、界面演示、部署说明 |
-| `docs/改造计划.md` | M1-M10 改造清单与进度 |
-| `docs/问题解决记录.md` | 开发踩坑与解决方案 |
+| `docs/改造计划.md` | M1-M13 改造清单与进度（计划文档） |
+| `docs/论文准备.md` | 技术知识点梳理、答辩问答、后续优化建议 |
 
 ---
 
-*本文档依据项目当前代码状态编写（v2.0，对应 M4 完成节点），随版本迭代同步更新。*
+## 12. 开发踩坑记录（精华）
+
+> 原独立文档《问题解决记录》并入本章，仅保留仍然成立的技术经验。
+
+### 12.1 环境与数据库
+
+| 坑 | 原因 | 解决 |
+| --- | --- | --- |
+| conda 建环境 PackagesNotFoundError | 清华镜像同步延迟 | `--solver=classic` 或 `-c conda-forge` |
+| `import fitz` 弃用警告 | PyMuPDF 新命名 | 统一 `import pymupdf` |
+| 8765 被其它软件占用（本机 BluePencil 常驻） | 端口冲突 | run.py 探测自动顺延 8766+；单实例锁只认 `/_sig` 签名不误伤 |
+| StaticPool 并发游标错乱、事务丢失 | 全局共享单连接，请求会话与后台任务会话交错 commit | `AsyncAdaptedQueuePool`（每会话独立连接）+ WAL + busy_timeout 5000 |
+| 老库报 no such column | `create_all` 只建缺失表不改已有表 | 新增列登记 `_SCHEMA_NEW_COLUMNS`，启动 `ensure_schema_columns()` 用 PRAGMA 检查后 ALTER TABLE 补列（幂等） |
+| Web 每日配额统计错 | SQLite `func.now()` 写 UTC naive | 日期比较统一按 UTC 计算 |
+| ASGITransport 不触发 lifespan | 测试环境不跑启动逻辑 | conftest 手动 create_all + ensure_schema_columns，与生产共用登记 |
+
+### 12.2 LLM / 多智能体
+
+| 坑 | 原因 | 解决 |
+| --- | --- | --- |
+| DeepSeek 402 余额不足 | 付费模型 | 换智谱 GLM-4-Flash（免费）；设置页连接测试透传报错 |
+| `with_structured_output` 不返回 JSON | DeepSeek 等不支持 tool calling | 手写「Schema 注入 + 正则兜底 + 纠错重试」三层容错，适配任意 OpenAI 协议模型 |
+| 「JSON + 后缀解释」贪婪正则解析失败 → 3 轮整调用重试 | 模型在 JSON 后附解释文字 | `_extract_first_json` 括号平衡提取首个 JSON 对象（每次诊断省约 2 分钟） |
+| overall 收到 `{"score": 80}` 校验失败 | 模型惯性输出嵌套对象 | `field_validator(mode="before")` 兼容两种写法 |
+| 并行分支各写 error 互相覆盖 | TypedDict 默认覆盖语义 | `Annotated[str \| None, _merge_error]` 自定义 reducer 保留首个非空值 |
+| 温度一刀切导致输出要么发散要么僵化 | 任务性质不同 | 温度分层：抽取 0.1-0.2 / 评分 0.2-0.3 / 生成 0.5 |
+| 空证据池下模型幻觉出恰好合法的 id | LLM 会钻规则空子（消融实验发现） | prompt 明令空池留空 + `filter_valid_ids` 校验双保险；消融 B 变体需「检索+校验双禁」才有效 |
+| Py3.10 async 图中 interrupt 失效 | contextvar 行为 3.11+ 才正确 | 官方兼容解：同步节点包装 + worker 线程驱动同步 stream |
+
+### 12.3 前后端联调
+
+| 坑 | 解决 |
+| --- | --- |
+| 改代码页面不更新 | 后端 HTML 响应加 `Cache-Control: no-cache`；开发强刷 |
+| 依赖路由参数的页面在异常数据上循环请求 | 空态分支 + 数据源多级回退（localStorage → sessionStorage → 接口） |
+| 接口改动出现隐性错位 | Schema / 前端表单 / 列表展示 / 测试四处全链路同步 |
+| 自动化导航打不到页面 | hash 路由地址必须带 `#`（如 `/#/analyze`） |
+| LLM 产出经历格式不统一（字符串数组 vs 对象数组） | 前端 `normalizeArray` 归一化：对象取字段，字符串正则切分解析 |
+| 会话崩溃丢失未落盘编辑 | 大改动尽早确认或 git 提交，不压未保存状态 |
+
+### 12.4 桌面打包与文档生成
+
+| 坑 | 解决 |
+| --- | --- |
+| PyInstaller 体积失控 | 排除清单（torch / Chromium / MySQL 驱动残留）；one-folder 启动更快；55MB |
+| 打包后 `__file__` 不可靠 | `_resolve_base_dir` 按 `sys.frozen` 区分：打包取 exe 目录，开发取 backend/；前端资源在 `_MEIPASS/web` |
+| 「端口占用就退出」误伤其它应用 | 单实例锁只认 `/_sig` ResuMatch 签名响应 |
+| pywebview 缺 WebView2 运行时 | 自动回退系统浏览器；`--browser` 可强制 |
+| Word 中文回落默认字体 | run 级显式设置 `w:eastAsia`（只设 font.name 只对西文生效） |
+| photo_id 404 | 统一约定 uuid4().hex 裸 ID，正则 `^[0-9a-f]{32}$`，读取 `glob(f"{photo_id}.*")` |
+| 前端预览与 Word 版式漂移 | 预览与导出共用模板参数语义（M10 后预览直接渲染导出 docx，彻底同源） |
+
+### 12.5 经验教训汇总
+
+- **架构**：先跑通最小闭环再扩展；零配置优先（SQLite + config.json 预置）；接口改动全链路检查
+- **编码**：LLM 输出永远不可信（Schema 注入 + 正则兜底 + 重试 + field_validator 四道防御）；并行共享状态显式 reducer；给已有表加列必须走迁移登记；日期统一按 UTC 比较
+- **安全**：文件上传只信内容不信扩展名（魔数白名单 + 服务端生成文件名）；数据隔离统一走依赖注入避免各端点漏实现
+- **调试**：`logger.exception` 打全栈；F12 Network+Console 解决 90% 前端问题；pytest 全过再提交
+
+---
+
+## 13. 质量评估（真实 LLM 实测）
+
+> 原独立文档《评估报告》《消融评估报告》并入本章。模型：`glm-4-flash`（免费档），脚本 `backend/scripts/evaluate.py`。
+
+### 13.1 稳定性评估（3 用例 × 2 次）
+
+| 用例 | 期望匹配 | overall 均值 | 标准差 | 建议数均值 | 量化占比 | JD 关键词命中 |
+|---|---|---|---|---|---|---|
+| 后端岗高匹配 | high | 81.5 | 0.7 | 5.0 | 80% | 50% |
+| 前端转后端低匹配 | low | 81.0 | 0.0 | 5.0 | 70% | 54% |
+| 数据岗中匹配 | medium | 80.0 | 1.4 | 4.5 | 78% | 21% |
+
+**汇总**：overall 总体均值 80.8，总体标准差 1.0（<10 视为稳定）；高/中/低匹配用例区分度合理。
+
+### 13.2 消融评估（M11-C，后端岗高匹配用例）
+
+引用率 = 带证据原文引用的差距占比；推断率 = 无证据支撑差距占比；建议带据率 = 改写建议标注依据证据 id 的占比。B 变体禁用证据检索与校验（防空池幻觉 id 绕过），度量 RAG 贡献。
+
+| 变体 | overall | 差距数 | 引用率 | 推断率 | 建议带据率 | 量化占比 | 耗时(s) |
+|---|---|---|---|---|---|---|---|
+| A 完整（RAG+refine） | 82 | 3 | 100% | 0% | 100% | 80% | 134 |
+| B 无 RAG 证据 | 74 | 6 | 0% | 100% | 100% | 100% | 142 |
+| C 无 refine | 81 | 6 | 83% | 17% | 100% | 80% | 112 |
+| D 在线 + 自动追问 | 78-82 | 3 | 100% | 0-33% | 100% | 80% | 140 |
+
+### 13.3 结论与方法学说明
+
+1. **RAG 证据接地贡献 +8 分**（82 vs 74），质的差异：引用率 100% vs 0%、推断率 ~0% vs 100%、差距条数 3 vs 6（无 RAG 时泛泛而谈条数虚增）
+2. refine 自反思贡献 +1 分；动态追问在补全信息场景保持质量
+3. 结论跨多次运行可复现；单次运行 ±3 分属 LLM 随机抖动（温度>0 的固有属性）
+4. **方法学漏洞记录**（实验设计经验）：首版消融 B 变体引用率 100% 是假象——空池下 glm-4-flash 仍幻觉出恰好合法的证据 id（如 R1），`filter_valid_ids` 对完整索引校验直接放行；用三个探针逐层定位后修正为「检索 + 校验双禁用」才构成有效消融
+
+### 13.4 展望（后续优化方向）
+
+- **论文级**：岗位能力知识库混合检索（结构化行业考察点卡片 + 证据池双路）；接入免费 embedding（如 bge-m3）跑通向量链路对比关键词召回；评估规模化（30+ 用例 + LLM-as-judge 置信区间）
+- **工程级**：checkpointer 换 SqliteSaver（追问等待状态跨重启恢复）；追问回答本地草稿暂存；scorer 六维检索并行化（诊断耗时再压 ~30%）；web 形态 SSE 压测；exe 自动更新检查
+- **明确不做**：海量文档库 RAG（知识在用户输入内闭合，见 6.8 设计定位）、用户注册体系（匿名会话已够）、微服务拆分
+
+---
+
+*本文档依据项目当前代码状态编写（v3.0，对应 M13 完成节点），随版本迭代同步更新。*

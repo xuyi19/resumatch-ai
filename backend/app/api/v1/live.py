@@ -76,6 +76,9 @@ async def start_analyze(
     if len(jd_text) < 20:
         raise HTTPException(400, "JD 文本过短，请至少粘贴 20 个字")
 
+    if LivePipelineService.has_active_task(owner_id):
+        raise HTTPException(409, "已有诊断任务进行中，请等待完成后再发起新诊断")
+
     await _check_web_quota(db, owner_id, req.llm_config)
 
     resume_service = ResumeService(db)
@@ -123,7 +126,12 @@ async def submit_clarify(
     if task.get("status") != "waiting_clarify":
         raise HTTPException(409, "任务不在等待补充信息状态")
 
-    answers = {k: str(v).strip() for k, v in (req.answers or {}).items() if str(v).strip()}
+    # 去空 + 单条截断（防止超长回答撑爆后续 prompt）
+    answers = {
+        k: str(v).strip()[:500]
+        for k, v in (req.answers or {}).items()
+        if str(v).strip()
+    }
     if not answers:
         raise HTTPException(400, "回答内容不能为空")
     if len(answers) > 10:
