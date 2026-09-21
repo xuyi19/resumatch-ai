@@ -106,23 +106,45 @@ def _get_embeddings(api_key: str | None, base_url: str | None, model: str):
     return _EMBEDDINGS_CACHE[cache_key]
 
 
+def _ensure_df(index: dict) -> dict:
+    """文档频率表（缓存在 index 上，供 IDF 加权）。"""
+    df = index.get("_df")
+    if df is None:
+        df = {}
+        for ch in index["chunks"]:
+            ch.setdefault("_tokens", set(_tokenize(ch["text"])))
+            for t in ch["_tokens"]:
+                df[t] = df.get(t, 0) + 1
+        index["_df"] = df
+    return df
+
+
 def _keyword_search(index: dict, query: str, k: int) -> list[dict]:
-    q_tokens = set(_tokenize(query))
-    if not q_tokens:
+    """IDF 加权重叠 + 查询覆盖度奖励的关键词检索。
+
+    旧实现用纯重叠计数：'负责/项目/熟悉' 等高频词与区分词（如 Kubernetes）
+    同权，导致常见词淹没真正相关的块。改进：
+    - IDF 权重：块越少包含该词权重越高（log(1 + N/df)）
+    - 覆盖度因子：命中查询中更多不同词的块排前（√ 阻尼防止单点独大）
+    - 长度归一：除以 √块词数，避免长块天然占优
+    """
+    chunks = index.get("chunks") or []
+    q_set = set(_tokenize(query))
+    if not q_set or not chunks:
         return []
+    df = _ensure_df(index)
+    n_docs = len(chunks)
     scored = []
-    for ch in index["chunks"]:
+    for ch in chunks:
         c_tokens = ch.get("_tokens") or set(_tokenize(ch["text"]))
         ch["_tokens"] = c_tokens
-        overlap = len(q_tokens & c_tokens)
-        if overlap:
-            scored.append(
-                {
-                    "id": ch["id"],
-                    "text": ch["text"],
-                    "score": overlap / math.sqrt(len(c_tokens)),
-                }
-            )
+        overlap = q_set & c_tokens
+        if not overlap:
+            continue
+        idf_sum = sum(math.log(1 + n_docs / df.get(t, 1)) for t in overlap)
+        coverage = len(overlap) / len(q_set)
+        score = idf_sum * (coverage**0.5) / math.sqrt(len(c_tokens))
+        scored.append({"id": ch["id"], "text": ch["text"], "score": score})
     scored.sort(key=lambda x: x["score"], reverse=True)
     return scored[:k]
 
