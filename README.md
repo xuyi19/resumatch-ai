@@ -36,6 +36,8 @@ ResuMatch AI 是一个**简历诊断工具**：你上传一份简历，再粘贴
 - **多格式简历解析**：支持 PDF / DOCX / TXT，DOCX 会一并提取表格内容，避免表格式简历丢信息
 - **JD 粘贴即用**：无爬虫、无岗位库依赖，从 BOSS / 智联 / 拉勾复制 JD 直接粘贴
 - **LangGraph 诊断链**：解析简历 ∥ 解析岗位 → 六维评分 → 差距分析 → 改写建议，实时进度可视化
+- **RAG 证据接地**：简历/JD 条目级分块检索，差距与建议必须引用简历原文（`[R3]`），无据自动标「推断」——消融实验证明贡献 +8 分且消除无据推断（见 [`docs/消融评估报告.md`](docs/消融评估报告.md)）
+- **动态多轮追问（人在回路）**：AI 基于信息缺口动态生成 0-3 个追问（LangGraph interrupt 暂停 → 前端问题卡片 → 回答后恢复续跑），信息充分不打断，解决固定轮次机械感
 - **对答式深度优化**：AI 追问补充经历细节后生成定制优化简历，支持一键优化 / 逐题问答两种模式
 - **10 套简历模板**：经典居中 / 侧栏双栏 / 商务蓝 / 典雅衬线 / 现代竖标 / 极简黑白 / 学术衬线 / 活力橙 / 单行页眉 / 紧凑单页
 - **证件照嵌入**：上传 JPG/PNG 证件照，导出 Word 时自动排入一寸照位（侧栏双栏等模板）
@@ -60,7 +62,8 @@ ResuMatch AI 是一个**简历诊断工具**：你上传一份简历，再粘贴
 
 **后端**
 - FastAPI + Uvicorn —— 异步 Web 框架
-- LangGraph + langchain-openai —— 诊断工作流编排，兼容 DeepSeek / 通义 / 智谱等 OpenAI 协议模型
+- LangGraph + langchain-openai —— 诊断工作流编排 + interrupt 人在回路，兼容 DeepSeek / 通义 / 智谱等 OpenAI 协议模型
+- RAG-lite 证据检索 —— 条目级分块 + 纯 Python 余弦/IDF 关键词检索（零向量库依赖，embedding 不可用自动降级），证据接地可解释、抗幻觉
 - SQLite（aiosqlite + WAL）—— 单文件库，免安装、支持并发读写
 - PyMuPDF / python-docx —— 简历解析与 Word 生成（多模板 + 证件照排版）
 
@@ -76,20 +79,27 @@ ResuMatch AI 是一个**简历诊断工具**：你上传一份简历，再粘贴
 flowchart TD
     A["简历上传<br/>PDF / DOCX → 文本"] --> D
     B["用户粘贴 JD 文本"] --> E
+    R["evidence.py<br/>条目级分块 + RAG 检索"] -.-> F & G
 
     subgraph LG["LangGraph 诊断链"]
         direction LR
         D["parser<br/>结构解析"] --- E["job_analyze<br/>岗位解析"]
-        E --> F["scorer<br/>六维评分"]
-        F --> G["gap<br/>差距分析"]
-        G --> H["rewriter<br/>改写建议"]
+        E --> F["scorer<br/>六维评分<br/>按维度检索证据"]
+        F --> G["gap<br/>差距分析<br/>差距必须引用 [R*] 原文"]
+        G --> C["clarify<br/>动态追问 0-3 问<br/>interrupt 暂停"]
+        C -->|用户回答后 Command(resume)| H["rewriter<br/>改写建议"]
+        H --> I2["refine<br/>自省精修"]
     end
 
-    H --> I["结果落库 SQLite<br/>历史可回看"]
-    H --> J["对答式优化<br/>optimizer"]
-    J --> K["简历编辑器<br/>10 套模板 + 证件照"]
+    I2 --> I["结果落库 SQLite<br/>历史可回看"]
+    I --> J["对答式优化<br/>optimizer"]
+    J --> K["简历编辑器<br/>10 套模板 + 证件照 + docx 实时预览"]
     K --> L["导出 Word / PDF"]
 ```
+
+**RAG 证据接地**：诊断开始时把简历/JD 切成条目级证据块（`R1/J1…` 稳定 id），评分/差距/改写节点按需检索 Top-K 证据块注入 prompt；LLM 输出的证据引用经 `filter_valid_ids` 校验（防幻觉 id），无据差距自动标「推断」。embedding 服务不可用时自动降级 IDF 加权关键词检索（BM25-lite）。
+
+**动态追问（人在回路）**：差距分析后 `clarify_plan` 节点按信息缺口生成 0-3 个问题，经 LangGraph `interrupt()` 暂停图执行并推送前端；用户答题后 `POST /live/clarify/{task_id}` 携 `Command(resume)` 恢复续跑改写与精修，全程状态由 MemorySaver checkpointer 保管（任务终态自动释放）。
 
 **任务进度**通过内存任务表实时推送（前端轮询 `/live/status`），诊断结果落库 SQLite `diagnosis_records`；服务重启时启动补偿会把残留的 running 记录标记为失败，前端自动回落历史接口恢复结果。
 
@@ -236,6 +246,7 @@ resumatch-ai/
 | POST | `/api/v1/live/analyze` | 启动诊断：`{resume_id, jd_text, resume_name?, enable_refine?}` |
 | GET | `/api/v1/live/stream/{task_id}` | **SSE 实时推送**诊断进度（前端主用） |
 | GET | `/api/v1/live/status/{task_id}` | 查询任务进度与结果（内存优先，过期回退 DB） |
+| POST | `/api/v1/live/clarify/{task_id}` | 提交动态追问回答，`Command(resume)` 恢复诊断链 |
 | GET | `/api/v1/history` | 历史记录列表（按会话隔离） |
 | GET/DELETE | `/api/v1/history/{task_id}` | 历史详情 / 删除 |
 | POST | `/api/v1/optimize/{task_id}` | 一键优化 |
@@ -298,7 +309,14 @@ curl http://127.0.0.1:8765/api/v1/live/status/a1b2c3d4e5f6
 - [x] M2 逻辑修复：resume_id 落库、任务状态持久化、启动补偿、keyword 回填岗位名
 - [x] M3 桌面版强化：pywebview 窗口化、单实例锁、打包排除清单、exe 烟测
 - [x] M4 网站化：owner 会话隔离、Web 每日配额、证件照、10 套简历模板
-- [ ] M5 收尾：历史文档重写、多模板前端预览（当前预览为示意样式）
+- [x] M5 收尾：历史文档重写、模板化前端预览
+- [x] M6 SSE 实时进度 + 结果落库 + 自省精修（refine）+ 质量评估脚本
+- [x] M7 桌面 exe 强化：任务串台修复、原生窗口、无控制台打包
+- [x] M8 启动提速（52.6s → 2.1s）+ 双形态界面（桌面 App 风 / 网页引流）+ 首页重写
+- [x] M9 清理回收 1.8GB（历史安装包 / 冗余环境文件）
+- [x] M10 编辑器预览保真：docx-preview 直渲真实 Word 文件，预览与导出版式一致
+- [x] M11 RAG 证据接地 + 动态多轮追问（interrupt 人在回路）+ 消融/稳定性评估
+- [x] M12 检索 IDF 加权（BM25-lite）+ 空池防幻觉指令
 
 ---
 
