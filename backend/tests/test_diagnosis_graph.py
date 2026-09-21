@@ -28,7 +28,7 @@ class FakeResult:
 
 def _fake_payloads():
     """各节点应返回的 schema 化数据，按调用顺序排列：
-    parser → job_analyze → scorer → gap → rewriter → refine（复用 RewriteResult）
+    parser → job_analyze → scorer → gap → clarify_plan → rewriter → refine（复用 RewriteResult）
     （parser 与 job_analyze 并行，顺序可能互换，见 payload 匹配逻辑）
     """
     return {
@@ -65,6 +65,8 @@ def _fake_payloads():
             ],
             "summary": "整体匹配度尚可",
         }),
+        # 默认信息充分不追问；interrupt 场景在用例内覆写
+        "ClarifyPlan": FakeResult({"questions": []}),
         "RewriteResult": FakeResult({
             "suggestions": [
                 {"target": "项目", "original": "做了推荐系统",
@@ -89,6 +91,7 @@ def mock_llm():
          patch("app.agents.nodes.job_analyze_agent.call_llm_for_json", side_effect=fake_call), \
          patch("app.agents.nodes.scorer_agent.call_llm_for_json", side_effect=fake_call), \
          patch("app.agents.nodes.gap_agent.call_llm_for_json", side_effect=fake_call), \
+         patch("app.agents.nodes.clarify_agent.call_llm_for_json", side_effect=fake_call), \
          patch("app.agents.nodes.rewriter_agent.call_llm_for_json", side_effect=fake_call):
         yield calls
 
@@ -104,10 +107,10 @@ async def test_diagnose_full_flow(mock_llm):
         on_progress=lambda step, total, stage: progress_events.append((step, total, stage)),
     )
 
-    # 6 次 LLM 调用：5 个诊断节点 + refine 复用 RewriteResult schema
+    # 7 次 LLM 调用：5 个诊断节点 + clarify_plan + refine 复用 RewriteResult schema
     assert result["error"] == "", f"诊断出错: {result['error']}"
     assert sorted(mock_llm) == [
-        "GapAnalysis", "JobAnalysis", "ParsedResume", "ResumeScores",
+        "ClarifyPlan", "GapAnalysis", "JobAnalysis", "ParsedResume", "ResumeScores",
         "RewriteResult", "RewriteResult",
     ]
     assert result["parsed"]["summary"] == "后端工程师"
@@ -140,7 +143,8 @@ async def test_diagnose_refine_disabled(mock_llm):
 
     assert result["error"] == ""
     assert sorted(mock_llm) == [
-        "GapAnalysis", "JobAnalysis", "ParsedResume", "ResumeScores", "RewriteResult",
+        "ClarifyPlan", "GapAnalysis", "JobAnalysis", "ParsedResume", "ResumeScores",
+        "RewriteResult",
     ]
     stages = [e[2] for e in progress_events]
     assert set(stages) == {"解析简历", "解析岗位", "六维评分", "差距分析", "改写建议"}
@@ -199,3 +203,44 @@ async def test_diagnose_both_branches_fail_no_crash():
     # 两个分支的错误都写入 state，保留其一，不抛 InvalidUpdateError
     assert result["error"] in ("解析失败: 模拟 LLM 全线故障", "JD 解析失败: 模拟 LLM 全线故障")
     assert result["scores"] == {}
+
+
+@pytest.mark.asyncio
+async def test_interactive_clarify_pause_and_resume():
+    """交互模式（thread_id）：LLM 判定需补充信息 → 图 interrupt 暂停；
+    提交回答后 Command(resume) 恢复执行，改写基于暂停前状态完成"""
+    payloads = _fake_payloads()
+    payloads["ClarifyPlan"] = FakeResult({
+        "questions": [
+            {"id": "q1", "gap": "缺量化", "question": "推荐系统项目的 QPS 或用户规模是多少？", "hint": ""},
+        ],
+    })
+
+    async def fake_call(prompt, schema, **kwargs):
+        return payloads[schema.__name__]
+
+    with patch("app.agents.nodes.parser_agent.call_llm_for_json", side_effect=fake_call), \
+         patch("app.agents.nodes.job_analyze_agent.call_llm_for_json", side_effect=fake_call), \
+         patch("app.agents.nodes.scorer_agent.call_llm_for_json", side_effect=fake_call), \
+         patch("app.agents.nodes.gap_agent.call_llm_for_json", side_effect=fake_call), \
+         patch("app.agents.nodes.clarify_agent.call_llm_for_json", side_effect=fake_call), \
+         patch("app.agents.nodes.rewriter_agent.call_llm_for_json", side_effect=fake_call):
+        # 第一段：跑到 clarify_wait 暂停
+        r1 = await DiagnosisService().diagnose("简历", "JD", thread_id="t-clarify")
+        assert r1["waiting"] is True, f"应暂停等待补充信息: {r1['error']}"
+        assert len(r1["clarify_questions"]) == 1
+        assert r1["clarify_questions"][0]["id"] == "q1"
+        assert r1["gaps"], "暂停前差距分析已完成"
+        assert r1["suggestions"] == [], "暂停时改写建议不应产出"
+        assert r1["error"] == ""
+
+        # 第二段：提交回答恢复执行
+        r2 = await DiagnosisService().diagnose(
+            thread_id="t-clarify", resume_answers={"q1": "峰值 QPS 3000，日活 5 万"}
+        )
+        assert r2["waiting"] is False
+        assert r2["error"] == "", f"恢复执行失败: {r2['error']}"
+        assert len(r2["suggestions"]) == 1
+        assert r2["gaps"][0]["dimension"] == "技能"
+
+    await DiagnosisService().release_thread("t-clarify")

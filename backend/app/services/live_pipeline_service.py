@@ -167,13 +167,23 @@ class LivePipelineService:
         enable_refine: bool = True,
     ):
         """
-        用户提供 jd_text → 5 节点 Agent 链（解析简历 ∥ 解析岗位 → 评分 → 差距 → 改写）
-        每个节点完成时通过 on_progress 实时上报进度。
+        启动诊断任务：6 节点 Agent 链（解析简历 ∥ 解析岗位 → 评分 → 差距 → 动态追问 → 改写）。
+        若 LLM 判定需补充信息，任务在差距分析后暂停（waiting_clarify），
+        由 /live/clarify 提交回答后经 cls.resume() 恢复执行。
         """
         info = TASKS.get(task_id) or {}
         owner_id = info.get("owner_id", "local")
         resume_id = info.get("resume_id")
         resume_name = resume_name or info.get("resume_name") or "未命名简历"
+
+        # 上下文入任务表，供恢复执行复用
+        cls._update(
+            task_id,
+            jd_text=jd_text,
+            city=city,
+            llm_config=llm_config,
+            enable_refine=enable_refine,
+        )
 
         # 落库：创建记录（owner 归属 + resume 关联在创建时写入）
         async with AsyncSessionLocal() as session:
@@ -188,13 +198,58 @@ class LivePipelineService:
             session.add(rec)
             await session.commit()
 
+        await cls._flow(
+            task_id, resume_text, jd_text, city, llm_config, enable_refine,
+            resume_answers=None,
+        )
+
+    @classmethod
+    async def resume(cls, task_id: str, answers: dict):
+        """用户补充信息后恢复诊断（续跑改写/精修并完成落库）。"""
+        task = TASKS.get(task_id) or {}
+        if task.get("status") != "waiting_clarify":
+            raise ValueError("任务当前不在等待补充信息状态")
+        cls._update(
+            task_id,
+            status="running",
+            stage="改写建议",
+            message=f"已收到 {len(answers)} 条补充回答，继续诊断...",
+            questions=[],
+        )
+        await cls._flow(
+            task_id,
+            resume_text="",
+            jd_text=task.get("jd_text", ""),
+            city=task.get("city", ""),
+            llm_config=task.get("llm_config"),
+            enable_refine=task.get("enable_refine", True),
+            resume_answers=answers,
+        )
+
+    @classmethod
+    async def _flow(
+        cls,
+        task_id: str,
+        resume_text: str,
+        jd_text: str,
+        city: str,
+        llm_config: dict | None,
+        enable_refine: bool,
+        resume_answers: dict | None,
+    ):
+        """诊断主流程（首次运行与恢复执行共用）。"""
+        resuming = resume_answers is not None
         try:
-            cls._update(task_id, status="running", stage="准备中", progress=5,
-                        message="准备分析...")
+            if not resuming:
+                cls._update(task_id, status="running", stage="准备中", progress=5,
+                            message="准备分析...")
 
             done_stages: set[str] = set()
+            if resuming:
+                done_stages = {"解析简历", "解析岗位", "六维评分", "差距分析", "等待补充信息"}
             stage_order = [s for s in NODE_STAGES.values()
                            if not (s == "精修优化" and not enable_refine)]
+            offset = len(done_stages & set(NODE_STAGES.values())) if resuming else 0
 
             def on_progress(step: int, total: int, stage: str):
                 pct = 10 + int(step / total * 80)  # 10% → 90%
@@ -223,57 +278,82 @@ class LivePipelineService:
                 llm_config=llm_config,
                 on_progress=on_progress,
                 enable_refine=enable_refine,
+                thread_id=task_id,
+                resume_answers=resume_answers,
+                completed_offset=offset,
             )
 
-            cls._update(task_id, stage="生成报告", progress=93,
-                        message="📊 生成最终报告...")
-
-            # keyword 回填岗位名：优先用 JD 解析出的一句话总结
-            summary = (diagnosis.get("job_analysis") or {}).get("summary", "").strip()
-            job_title = summary[:24] if summary else "用户输入"
-
-            result_data = {
-                "keyword": job_title,
-                "city": city,
-                # 完整 JD 持久化：chat/optimize 阶段复用，避免上下文缩水
-                "jd_text": jd_text,
-                "diagnosis_target": {
-                    "job_id": 0,
-                    "title": job_title,
-                    "company": "",
-                    "city": city,
-                },
-                "diagnosis": diagnosis,
-            }
-
-            cls._update(
-                task_id,
-                stage="完成",
-                progress=100,
-                message="✅ 诊断完成",
-                status="success",
-                result=result_data,
-                finished_at=time.time(),
-            )
-
-            # 落库（终态含进度快照）
-            async with AsyncSessionLocal() as session:
-                rec_res = await session.execute(
-                    select(DiagnosisRecord).where(DiagnosisRecord.task_id == task_id)
+            # 动态追问：图在 clarify_wait interrupt 暂停，等待用户补充信息
+            if diagnosis.get("waiting"):
+                questions = diagnosis.get("clarify_questions") or []
+                cls._update(
+                    task_id,
+                    status="waiting_clarify",
+                    stage="等待补充信息",
+                    progress=max(TASKS.get(task_id, {}).get("progress", 0), 55),
+                    message=f"🤔 为让诊断更准确，需要补充 {len(questions)} 条信息",
+                    questions=questions,
                 )
-                rec = rec_res.scalar_one_or_none()
-                if rec:
-                    rec.status = "success"
-                    rec.keyword = job_title
-                    rec.result = result_data
-                    rec.stage = "完成"
-                    rec.progress = 100
-                    rec.logs = TASKS.get(task_id, {}).get("logs", [])
-                    await session.commit()
+                return
 
+            await cls._finalize(task_id, diagnosis, city, jd_text)
         except Exception as e:
             logger.exception(f"[{task_id}] 失败: {e}")
             cls._update(task_id, status="failed", error=str(e)[:500],
                         message=f"❌ 任务失败：{str(e)[:100]}",
                         finished_at=time.time())
             await cls._save_failed(task_id, str(e)[:500])
+        finally:
+            # 终态（成功/失败）释放 checkpointer 快照；暂停任务保留以便恢复
+            task = TASKS.get(task_id) or {}
+            if task.get("status") in ("success", "failed"):
+                await DiagnosisService().release_thread(task_id)
+
+    @classmethod
+    async def _finalize(cls, task_id: str, diagnosis: dict, city: str, jd_text: str):
+        """诊断完成：组装结果、更新任务终态并落库。"""
+        cls._update(task_id, stage="生成报告", progress=93,
+                    message="📊 生成最终报告...")
+
+        # keyword 回填岗位名：优先用 JD 解析出的一句话总结
+        summary = (diagnosis.get("job_analysis") or {}).get("summary", "").strip()
+        job_title = summary[:24] if summary else "用户输入"
+
+        result_data = {
+            "keyword": job_title,
+            "city": city,
+            # 完整 JD 持久化：chat/optimize 阶段复用，避免上下文缩水
+            "jd_text": jd_text,
+            "diagnosis_target": {
+                "job_id": 0,
+                "title": job_title,
+                "company": "",
+                "city": city,
+            },
+            "diagnosis": diagnosis,
+        }
+
+        cls._update(
+            task_id,
+            stage="完成",
+            progress=100,
+            message="✅ 诊断完成",
+            status="success",
+            result=result_data,
+            finished_at=time.time(),
+        )
+
+        # 落库（终态含进度快照）
+        async with AsyncSessionLocal() as session:
+            rec_res = await session.execute(
+                select(DiagnosisRecord).where(DiagnosisRecord.task_id == task_id)
+            )
+            rec = rec_res.scalar_one_or_none()
+            if rec:
+                rec.status = "success"
+                rec.keyword = job_title
+                rec.result = result_data
+                rec.stage = "完成"
+                rec.progress = 100
+                rec.logs = TASKS.get(task_id, {}).get("logs", [])
+                await session.commit()

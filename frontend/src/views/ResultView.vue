@@ -79,6 +79,47 @@
 
     </div>
 
+    <!-- 动态追问（M11-B）：AI 判定信息不足，interrupt 等待补充 -->
+    <div v-else-if="status === 'waiting_clarify'" class="max-w-2xl mx-auto py-12">
+
+      <div class="text-center mb-8">
+        <div class="text-4xl mb-4">🤔</div>
+        <h1 class="text-xl font-semibold text-gray-800">需要补充几条信息</h1>
+        <p class="text-sm text-gray-500 mt-2">
+          AI 判断回答以下问题能让差距结论与改写建议更可靠，一两句话回答即可
+        </p>
+      </div>
+
+      <div class="space-y-4">
+        <div v-for="(q, i) in clarifyQuestions" :key="q.id || i"
+             class="bg-[#e0e5ec] rounded-2xl p-6
+            shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
+          <div class="text-xs font-semibold text-[#6d5dfc] mb-2">
+            追问 {{ i + 1 }}<span v-if="q.gap"> · 针对：{{ q.gap }}</span>
+          </div>
+          <div class="text-sm text-gray-800 mb-3 leading-relaxed">{{ q.question }}</div>
+          <div v-if="q.hint" class="text-xs text-gray-400 mb-2">💡 {{ q.hint }}</div>
+          <textarea v-model="clarifyAnswers[q.id || `q${i + 1}`]" rows="2"
+                    placeholder="一句话回答即可，例：该项目峰值 QPS 约 3000，日活 5 万"
+                    class="w-full px-4 py-3 rounded-xl bg-[#e0e5ec] text-sm text-gray-800
+                placeholder-gray-400 outline-none resize-none
+                shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]
+                focus:ring-2 focus:ring-[#6d5dfc]/30"></textarea>
+        </div>
+      </div>
+
+      <div class="text-center mt-8">
+        <button @click="submitClarify" :disabled="clarifySubmitting"
+                class="px-8 py-3 text-sm font-medium rounded-xl bg-[#6d5dfc] text-white
+            shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]
+            hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
+            transition-all duration-300 disabled:opacity-50">
+          {{ clarifySubmitting ? '提交中...' : '提交并继续诊断' }}
+        </button>
+        <div class="text-xs text-gray-400 mt-3">至少回答一个问题；提交后诊断将在改写建议处继续</div>
+      </div>
+    </div>
+
     <!-- 结果 -->
     <div v-else-if="status === 'success'">
 
@@ -173,11 +214,20 @@
             <ul class="space-y-3 text-sm text-gray-700">
               <li v-for="(g, i) in gaps" :key="i" class="flex gap-3 items-start">
                 <span :class="severityColor(g.severity)" class="shrink-0 mt-0.5">△</span>
-                <span>
+                <span class="flex-1">
                   <span :class="severityColor(g.severity)" class="text-xs font-semibold">[{{
                       g.severity || '-'
                     }}]</span>
                   {{ g.description }}
+                  <span v-if="g.is_inferred"
+                        class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-500 align-middle">推断</span>
+                  <!-- RAG 证据引用（M11-A）：展示支撑该差距的简历原文 -->
+                  <span v-if="g.evidence && g.evidence.length" class="block mt-2 space-y-1.5">
+                    <span v-for="ev in g.evidence" :key="ev.id"
+                          class="block text-xs text-gray-500 rounded-lg px-3 py-2 border-l-2 border-[#6d5dfc]/40 bg-white/40">
+                      <span class="font-mono text-[#6d5dfc] mr-1">[{{ ev.id }}]</span>{{ ev.text }}
+                    </span>
+                  </span>
                 </span>
               </li>
               <li v-if="!gaps.length" class="text-gray-400 text-sm">暂无差距分析</li>
@@ -199,6 +249,9 @@
                 {{ s.rewritten }}
               </div>
               <div class="text-xs text-gray-500 mt-3">💡 {{ s.reason }}</div>
+              <div v-if="s.evidence_ids && s.evidence_ids.length" class="text-xs text-gray-400 mt-1">
+                📎 依据证据：{{ s.evidence_ids.join(' / ') }}
+              </div>
             </div>
             <div v-if="overallAdvice" class="p-5 rounded-xl bg-[#6d5dfc]/10 text-sm text-gray-800">
               <span class="font-semibold text-[#6d5dfc]">整体建议：</span>{{ overallAdvice }}
@@ -412,7 +465,7 @@
 </template>
 
 <script setup>
-import {ref, computed, onMounted, onUnmounted, nextTick, watch} from 'vue'
+import {ref, reactive, computed, onMounted, onUnmounted, nextTick, watch} from 'vue'
 import {useRoute, RouterLink} from 'vue-router'
 import {Message} from '@arco-design/web-vue'
 import * as echarts from 'echarts'
@@ -457,6 +510,33 @@ function stopElapsed() {
   if (elapsedTimer) {
     clearInterval(elapsedTimer)
     elapsedTimer = null
+  }
+}
+
+// ---- 动态追问（M11-B）：AI 判定信息不足时暂停，收集回答后恢复 ----
+const clarifyQuestions = ref([])
+const clarifyAnswers = reactive({})
+const clarifySubmitting = ref(false)
+
+async function submitClarify() {
+  const answers = {}
+  Object.entries(clarifyAnswers).forEach(([k, v]) => {
+    if (v && String(v).trim()) answers[k] = String(v).trim()
+  })
+  if (!Object.keys(answers).length) {
+    Message.warning('请至少回答一个问题')
+    return
+  }
+  clarifySubmitting.value = true
+  try {
+    await api.submitClarify(taskId, answers)
+    status.value = 'running'
+    message.value = '已收到补充信息，继续诊断...'
+    Message.success('已提交，继续诊断')
+  } catch (e) {
+    Message.error(e.response?.data?.detail || '提交失败，请重试')
+  } finally {
+    clarifySubmitting.value = false
   }
 }
 
@@ -573,6 +653,9 @@ function handleTaskData(t) {
   runningStage.value = t.stage || '准备中'
   if (typeof t.refine === 'boolean') refineEnabled.value = t.refine
   if (t.status === 'running' || t.status === 'pending') startElapsed()
+  if (Array.isArray(t.questions) && t.questions.length) {
+    clarifyQuestions.value = t.questions
+  }
 
   if (t.logs && Array.isArray(t.logs)) {
     logs.value = t.logs

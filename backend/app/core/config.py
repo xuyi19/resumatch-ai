@@ -80,6 +80,9 @@ class Settings(BaseSettings):
     LLM_API_KEY: str = ""
     LLM_BASE_URL: str = ""
     LLM_MODEL: str = ""
+    # 证据检索 embedding 模型（OpenAI /embeddings 协议）；留空默认
+    # text-embedding-3-small，调用失败自动降级关键词检索
+    LLM_EMBEDDING_MODEL: str = ""
 
 
 settings = Settings()

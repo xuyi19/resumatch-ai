@@ -23,6 +23,8 @@ export default {
   // 实时分析
   startLiveAnalyze: (data) => api.post('/live/analyze', data),
   getTaskStatus: (taskId) => api.get(`/live/status/${taskId}`),
+  // 动态追问（M11-B）：提交补充回答，恢复暂停的诊断
+  submitClarify: (taskId, answers) => api.post(`/live/clarify/${taskId}`, { answers }),
 
   // 历史记录
   getHistory: (params) => api.get('/history', { params }),

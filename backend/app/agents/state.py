@@ -24,6 +24,9 @@ class DiagnosisState(TypedDict, total=False):
     overall_advice: str
     optimized_resume: dict
 
+    # RAG 证据检索（scorer 构建，gap/rewriter 复用）
+    evidence_index: dict
+
     # 追问相关
     clarify_questions: list
     user_answers: dict

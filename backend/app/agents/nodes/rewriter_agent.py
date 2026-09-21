@@ -11,6 +11,9 @@ class Suggestion(BaseModel):
     original: str = Field(default="", description="原文（如有）")
     rewritten: str = Field(description="改写建议（STAR 结构示例）")
     reason: str = Field(description="为什么这样改")
+    evidence_ids: list[str] = Field(
+        default_factory=list, description="改写所依据的证据块 id（来自差距分析引用）"
+    )
 
 
 class RewriteResult(BaseModel):
@@ -24,8 +27,10 @@ PROMPT = """你是一位简历优化专家。基于下面的简历、目标 JD�
 1. 使用 STAR 结构（情境-任务-行动-结果）
 2. 尽量量化（数字、百分比、倍数）
 3. 突出与目标岗位 JD 的匹配点
+4. 严格忠于差距分析中引用的证据原文（evidence 字段），不得凭空编造经历或数据；
+   缺少数据时给出「建议补充量化」的占位写法，并为该条建议标注依据的证据块 id
 
-每条建议包含：target（针对哪段）、original（原文）、rewritten（改写后）、reason（为什么）。
+每条建议包含：target（针对哪段）、original（原文）、rewritten（改写后）、reason（为什么）、evidence_ids（依据的证据块 id）。
 最后用 overall_advice 给出一句话整体改进建议。
 
 简历：

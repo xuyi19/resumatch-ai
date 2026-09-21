@@ -36,6 +36,10 @@ class AnalyzeRequest(BaseModel):
     enable_refine: bool | None = None  # self-refine 开关；None 用服务端默认
 
 
+class ClarifyRequest(BaseModel):
+    answers: dict[str, str]  # {问题id: 回答}
+
+
 async def _check_web_quota(db: AsyncSession, owner_id: str, llm_config: LLMConfig | None):
     """web 态使用服务端 Key 时按每日配额限流（用户自带 Key 不限）"""
     if settings.APP_MODE != "web":
@@ -106,6 +110,31 @@ async def start_analyze(
     return {"task_id": task_id, "status": "pending"}
 
 
+@router.post("/clarify/{task_id}")
+async def submit_clarify(
+    task_id: str,
+    req: ClarifyRequest,
+    owner_id: str = Depends(get_owner_id),
+):
+    """提交追问回答，恢复暂停的诊断任务（LangGraph interrupt resume）。"""
+    task = LivePipelineService.get_task(task_id)
+    if task is None or (task.get("owner_id") and task["owner_id"] != owner_id):
+        raise HTTPException(404, "任务不存在")
+    if task.get("status") != "waiting_clarify":
+        raise HTTPException(409, "任务不在等待补充信息状态")
+
+    answers = {k: str(v).strip() for k, v in (req.answers or {}).items() if str(v).strip()}
+    if not answers:
+        raise HTTPException(400, "回答内容不能为空")
+    if len(answers) > 10:
+        raise HTTPException(400, "回答条目过多")
+
+    t = asyncio.create_task(LivePipelineService.resume(task_id, answers))
+    _RUNNING_TASKS.add(t)
+    t.add_done_callback(_RUNNING_TASKS.discard)
+    return {"task_id": task_id, "status": "running"}
+
+
 @router.get("/status/{task_id}")
 async def get_task_status(task_id: str, owner_id: str = Depends(get_owner_id)):
     """任务状态：优先内存，过期/重启后回退 DB 快照（含 owner 校验）"""
@@ -146,6 +175,7 @@ async def stream_task(task_id: str, owner_id: str = Depends(get_owner_id)):
                     "message": task.get("message", ""),
                     "logs": task.get("logs", []),
                     "refine": task.get("refine", True),
+                    "questions": task.get("questions") or [],
                     "result": task.get("result"),
                     "error": task.get("error"),
                 },
