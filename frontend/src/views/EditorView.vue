@@ -216,15 +216,19 @@
 
         </div>
 
-        <!-- 右侧预览 -->
+        <!-- 右侧预览（真实渲染导出的 Word 文件，与下载版式完全一致） -->
         <div class="preview-area">
           <div class="sticky top-24">
             <div class="bg-[#d1d5db] rounded-2xl p-6 overflow-auto max-h-[calc(100vh-120px)]">
               <div class="text-xs text-gray-500 mb-3 text-center">
-                预览按所选模板实时排版 · 导出 Word 版式一致
+                预览即导出效果 · 实时渲染 Word 文件
               </div>
-              <div class="shadow-2xl mx-auto">
-                <ResumePreview :data="data" :template="currentTemplate" :photo-url="photoUrl" />
+              <div class="relative">
+                <div ref="docxBox" v-show="!previewError" class="docx-preview-box shadow-2xl mx-auto w-fit"></div>
+                <div v-if="previewLoading" class="absolute inset-0 flex items-center justify-center text-xs text-gray-500 pointer-events-none">
+                  排版生成中…
+                </div>
+                <div v-else-if="previewError" class="text-center text-xs text-red-500 py-8">{{ previewError }}</div>
               </div>
             </div>
           </div>
@@ -247,6 +251,7 @@
 import { ref, watch, onMounted } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
+import { renderAsync } from 'docx-preview'
 import api from '../api'
 import ResumePreview from '../components/ResumePreview.vue'
 
@@ -260,6 +265,13 @@ const currentTemplate = ref('classic')
 const downloading = ref(false)
 const newSkill = ref('')
 const certText = ref('')
+
+// ---- docx 实时预览 ----
+const docxBox = ref(null)
+const previewLoading = ref(false)
+const previewError = ref('')
+let previewSeq = 0
+let previewTimer = null
 
 // ---- 模板目录（后端下发，失败时用内置兜底） ----
 const templateList = ref([
@@ -556,39 +568,74 @@ function downloadPdf() {
   setTimeout(() => window.print(), 150)
 }
 
+// 编辑器数据 → Word 生成器入参（预览与导出共用同一份转换，保证版式一致）
+function buildWordData() {
+  const contacts = [
+    data.value.phone && `电话：${data.value.phone}`,
+    data.value.email && `邮箱：${data.value.email}`,
+    data.value.wechat && `微信：${data.value.wechat}`,
+    data.value.location && `现居：${data.value.location}`,
+  ].filter(Boolean)
+
+  return {
+    name: data.value.name,
+    job_intention: data.value.job_intention,
+    contacts,
+    contact: contacts.join(' | '),
+    summary: data.value.summary,
+    education: data.value.education.map(e =>
+      [e.time, e.school, e.major, e.degree].filter(Boolean).join(' ')
+    ),
+    experience: data.value.experience.flatMap(e => [
+      [e.time, e.company, e.position].filter(Boolean).join(' '),
+      ...(e.desc || '').split('\n').map(l => l.trim()).filter(Boolean),
+    ]),
+    projects: data.value.projects.flatMap(p => [
+      [p.time, p.name, p.role].filter(Boolean).join(' '),
+      ...(p.desc || '').split('\n').map(l => l.trim()).filter(Boolean),
+    ]),
+    skills: data.value.skills,
+    certificates: data.value.certificates,
+  }
+}
+
+async function renderDocxPreview() {
+  if (!docxBox.value) return
+  const seq = ++previewSeq
+  previewLoading.value = true
+  try {
+    const res = await api.exportDocx({
+      optimized_resume: buildWordData(),
+      template: currentTemplate.value,
+      photo_id: photoId.value || undefined,
+    })
+    if (seq !== previewSeq) return // 已有更新请求，丢弃过期结果
+    const container = docxBox.value
+    container.innerHTML = ''
+    await renderAsync(res.data, container, undefined, {
+      inWrapper: true,
+      useBase64URL: true,
+    })
+    if (seq !== previewSeq) return
+    previewError.value = ''
+  } catch (e) {
+    if (seq === previewSeq) previewError.value = '预览生成失败：' + (e?.message || e)
+  } finally {
+    if (seq === previewSeq) previewLoading.value = false
+  }
+}
+
+// 编辑内容 / 模板 / 照片变化 → 防抖重新生成预览
+watch([data, currentTemplate, photoId], () => {
+  clearTimeout(previewTimer)
+  previewTimer = setTimeout(renderDocxPreview, 600)
+}, { deep: true })
+
 async function downloadWord() {
   downloading.value = true
   try {
-    const contacts = [
-      data.value.phone && `电话：${data.value.phone}`,
-      data.value.email && `邮箱：${data.value.email}`,
-      data.value.wechat && `微信：${data.value.wechat}`,
-      data.value.location && `现居：${data.value.location}`,
-    ].filter(Boolean)
-
-    const wordData = {
-      name: data.value.name,
-      job_intention: data.value.job_intention,
-      contacts,
-      contact: contacts.join(' | '),
-      summary: data.value.summary,
-      education: data.value.education.map(e =>
-        [e.time, e.school, e.major, e.degree].filter(Boolean).join(' ')
-      ),
-      experience: data.value.experience.flatMap(e => [
-        [e.time, e.company, e.position].filter(Boolean).join(' '),
-        ...(e.desc || '').split('\n').map(l => l.trim()).filter(Boolean),
-      ]),
-      projects: data.value.projects.flatMap(p => [
-        [p.time, p.name, p.role].filter(Boolean).join(' '),
-        ...(p.desc || '').split('\n').map(l => l.trim()).filter(Boolean),
-      ]),
-      skills: data.value.skills,
-      certificates: data.value.certificates,
-    }
-
     const res = await api.exportDocx({
-      optimized_resume: wordData,
+      optimized_resume: buildWordData(),
       template: currentTemplate.value,
       photo_id: photoId.value || undefined,
     })
@@ -618,11 +665,26 @@ onMounted(() => {
   api.listTemplates().then(res => {
     if (res.data?.items?.length) templateList.value = res.data.items
   }).catch(() => { /* 用内置兜底列表 */ })
+  // 首次预览渲染（数据加载后 watch 会再触发刷新）
+  renderDocxPreview()
 })
 </script>
 
 <!-- 打印样式（全局） -->
 <style>
+/* docx 真实渲染预览 */
+.docx-preview-box:empty {
+  width: 210mm;
+  min-height: 297mm;
+}
+.docx-preview-box .docx-wrapper {
+  background: transparent;
+  padding: 0;
+}
+.docx-preview-box .docx-wrapper > section.docx {
+  margin-bottom: 16px;
+}
+
 .print-root {
   display: none;
 }
