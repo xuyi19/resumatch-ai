@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
@@ -86,11 +87,45 @@ def build_diagnosis_graph(checkpointer: MemorySaver | None = None):
 
 
 def build_interactive_diagnosis_graph():
-    """交互式诊断图：同步节点 + MemorySaver，支持 interrupt 暂停等待用户补充信息。
+    """交互式诊断图：同步节点 + SqliteSaver，支持 interrupt 暂停等待用户补充信息。
+
+    M16：checkpointer 从 MemorySaver 升级为 SqliteSaver（data/checkpoints.db），
+    追问等待（waiting_clarify）跨进程重启可恢复——用户回答后 Command(resume)
+    仍能从文件快照续跑。连接 check_same_thread=False（图在 worker 线程同步
+    stream，终态释放 delete_thread 在事件循环侧 to_thread 执行）。
+    快照库初始化失败时回退 MemorySaver（功能降级为重启不可恢复，不阻塞诊断）。
 
     调用方需在 asyncio.to_thread 中用同步 stream()/invoke() 驱动（见 diagnosis_service）。
     """
-    return _build_diagnosis_wf(interactive=True).compile(checkpointer=MemorySaver())
+    return _build_diagnosis_wf(interactive=True).compile(checkpointer=_get_sqlite_checkpointer())
+
+
+_SQLITE_CHECKPOINTER = None
+
+
+def _get_sqlite_checkpointer():
+    """进程级单例 checkpointer：SqliteSaver（优先）/ MemorySaver（降级）。"""
+    global _SQLITE_CHECKPOINTER
+    if _SQLITE_CHECKPOINTER is None:
+        import sqlite3
+
+        from langgraph.checkpoint.memory import MemorySaver
+        from langgraph.checkpoint.sqlite import SqliteSaver
+
+        try:
+            db_file = Path(_default_db_file()).parent / "checkpoints.db"
+            db_file.parent.mkdir(parents=True, exist_ok=True)
+            conn = sqlite3.connect(str(db_file), check_same_thread=False)
+            _SQLITE_CHECKPOINTER = SqliteSaver(conn)
+        except Exception:  # 快照库不可用时降级，不影响诊断主流程
+            _SQLITE_CHECKPOINTER = MemorySaver()
+    return _SQLITE_CHECKPOINTER
+
+
+def _default_db_file() -> str:
+    from app.core.config import settings
+
+    return settings.DB_URL.replace("sqlite+aiosqlite:///", "")
 
 
 def build_optimize_graph():

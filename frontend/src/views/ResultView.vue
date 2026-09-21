@@ -518,6 +518,24 @@ const clarifyQuestions = ref([])
 const clarifyAnswers = reactive({})
 const clarifySubmitting = ref(false)
 
+// M16 草稿暂存：回答写入 localStorage，页面刷新/意外关闭后回填，提交成功清除
+const clarifyDraftKey = computed(() => `clarify_draft_${taskId}`)
+
+watch(clarifyAnswers, () => {
+  if (!taskId || !clarifyQuestions.value.length) return
+  try {
+    localStorage.setItem(clarifyDraftKey.value, JSON.stringify(clarifyAnswers))
+  } catch { /* 忽略存储失败 */ }
+}, { deep: true })
+
+function loadClarifyDraft() {
+  if (!taskId) return
+  try {
+    const saved = localStorage.getItem(clarifyDraftKey.value)
+    if (saved) Object.assign(clarifyAnswers, JSON.parse(saved))
+  } catch { /* 草稿损坏则忽略 */ }
+}
+
 async function submitClarify() {
   const answers = {}
   Object.entries(clarifyAnswers).forEach(([k, v]) => {
@@ -530,6 +548,7 @@ async function submitClarify() {
   clarifySubmitting.value = true
   try {
     await api.submitClarify(taskId, answers)
+    localStorage.removeItem(clarifyDraftKey.value)
     status.value = 'running'
     message.value = '已收到补充信息，继续诊断...'
     Message.success('已提交，继续诊断')
@@ -655,6 +674,7 @@ function handleTaskData(t) {
   if (t.status === 'running' || t.status === 'pending') startElapsed()
   if (Array.isArray(t.questions) && t.questions.length) {
     clarifyQuestions.value = t.questions
+    loadClarifyDraft()
   }
 
   if (t.logs && Array.isArray(t.logs)) {

@@ -47,6 +47,7 @@ HARD_HIDDEN = [
 OPTIONAL = ["httptools", "websockets", "colorama", "dotenv", "yaml",
             "orjson", "ujson", "watchfiles", "sse_starlette",
             "langchain_openai", "langchain_core", "langgraph",
+            "langgraph.checkpoint.sqlite", "sqlite_vec",
             "loguru", "pydantic_settings", "httpx",
             "jinja2", "python_multipart", "anyio", "sniffio", "openai"]
 

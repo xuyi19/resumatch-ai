@@ -215,12 +215,44 @@ class LivePipelineService:
             resume_answers=None,
         )
 
+    @staticmethod
+    async def _save_waiting(task_id: str, questions: list):
+        """waiting_clarify 终态快照落库：问题列表 + 恢复上下文（M16）。"""
+        task = TASKS.get(task_id) or {}
+        ctx = {
+            "jd_text": task.get("jd_text", ""),
+            "city": task.get("city", ""),
+            "llm_config": task.get("llm_config"),
+            "enable_refine": task.get("enable_refine", True),
+            "resume_name": task.get("resume_name", ""),
+            "resume_id": task.get("resume_id"),
+        }
+        async with AsyncSessionLocal() as session:
+            res = await session.execute(
+                select(DiagnosisRecord).where(DiagnosisRecord.task_id == task_id)
+            )
+            rec = res.scalar_one_or_none()
+            if rec:
+                rec.status = "waiting_clarify"
+                rec.questions = questions
+                rec.clarify_ctx = ctx
+                rec.stage = "等待补充信息"
+                rec.logs = task.get("logs", [])
+                await session.commit()
+
     @classmethod
     async def resume(cls, task_id: str, answers: dict):
-        """用户补充信息后恢复诊断（续跑改写/精修并完成落库）。"""
+        """用户补充信息后恢复诊断（续跑改写/精修并完成落库）。
+
+        M16：服务重启后 TASKS 内存条目丢失，可从 DB 的 waiting 快照重建
+        （图状态由 SqliteSaver 文件快照提供，Command(resume) 直接续跑）。
+        """
         task = TASKS.get(task_id) or {}
         if task.get("status") != "waiting_clarify":
-            raise ValueError("任务当前不在等待补充信息状态")
+            restored = await cls._restore_waiting_task(task_id)
+            if not restored:
+                raise ValueError("任务当前不在等待补充信息状态")
+            task = restored
         cls._update(
             task_id,
             status="running",
@@ -237,6 +269,63 @@ class LivePipelineService:
             enable_refine=task.get("enable_refine", True),
             resume_answers=answers,
         )
+
+    @classmethod
+    async def _restore_waiting_task(cls, task_id: str) -> dict | None:
+        """从 DB 的 waiting 快照重建内存任务条目（owner 校验沿用记录归属）。"""
+        async with AsyncSessionLocal() as session:
+            res = await session.execute(
+                select(DiagnosisRecord).where(DiagnosisRecord.task_id == task_id)
+            )
+            rec = res.scalar_one_or_none()
+        if not rec or rec.status != "waiting_clarify" or not rec.clarify_ctx:
+            return None
+        ctx = rec.clarify_ctx
+        task = {
+            "id": task_id,
+            "status": "waiting_clarify",
+            "stage": "等待补充信息",
+            "progress": rec.progress or 55,
+            "message": "",
+            "logs": rec.logs or [],
+            "created_at": rec.created_at.isoformat() if rec.created_at else "",
+            "resume_id": ctx.get("resume_id"),
+            "resume_name": ctx.get("resume_name", ""),
+            "owner_id": rec.owner_id or "local",
+            "refine": ctx.get("enable_refine", True),
+            "jd_text": ctx.get("jd_text", ""),
+            "city": ctx.get("city", ""),
+            "llm_config": ctx.get("llm_config"),
+            "enable_refine": ctx.get("enable_refine", True),
+            "questions": rec.questions or [],
+            "result": None,
+            "error": None,
+        }
+        TASKS[task_id] = task
+        return task
+
+    @classmethod
+    async def recover_waiting_tasks(cls):
+        """启动补偿（M16）：把 DB 中 waiting_clarify 的任务重建进内存任务表，
+        用户提交回答后可跨重启续跑；无快照上下文的老任务标记失败。"""
+        async with AsyncSessionLocal() as session:
+            res = await session.execute(
+                select(DiagnosisRecord).where(DiagnosisRecord.status == "waiting_clarify")
+            )
+            recs = res.scalars().all()
+        restored = 0
+        for rec in recs:
+            if rec.clarify_ctx is not None:
+                task = await cls._restore_waiting_task(rec.task_id)
+                if task:
+                    restored += 1
+                    continue
+            await cls._save_failed(
+                rec.task_id, "服务重启导致追问上下文丢失，请重新发起诊断"
+            )
+        if restored:
+            logger.info(f"启动补偿：恢复 {restored} 个等待补充信息的诊断任务")
+        return restored
 
     @classmethod
     async def _flow(
@@ -306,6 +395,8 @@ class LivePipelineService:
                     message=f"🤔 为让诊断更准确，需要补充 {len(questions)} 条信息",
                     questions=questions,
                 )
+                # M16 跨重启恢复：问题与恢复上下文落库（graph 快照已在 SqliteSaver 文件）
+                await cls._save_waiting(task_id, questions)
                 return
 
             await cls._finalize(task_id, diagnosis, city, jd_text)

@@ -14,8 +14,8 @@ NODE_STAGES = {
     "refine": "精修优化",
 }
 
-# 交互式图（带 MemorySaver checkpointer，支持 interrupt 动态追问）。
-# 桌面单进程场景进程内持久化足够；任务结束统一 delete_thread 释放。
+# 交互式图（带 SqliteSaver checkpointer，支持 interrupt 动态追问，M16 起跨重启可恢复）。
+# 任务结束统一 delete_thread 释放快照；快照库初始化失败时图内部降级 MemorySaver。
 _interactive_graph = None
 
 

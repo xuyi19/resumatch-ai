@@ -2,7 +2,7 @@
   <div class="min-h-screen bg-[#e0e5ec] text-gray-800">
 
     <header class="fixed top-0 left-0 right-0 z-50 bg-[#e0e5ec]">
-      <div class="max-w-7xl mx-auto px-4 md:px-8 h-16 grid grid-cols-[auto_1fr_auto] items-center gap-3">
+      <div class="relative max-w-7xl mx-auto px-4 md:px-8 h-16 grid grid-cols-[auto_1fr_auto] items-center gap-3">
 
         <!-- 左：Logo + 形态标识 -->
         <div class="flex items-center justify-start gap-2 min-w-0">
@@ -23,8 +23,9 @@
           </span>
         </div>
 
-        <!-- 中：主导航 -->
-        <nav class="flex items-center justify-center gap-0.5 md:gap-2 overflow-x-auto">
+        <!-- 中：主导航（md+ 视口绝对居中；小屏保持弹性列） -->
+        <nav class="flex items-center justify-center gap-0.5 md:gap-2 overflow-x-auto
+          md:absolute md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2">
           <RouterLink to="/" class="nav-item" :class="navActive('/')">
             首页
           </RouterLink>
@@ -39,9 +40,8 @@
         <!-- 右：仓库 + 更新日志 + 设置 -->
         <div class="flex items-center justify-end gap-1 shrink-0">
 
-          <!-- 网页版才展示开源仓库引流；桌面版隐藏外部跳转 -->
-          <template v-if="isWeb">
-            <a :href="REPO.github" target="_blank" rel="noopener" title="GitHub 仓库"
+          <!-- 开源仓库入口（GitHub / Gitee） -->
+          <a :href="REPO.github" target="_blank" rel="noopener" title="GitHub 仓库"
               class="w-9 h-9 rounded-lg flex items-center justify-center text-gray-500
                 hover:text-gray-900 hover:bg-white/40 transition-colors duration-200">
               <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
@@ -53,8 +53,7 @@
                 hover:bg-white/40 transition-colors duration-200 group">
               <img src="https://gitee.com/favicon.ico" alt="Gitee"
                 class="w-5 h-5 opacity-50 grayscale group-hover:opacity-100 group-hover:grayscale-0 transition-all duration-200" />
-            </a>
-          </template>
+          </a>
 
           <!-- 网页版 + 服务端预置 Key时：显示每日配额 -->
           <span v-if="quotaEnabled" :title="`每日免费诊断 ${meta.daily_limit} 次`"

@@ -72,6 +72,8 @@ _SCHEMA_NEW_COLUMNS: dict[str, list[tuple[str, str]]] = {
         ("stage", "VARCHAR(32) DEFAULT ''"),
         ("progress", "INTEGER DEFAULT 0"),
         ("logs", "JSON"),
+        ("questions", "JSON"),
+        ("clarify_ctx", "JSON"),
     ],
     "conversations": [("owner_id", "VARCHAR(64) DEFAULT 'local'")],
 }

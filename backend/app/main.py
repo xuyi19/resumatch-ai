@@ -39,6 +39,10 @@ async def lifespan(app: FastAPI):
             .where(entities.DiagnosisRecord.status == "running")
             .values(status="failed", error="服务重启导致任务中断，请重新发起诊断")
         )
+    # ★ M16 跨重启恢复：waiting_clarify 任务重建进内存表（快照在 SqliteSaver 文件），可继续回答恢复
+    from app.services.live_pipeline_service import LivePipelineService
+
+    await LivePipelineService.recover_waiting_tasks()
     logger.info("启动完成")
     yield
     await engine.dispose()

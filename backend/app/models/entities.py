@@ -33,6 +33,9 @@ class DiagnosisRecord(Base):
     logs: Mapped[list | None] = mapped_column(JSON, nullable=True)
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # M16 跨重启恢复：waiting_clarify 任务的追问问题与恢复上下文落库
+    questions: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    clarify_ctx: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
