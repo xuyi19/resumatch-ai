@@ -18,6 +18,9 @@
         <div class="text-xs text-gray-500 mt-2">
           多智能体诊断约需 60 秒
         </div>
+        <div v-if="elapsedText" class="text-xs text-[#6d5dfc] mt-1 font-mono">
+          ⏱ 已运行 {{ elapsedText }}
+        </div>
       </div>
 
       <div class="bg-[#e0e5ec] rounded-2xl p-6 mb-6
@@ -436,6 +439,27 @@ const logRef = ref(null)
 const runningStage = ref('准备中')
 const refineEnabled = ref(true)  // self-refine 开关由后端首帧下发
 
+// ---- 运行计时（长 LLM 调用期间给用户「还在跑」的反馈） ----
+const elapsedSec = ref(0)
+let elapsedTimer = null
+const elapsedText = computed(() => {
+  const m = Math.floor(elapsedSec.value / 60)
+  const s = elapsedSec.value % 60
+  return m > 0 ? `${m} 分 ${String(s).padStart(2, '0')} 秒` : `${s} 秒`
+})
+
+function startElapsed() {
+  if (elapsedTimer) return
+  elapsedTimer = setInterval(() => { elapsedSec.value += 1 }, 1000)
+}
+
+function stopElapsed() {
+  if (elapsedTimer) {
+    clearInterval(elapsedTimer)
+    elapsedTimer = null
+  }
+}
+
 const allStages = [
   {key: '解析简历', label: '解析简历'},
   {key: '解析岗位', label: '解析岗位'},
@@ -548,6 +572,7 @@ function handleTaskData(t) {
   progress.value = t.progress
   runningStage.value = t.stage || '准备中'
   if (typeof t.refine === 'boolean') refineEnabled.value = t.refine
+  if (t.status === 'running' || t.status === 'pending') startElapsed()
 
   if (t.logs && Array.isArray(t.logs)) {
     logs.value = t.logs
@@ -564,6 +589,7 @@ function handleTaskData(t) {
 }
 
 function stopTracking() {
+  stopElapsed()
   if (es) {
     try { es.close() } catch (e) {}
     es = null

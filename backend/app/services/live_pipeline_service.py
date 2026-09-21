@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.core.db import AsyncSessionLocal
 from app.models.entities import DiagnosisRecord
-from app.services.diagnosis_service import DiagnosisService
+from app.services.diagnosis_service import DiagnosisService, NODE_STAGES
 
 # 内存任务表（前端轮询/SSE 用）；完成条目超过 TTL 后惰性清理
 TASKS: dict[str, dict] = {}
@@ -192,14 +192,30 @@ class LivePipelineService:
             cls._update(task_id, status="running", stage="准备中", progress=5,
                         message="准备分析...")
 
+            done_stages: set[str] = set()
+            stage_order = [s for s in NODE_STAGES.values()
+                           if not (s == "精修优化" and not enable_refine)]
+
             def on_progress(step: int, total: int, stage: str):
                 pct = 10 + int(step / total * 80)  # 10% → 90%
-                cls._update(
-                    task_id,
-                    stage=stage,
-                    progress=pct,
-                    message=f"🤖 Agent {step}/{total} · {stage}",
-                )
+                done_stages.add(stage)
+                # 节点一完成立即把「下一阶段」置为当前：
+                # 长时间 LLM 调用期间 UI 不再停留在上一个已完成节点
+                remaining = [s for s in stage_order if s not in done_stages]
+                if remaining:
+                    cls._update(
+                        task_id,
+                        stage=remaining[0],
+                        progress=pct,
+                        message=f"🤖 Agent {step}/{total} · {stage} 完成，开始{remaining[0]}",
+                    )
+                else:
+                    cls._update(
+                        task_id,
+                        stage=stage,
+                        progress=pct,
+                        message=f"🤖 Agent {step}/{total} · {stage} 完成",
+                    )
 
             diagnosis_service = DiagnosisService()
             diagnosis = await diagnosis_service.diagnose(
