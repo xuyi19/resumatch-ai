@@ -50,6 +50,8 @@ frontend/.vite/
 .coverage
 htmlcov/
 .mypy_cache/
+# 测试隔离产物（conftest 把测试库与照片目录指向这里）
+backend/tests/.tmp/
 
 # ========== 系统 ==========
 .DS_Store

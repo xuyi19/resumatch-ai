@@ -702,7 +702,7 @@ cd backend
 python -m pytest tests/    # 15 项：API / 模板目录 / 照片上传导出 / web 态 owner 隔离 / 诊断图（含精修开关）
 ```
 
-测试直用开发库（conftest 手动建表 + 补列；ASGITransport 不触发 lifespan）。
+测试与开发库完全隔离：conftest 在导入 app 模块前把 `DB_URL` / `PHOTOS_DIR` 指向 `backend/tests/.tmp/`（并带自检断言），再手动建表 + 补列（ASGITransport 不触发 lifespan），因此跑测试不会污染开发库与 `data/photos/`。
 
 ---
 
