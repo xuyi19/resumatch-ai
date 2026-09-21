@@ -8,12 +8,14 @@
       <div class="sticky top-0 z-40 bg-[#e0e5ec] border-b border-[#b8bcc2]/30">
         <div class="max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
           <div class="flex items-center gap-4">
-            <RouterLink :to="`/result/${taskId}`"
-              class="text-sm text-gray-600 hover:text-[#6d5dfc] transition-colors">
-              ← 返回报告
-            </RouterLink>
-            <div class="w-px h-5 bg-[#b8bcc2]/40"></div>
-            <h1 class="text-base font-semibold text-gray-800">简历编辑</h1>
+            <RouterLink v-if="taskId" :to="`/result/${taskId}`"
+            class="text-sm text-gray-600 hover:text-[#6d5dfc] transition-colors">
+            ← 返回报告
+          </RouterLink>
+          <div v-if="taskId" class="w-px h-5 bg-[#b8bcc2]/40"></div>
+          <h1 class="text-base font-semibold text-gray-800">
+            {{ taskId ? '简历编辑' : '创建简历' }}
+          </h1>
           </div>
 
           <div class="flex items-center gap-3">
@@ -308,10 +310,12 @@ import api from '../api'
 import ResumePreview from '../components/ResumePreview.vue'
 
 const route = useRoute()
-const taskId = route.params.taskId
+// 支持两种模式：/editor/:taskId（诊断/对话优化后进入，读取任务数据）
+// 与 /editor（独立创建简历：空白起步，编辑内容自动存 localStorage）
+const taskId = route.params.taskId || ''
 
-const STORAGE_KEY = `resume_edit_${taskId}`
-const SESSION_KEY = `resume_optimized_${taskId}`
+const STORAGE_KEY = `resume_edit_${taskId || 'blank'}`
+const SESSION_KEY = `resume_optimized_${taskId || 'blank'}`
 
 const currentTemplate = ref('classic')
 const downloading = ref(false)
@@ -531,6 +535,9 @@ async function loadData() {
   } catch (e) {
     console.warn('[Editor] localStorage 加载失败', e)
   }
+
+  // 独立创建模式（/editor）：空白起步即可编辑，不拉取任何任务数据
+  if (!taskId) return
 
   // ========== 第 2 层：sessionStorage（刚从 ChatView 生成过来）==========
   let opt = null

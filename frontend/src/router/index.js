@@ -9,6 +9,7 @@ export default createRouter({
     { path: '/result/:taskId', name: 'result', component: () => import('../views/ResultView.vue') },
     { path: '/chat/:taskId', name: 'chat', component: () => import('../views/ChatView.vue') },
     { path: '/editor/:taskId', name: 'editor', component: () => import('../views/EditorView.vue') },
+    { path: '/editor', name: 'editor-new', component: () => import('../views/EditorView.vue') },
     { path: '/history', name: 'history', component: () => import('../views/HistoryView.vue') },
     { path: '/changelog', name: 'changelog', component: () => import('../views/ChangelogView.vue') },
     { path: '/settings', name: 'settings', component: () => import('../views/SettingsView.vue') },
