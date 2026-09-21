@@ -9,7 +9,37 @@ from app.agents.llm import get_llm
 
 T = TypeVar("T", bound=BaseModel)
 
-JSON_PATTERN = re.compile(r"\{[\s\S]*\}")
+
+def _extract_first_json(text: str) -> str | None:
+    """按括号平衡提取首个完整 JSON 对象（字符串感知），忽略前后缀说明文字。
+
+    旧的正则贪婪匹配（首 { 到尾 }）在模型输出「JSON + 后缀解释」时会把
+    解释一起吞进去导致 Extra data 解析失败并触发整轮重试。
+    """
+    start = text.find("{")
+    while start != -1:
+        depth = 0
+        in_str = False
+        esc = False
+        for i in range(start, len(text)):
+            ch = text[i]
+            if in_str:
+                if esc:
+                    esc = False
+                elif ch == "\\":
+                    esc = True
+                elif ch == '"':
+                    in_str = False
+            elif ch == '"':
+                in_str = True
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start : i + 1]
+        start = text.find("{", start + 1)
+    return None
 
 
 async def call_llm_for_json(
@@ -53,11 +83,10 @@ JSON Schema:
                 content = re.sub(r"^```(?:json)?\s*", "", content)
                 content = re.sub(r"\s*```$", "", content)
 
-            match = JSON_PATTERN.search(content)
-            if match:
-                content = match.group(0)
-
-            data = json.loads(content)
+            extracted = _extract_first_json(content)
+            if extracted is None:
+                raise ValueError("响应中未找到 JSON 对象")
+            data = json.loads(extracted)
             return schema.model_validate(data)
 
         except Exception as e:
