@@ -200,8 +200,10 @@ resumatch-ai/
 │   │   ├── api/v1/                 # resume / live / history / chat / optimize / settings / health
 │   │   ├── services/               # resume_service / live_pipeline_service / diagnosis_service
 │   │   ├── agents/                 # LangGraph 诊断工作流
-│   │   │   └── nodes/              # parser / job_analyze / scorer / gap / rewriter / optimizer
+│   │   │   └── nodes/              # parser / job_analyze / scorer / gap / rewriter
+│   │   │                           # + refine（自省精修）/ optimizer / interactive_opt
 │   │   └── utils/                  # file_parser、docx_generator（10 模板 + 证件照）
+│   ├── scripts/evaluate.py         # 质量评估脚本（标注集 × 多次运行，产出评估报告）
 │   ├── desktop.py                  # pywebview 桌面启动器
 │   ├── build_desktop.py            # PyInstaller 打包脚本（one-folder）
 │   ├── run.py                      # 开发启动脚本（sys.executable -m uvicorn）
@@ -210,9 +212,10 @@ resumatch-ai/
 ├── frontend/
 │   └── src/
 │       ├── api/index.js            # Axios 封装
+│       ├── composables/            # useAppMode（桌面版/网页版界面切换）
 │       ├── components/ResumePreview.vue
-│       └── views/                  # Home / Analyze / Result / Editor / Chat / History / Settings
-└── docs/                           # 技术说明文档、改造计划、界面截图
+│       └── views/                  # Home / Analyze / Result / Editor / Chat / History / Settings / Changelog
+└── docs/                           # 技术说明文档、改造计划、问题解决记录、界面截图
 ```
 
 ## API 一览
@@ -222,6 +225,7 @@ resumatch-ai/
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/v1/health` | 健康检查（含数据库连通性） |
+| GET | `/api/v1/meta` | 运行形态元信息（桌面版/网页版、配额、版本），前端据此切换界面 |
 | POST | `/api/v1/resumes/upload` | 上传简历并解析（≤10MB，按会话隔离） |
 | GET | `/api/v1/resumes/{id}` | 查询简历 |
 | GET | `/api/v1/resumes/templates` | 简历模板目录（10 套） |
@@ -229,8 +233,9 @@ resumatch-ai/
 | GET | `/api/v1/resumes/photo/{photo_id}` | 读取证件照 |
 | DELETE | `/api/v1/resumes/photo/{photo_id}` | 删除证件照 |
 | POST | `/api/v1/resumes/export-docx` | 导出优化简历为 Word（可指定模板与照片） |
-| POST | `/api/v1/live/analyze` | 启动诊断：`{resume_id, jd_text, resume_name?}` |
-| GET | `/api/v1/live/status/{task_id}` | 查询任务进度与结果 |
+| POST | `/api/v1/live/analyze` | 启动诊断：`{resume_id, jd_text, resume_name?, enable_refine?}` |
+| GET | `/api/v1/live/stream/{task_id}` | **SSE 实时推送**诊断进度（前端主用） |
+| GET | `/api/v1/live/status/{task_id}` | 查询任务进度与结果（内存优先，过期回退 DB） |
 | GET | `/api/v1/history` | 历史记录列表（按会话隔离） |
 | GET/DELETE | `/api/v1/history/{task_id}` | 历史详情 / 删除 |
 | POST | `/api/v1/optimize/{task_id}` | 一键优化 |

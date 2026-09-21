@@ -141,6 +141,31 @@ def _gen_icon(out_ico: Path) -> bool:
 
 
 # ---------------- 组装发布包 ----------------
+# 历史产物保留份数。旧产物用「改名挪开」而非直接删除，规避本机批量删除保护；
+# 但每次构建都会留下约 160MB（目录+压缩包），历次累积曾达 2GB，
+# 故只保留最近 _OLD_KEEP 份作为回退，更早的定向清理掉。
+_OLD_KEEP = 1
+
+
+def _prune_old_artifacts():
+    """清理多余的历史产物（目录与压缩包分别计数）。"""
+    for want_dir in (True, False):
+        olds = sorted(
+            (p for p in RELEASE.glob(".old-*") if p.is_dir() == want_dir),
+            key=lambda p: p.name,
+            reverse=True,
+        )
+        for p in olds[_OLD_KEEP:]:
+            try:
+                if want_dir:
+                    shutil.rmtree(p, ignore_errors=True)
+                else:
+                    p.unlink(missing_ok=True)
+                print(f"[build] 已清理旧产物: {p.name}")
+            except Exception as e:
+                print(f"[build] 清理旧产物失败 {p.name}: {e}")
+
+
 def _assemble(dist_exe_dir: Path):
     RELEASE.mkdir(parents=True, exist_ok=True)
     target = RELEASE / "ResuMatch-AI-桌面版"
@@ -276,7 +301,7 @@ def main():
     target = _assemble(dist_exe_dir)
     print(f"[build] 已组装到: {target}")
 
-    # 压缩（仅增不删，旧包改名保留）
+    # 压缩（旧包先改名挪开，构建完由 _prune_old_artifacts 只留最近 1 份）
     zip_path = RELEASE / "ResuMatch-AI-桌面版.zip"
     if zip_path.exists():
         zip_path.rename(RELEASE / f".old-{time.strftime('%Y%m%d-%H%M%S')}.zip")
@@ -284,6 +309,9 @@ def main():
         for p in target.rglob("*"):
             z.write(p, p.relative_to(target))
     print(f"[build] 压缩包: {zip_path}")
+
+    _prune_old_artifacts()
+
     print("[build] ✅ 本包只含公开内容，可直接发给任何人。")
 
 

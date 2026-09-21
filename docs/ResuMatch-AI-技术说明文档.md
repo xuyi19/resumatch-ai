@@ -233,11 +233,11 @@ resumatch-ai/
 │   │   │   ├── llm.py          #   模型工厂（per-request 配置）
 │   │   │   ├── utils.py        #   结构化输出容错
 │   │   │   └── nodes/          #   parser / job_analyze / scorer / gap / rewriter
-│   │   │   │                   #   optimizer / clarifier / interactive_opt
+│   │   │   │                   #   refine（自省精修）/ optimizer / interactive_opt
 │   │   └── utils/
 │   │       ├── file_parser.py
 │   │       └── docx_generator.py  # 10 套模板 + 证件照
-│   ├── tests/                  #   pytest 14 项（API / 模板 / 照片 / owner 隔离）
+│   ├── tests/                  #   pytest 15 项（API / 模板 / 照片 / owner 隔离 / 诊断图）
 │   └── data/                   #   resumatch.db + photos/（运行时生成）
 ├── frontend/                   # Vue 3 + Vite
 │   └── src/
@@ -435,7 +435,7 @@ stateDiagram-v2
 
 parser 与 job_analyze 输入独立（简历 / JD），从 START 同时出发并行执行，两分支写不同 state key，汇合进 scorer 无冲突；任一分支出错通过条件边直达 END 熔断。后续节点在入口处再次检查 `error` 直接返回空更新（幂等保护）。
 
-另有独立优化图：`START → optimizer → END`，接收诊断全部产出生成结构化优化简历；对答式场景由 clarifier（追问）与 interactive_opt（整合回答生成）驱动。
+另有独立优化图：`START → optimizer → END`，接收诊断全部产出生成结构化优化简历；对答式场景由 interactive_opt 驱动（生成追问 + 整合回答产出优化简历）。
 
 #### 6.4.2 共享状态
 
@@ -699,7 +699,7 @@ python run.py --host 0.0.0.0 --port 8765   # 或用 uvicorn/systemd/Nginx 反代
 
 ```bash
 cd backend
-python -m pytest tests/    # 14 项：API / 模板目录 / 照片上传导出 / web 态 owner 隔离
+python -m pytest tests/    # 15 项：API / 模板目录 / 照片上传导出 / web 态 owner 隔离 / 诊断图（含精修开关）
 ```
 
 测试直用开发库（conftest 手动建表 + 补列；ASGITransport 不触发 lifespan）。
@@ -708,14 +708,13 @@ python -m pytest tests/    # 14 项：API / 模板目录 / 照片上传导出 / 
 
 ## 10. 已知问题与改进计划
 
+> 已完成项（I-01 多进程部署 / I-03 量化评估 / I-06 截图）见第 12 节改造计划 M6、M8。
+
 | 编号 | 事项 | 说明 | 方向 |
 | --- | --- | --- | --- |
-| I-01 | 任务进度轮询基于内存 TASKS 表 | `/live/status` 读内存，结果落库；多进程部署需改造 | 纯 DB 轮询或 SSE 推送 |
-| I-02 | HTML 预览与 Word 排版存在像素级差异 | 预览按同一套模板参数语义实现，但字号/间距与 docx 不完全一致 | 以导出文件为准；可探索 docx→HTML 转换 |
-| I-03 | 诊断效果无量化评估 | 六维评分与改写质量依赖模型能力 | 构造标注集做人工对比评估 |
-| I-04 | 语义匹配未启用 | 早期版本的关键词/向量混合匹配已随爬取方案一并移除 | 如需岗位推荐可基于本地 JD 库重建 |
-| I-05 | 对话式优化的追问轮次固定 | clarifier 按预设维度追问 | 动态规划追问策略 |
-| I-06 | README 截图为窗口化前版本 | 内容正确但非全屏最新 UI | 可选：全屏重拍 |
+| I-01 | HTML 预览与 Word 排版存在像素级差异 | 预览按同一套模板参数语义实现，但字号/间距与 docx 不完全一致 | 以导出文件为准；可探索 docx→HTML 转换 |
+| I-02 | 语义匹配未启用 | 早期版本的关键词/向量混合匹配已随爬取方案一并移除；LLM 链路（岗位解析/差距分析）本身即语义主通道 | 如需岗位推荐可基于本地 JD 库重建 |
+| I-03 | 对话式优化的追问轮次固定 | `interactive_opt_agent` 按预设维度追问 | 动态规划追问策略 |
 
 ---
 
