@@ -39,6 +39,18 @@ class DiagnosisRecord(Base):
     )
 
 
+class ExportHistory(Base):
+    """导出历史：Word 导出动作记录（桌面形态含用户选择的保存路径，可再次定位文件）"""
+    __tablename__ = "export_history"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    owner_id: Mapped[str] = mapped_column(String(64), default="local", index=True)
+    filename: Mapped[str] = mapped_column(String(255))
+    save_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    template: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class Conversation(Base):
     """对话历史表：对答式优化 + 模拟面试共用"""
     __tablename__ = "conversations"

@@ -116,6 +116,39 @@ def _serve(app, port: int) -> None:
     uvicorn.Server(config).run()
 
 
+class DesktopApi:
+    """pywebview js_api 桥：前端经 window.pywebview.api 调用。
+
+    - pick_save_path：原生「另存为」对话框，返回用户选择的绝对路径（取消返回 None）
+    - reveal_file：资源管理器打开并选中文件（导出历史「打开所在位置」用）
+    """
+
+    def pick_save_path(self, default_name: str = "优化后的简历.docx") -> str | None:
+        import webview
+
+        result = webview.windows[0].create_file_dialog(
+            webview.SAVE_DIALOG, save_filename=default_name or "优化后的简历.docx"
+        )
+        if isinstance(result, (list, tuple)):
+            result = result[0] if result else None
+        return str(result) if result else None
+
+    def reveal_file(self, path: str) -> bool:
+        import subprocess
+
+        p = str(path or "").strip()
+        if not p or not Path(p).exists():
+            return False
+        if sys.platform == "win32":
+            # 资源管理器打开并选中该文件
+            subprocess.Popen(["explorer", "/select,", p])
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", "-R", p])
+        else:
+            subprocess.Popen(["xdg-open", str(Path(p).parent)])
+        return True
+
+
 def _open_window(port: int) -> None:
     """pywebview 原生窗口优先；未安装则回退浏览器。必须在主线程调用。"""
     url = f"http://127.0.0.1:{port}/"
@@ -128,6 +161,7 @@ def _open_window(port: int) -> None:
             width=1280,
             height=860,
             min_size=(1080, 720),
+            js_api=DesktopApi(),
         )
         webview.start()  # 阻塞至窗口关闭
     except Exception as e:

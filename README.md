@@ -225,7 +225,7 @@ resumatch-ai/
 │       ├── composables/            # useAppMode（桌面版/网页版界面切换）
 │       ├── components/ResumePreview.vue
 │       └── views/                  # Home / Analyze / Result / Editor / Chat / History / Settings / Changelog
-└── docs/                           # 三件套：改造计划（迭代史）/ 技术说明文档（实现+踩坑+评估）/ 论文准备（知识点+答辩）
+└── docs/                           # 四件套：改造计划（迭代史）/ 技术说明文档（实现+踩坑+评估）/ 论文准备（知识点+答辩）/ 修改日志
 ```
 
 ## API 一览

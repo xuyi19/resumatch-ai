@@ -34,6 +34,61 @@ class ExportDocxRequest(BaseModel):
     optimized_resume: dict
     template: str = "classic"
     photo_id: str | None = None
+    # 桌面形态专用：用户通过原生另存为对话框选择的绝对路径，服务端直写该文件。
+    # 网页形态禁止（服务端不得写用户任意路径），为空时走浏览器 blob 下载。
+    save_path: str | None = None
+
+
+@router.get("/export-history")
+async def list_export_history(
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """导出历史（最近 30 条，按时间倒序）"""
+    from sqlalchemy import select
+
+    from app.models.entities import ExportHistory
+
+    res = await db.execute(
+        select(ExportHistory)
+        .where(ExportHistory.owner_id == owner_id)
+        .order_by(ExportHistory.id.desc())
+        .limit(30)
+    )
+    items = [
+        {
+            "id": r.id,
+            "filename": r.filename,
+            "save_path": r.save_path,
+            "template": r.template,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in res.scalars()
+    ]
+    return {"items": items}
+
+
+@router.delete("/export-history/{history_id}")
+async def delete_export_history(
+    history_id: int,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    from sqlalchemy import select
+
+    from app.models.entities import ExportHistory
+
+    res = await db.execute(
+        select(ExportHistory).where(
+            ExportHistory.id == history_id, ExportHistory.owner_id == owner_id
+        )
+    )
+    rec = res.scalars().first()
+    if not rec:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    await db.delete(rec)
+    await db.commit()
+    return {"message": "已删除"}
 
 
 @router.get("/templates")
@@ -147,9 +202,47 @@ async def delete_photo(photo_id: str):
 
 # ---------- Word 导出 ----------
 
+def _validate_save_path(save_path: str) -> Path:
+    """桌面形态保存路径校验：绝对路径 + .docx 后缀 + 父目录存在。"""
+    if settings.APP_MODE != "local":
+        raise HTTPException(status_code=403, detail="网页形态不支持指定保存路径")
+    p = Path(save_path)
+    if not p.is_absolute():
+        raise HTTPException(status_code=400, detail="保存路径必须是绝对路径")
+    if p.suffix.lower() != ".docx":
+        raise HTTPException(status_code=400, detail="保存路径必须以 .docx 结尾")
+    if not p.parent.is_dir():
+        raise HTTPException(status_code=400, detail=f"目录不存在：{p.parent}")
+    return p
+
+
+async def _record_export(
+    db: AsyncSession, owner_id: str, filename: str, save_path: str | None, template: str
+) -> None:
+    from app.models.entities import ExportHistory
+
+    db.add(
+        ExportHistory(
+            owner_id=owner_id,
+            filename=filename,
+            save_path=save_path,
+            template=template,
+        )
+    )
+    await db.commit()
+
+
 @router.post("/export-docx")
-async def export_docx(req: ExportDocxRequest):
-    """把优化后的简历导出为 Word 文件（可选嵌入证件照）"""
+async def export_docx(
+    req: ExportDocxRequest,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """把优化后的简历导出为 Word 文件（可选嵌入证件照）。
+
+    save_path 为空：浏览器 blob 下载（网页形态主路径），记录导出历史（无路径）。
+    save_path 非空（仅桌面形态）：服务端直写用户选择的路径，返回 JSON。
+    """
     photo_path = None
     if req.photo_id:
         if not _PHOTO_NAME_RE.match(req.photo_id):
@@ -168,11 +261,23 @@ async def export_docx(req: ExportDocxRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"生成失败: {e}")
 
-    filename = quote("优化后的简历.docx")
+    filename = "优化后的简历.docx"
+
+    if req.save_path:
+        target = _validate_save_path(req.save_path)
+        try:
+            target.write_bytes(data)
+        except OSError as e:
+            raise HTTPException(status_code=500, detail=f"写入文件失败: {e}")
+        await _record_export(db, owner_id, target.name, str(target), req.template)
+        return {"saved_to": str(target), "filename": target.name}
+
+    await _record_export(db, owner_id, filename, None, req.template)
+    quoted = quote(filename)
     return Response(
         content=data,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={
-            "Content-Disposition": f"attachment; filename*=UTF-8''{filename}",
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quoted}",
         },
     )

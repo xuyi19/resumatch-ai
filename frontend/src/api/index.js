@@ -44,10 +44,16 @@ export default {
     api.post(`/chat/finish/${taskId}`, { llm_config: llmConfig || null }),
   getChatHistory: (taskId) => api.get(`/chat/history/${taskId}`),
 
-  // Word 导出
+  // Word 导出（blob 下载，网页形态）
   exportDocx: (data) => api.post('/resumes/export-docx', data, {
     responseType: 'blob',
   }),
+  // Word 导出（桌面形态：save_path 由原生另存为对话框选定，服务端直写）
+  exportDocxToPath: (data) => api.post('/resumes/export-docx', data),
+
+  // 导出历史（桌面态含保存路径，可打开所在位置）
+  listExportHistory: () => api.get('/resumes/export-history'),
+  deleteExportHistory: (id) => api.delete(`/resumes/export-history/${id}`),
 
   // 简历模板目录（导出 Word 用的多套版式）
   listTemplates: () => api.get('/resumes/templates'),

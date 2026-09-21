@@ -35,6 +35,15 @@
               📄 {{ downloading ? '生成中...' : '下载 Word' }}
             </button>
 
+            <button @click="openHistory"
+              class="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-xl
+                bg-[#e0e5ec] text-gray-700
+                shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
+                hover:shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]
+                transition-all duration-300">
+              🗂 导出历史
+            </button>
+
             <button @click="downloadPdf"
               class="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl
                 bg-[#6d5dfc] text-white
@@ -239,16 +248,59 @@
 
   </div>
 
-  <!-- 打印专用区域 -->
+  <!-- 打印专用区域：优先直印 docx 预览 DOM（打印=预览=导出三者一致），失败回落 HTML 模板 -->
   <Teleport to="body">
     <div class="print-root">
-      <ResumePreview :data="data" :template="currentTemplate" :photo-url="photoUrl" />
+      <div v-if="printHtml" v-html="printHtml"></div>
+      <ResumePreview v-else :data="data" :template="currentTemplate" :photo-url="photoUrl" />
+    </div>
+  </Teleport>
+
+  <!-- 导出历史弹层 -->
+  <Teleport to="body">
+    <div v-if="showHistory" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/40"
+      @click.self="showHistory = false">
+      <div class="w-[560px] max-w-[92vw] max-h-[70vh] flex flex-col rounded-2xl bg-[#e0e5ec]
+        shadow-[8px_8px_20px_#8a8f97,-8px_-8px_20px_#ffffff]">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-[#b8bcc2]/30">
+          <h3 class="text-base font-semibold text-gray-800">导出历史</h3>
+          <button @click="showHistory = false" class="text-gray-500 hover:text-gray-800 text-lg leading-none">✕</button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-5 py-3">
+          <div v-if="historyLoading" class="py-8 text-center text-sm text-gray-500">加载中...</div>
+          <div v-else-if="!historyItems.length" class="py-8 text-center text-sm text-gray-500">
+            暂无导出记录，点击「下载 Word」后会出现在这里
+          </div>
+          <div v-for="h in historyItems" :key="h.id"
+            class="flex items-center justify-between gap-3 py-3 border-b border-[#b8bcc2]/20 last:border-0">
+            <div class="min-w-0">
+              <div class="text-sm font-medium text-gray-800 truncate">{{ h.filename }}</div>
+              <div class="text-xs text-gray-500 mt-0.5 truncate">
+                {{ formatTime(h.created_at) }}<template v-if="h.save_path"> · {{ h.save_path }}</template>
+                <template v-else> · 浏览器下载</template>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <button v-if="h.save_path && desktopReady" @click="revealHistoryFile(h.save_path)"
+                class="px-3 py-1.5 text-xs rounded-lg bg-[#e0e5ec] text-[#6d5dfc]
+                  shadow-[3px_3px_6px_#b8bcc2,-3px_-3px_6px_#ffffff] hover:opacity-80 transition">
+                打开位置
+              </button>
+              <button @click="removeHistory(h.id)"
+                class="px-3 py-1.5 text-xs rounded-lg bg-[#e0e5ec] text-gray-500
+                  shadow-[3px_3px_6px_#b8bcc2,-3px_-3px_6px_#ffffff] hover:text-red-500 transition">
+                删除
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </Teleport>
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, nextTick } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { renderAsync } from 'docx-preview'
@@ -272,6 +324,15 @@ const previewLoading = ref(false)
 const previewError = ref('')
 let previewSeq = 0
 let previewTimer = null
+
+// ---- 导出（双形态）+ 导出历史 ----
+// 桌面形态：原生「另存为」选路径 → 服务端直写（保存位置明确）
+// 网页形态：浏览器 blob 下载（下载目录由浏览器管理）
+const printHtml = ref('')          // PDF 打印内容：docx 预览 DOM 快照
+const showHistory = ref(false)
+const historyItems = ref([])
+const historyLoading = ref(false)
+const desktopReady = !!window.pywebview?.api?.pick_save_path
 
 // ---- 模板目录（后端下发，失败时用内置兜底） ----
 const templateList = ref([
@@ -565,7 +626,14 @@ function addSkill() {
 }
 
 function downloadPdf() {
-  setTimeout(() => window.print(), 150)
+  // 直印 docx 预览 DOM：打印输出与预览/导出的 Word 版式完全一致（含照片、分页）。
+  // 预览尚未就绪时回落 ResumePreview HTML 模板。
+  printHtml.value = docxBox.value?.innerHTML || ''
+  setTimeout(async () => {
+    window.print()
+    await nextTick()
+    setTimeout(() => { printHtml.value = '' }, 300)
+  }, 150)
 }
 
 // 编辑器数据 → Word 生成器入参（预览与导出共用同一份转换，保证版式一致）
@@ -633,12 +701,23 @@ watch([data, currentTemplate, photoId], () => {
 
 async function downloadWord() {
   downloading.value = true
+  const payload = {
+    optimized_resume: buildWordData(),
+    template: currentTemplate.value,
+    photo_id: photoId.value || undefined,
+  }
   try {
-    const res = await api.exportDocx({
-      optimized_resume: buildWordData(),
-      template: currentTemplate.value,
-      photo_id: photoId.value || undefined,
-    })
+    // 桌面形态：原生「另存为」选路径 → 服务端直写，保存位置明确可见
+    const bridge = window.pywebview?.api
+    if (bridge?.pick_save_path) {
+      const savePath = await bridge.pick_save_path(`${data.value.name || '简历'}.docx`)
+      if (!savePath) return // 用户取消
+      const res = await api.exportDocxToPath({ ...payload, save_path: savePath })
+      Message.success(`已保存到：${res.data?.saved_to || savePath}`)
+      return
+    }
+    // 网页形态：浏览器 blob 下载
+    const res = await api.exportDocx(payload)
     const blob = new Blob([res.data], {
       type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     })
@@ -650,13 +729,49 @@ async function downloadWord() {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-    Message.success('Word 已下载')
+    Message.success('Word 已下载（见浏览器下载目录）')
   } catch (e) {
+    const detail = e?.response?.data?.detail || e.message
     console.error(e)
-    Message.error('下载失败：' + e.message)
+    Message.error('导出失败：' + detail)
   } finally {
     downloading.value = false
   }
+}
+
+// ---- 导出历史 ----
+async function openHistory() {
+  showHistory.value = true
+  historyLoading.value = true
+  try {
+    const res = await api.listExportHistory()
+    historyItems.value = res.data?.items || []
+  } catch (e) {
+    Message.error('获取导出历史失败')
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+async function revealHistoryFile(path) {
+  const ok = await window.pywebview?.api?.reveal_file(path)
+  if (!ok) Message.error('文件不存在或已被移动')
+}
+
+async function removeHistory(id) {
+  try {
+    await api.deleteExportHistory(id)
+    historyItems.value = historyItems.value.filter(h => h.id !== id)
+  } catch (e) {
+    Message.error('删除失败')
+  }
+}
+
+function formatTime(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const p = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
 onMounted(() => {
@@ -723,6 +838,15 @@ onMounted(() => {
   .print-root .r-section,
   .print-root .r-item {
     page-break-inside: avoid;
+  }
+
+  /* docx 预览 DOM 直印适配：去灰底/阴影，按 Word 分页原样输出 */
+  .print-root .docx-wrapper {
+    background: #ffffff !important;
+    padding: 0 !important;
+  }
+  .print-root .docx-wrapper > section.docx {
+    margin: 0 auto !important;
   }
 }
 </style>
