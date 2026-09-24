@@ -18,6 +18,24 @@ class Resume(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class ResumeVersion(Base):
+    """M44 简历版本链：Resume.raw_text 的历史快照，支持任选两版 diff 对比。
+
+    v1 在简历创建（上传/粘贴）时自动落；编辑器「保存到简历库」命中同名简历
+    且文本有变化时追加新版本并更新 raw_text；每份简历上限 _VERSION_CAP 条，
+    超出删最旧。
+    """
+    __tablename__ = "resume_versions"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    resume_id: Mapped[int] = mapped_column(index=True)
+    owner_id: Mapped[str] = mapped_column(String(64), default="local", index=True)
+    content: Mapped[str] = mapped_column(Text)
+    # initial 初始版本 / editor 编辑器保存 / manual 其他更新
+    source: Mapped[str] = mapped_column(String(16), default="initial")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class DiagnosisRecord(Base):
     __tablename__ = "diagnosis_records"
 

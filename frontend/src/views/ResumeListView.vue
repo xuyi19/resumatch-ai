@@ -91,12 +91,19 @@
           <button @click="rename(r)" title="重命名"
             class="px-3 py-2 text-xs rounded-md border border-line text-ink-sub
               hover:border-accent hover:text-accent transition-colors">改名</button>
+          <button @click="openVersions(r)" title="版本历史与对比"
+            class="px-3 py-2 text-xs rounded-md border border-line text-ink-sub
+              hover:border-accent hover:text-accent transition-colors">版本</button>
           <button @click="remove(r)" title="删除"
             class="px-3 py-2 text-xs rounded-md border border-line text-ink-sub
               hover:border-bad/60 hover:text-bad transition-colors">删除</button>
         </div>
       </div>
     </div>
+
+    <!-- M44 版本历史与对比弹层 -->
+    <ResumeVersionsModal v-model:visible="versionsVisible" :resume-id="versionTarget?.id"
+      :resume-name="versionTarget?.filename" />
 
     <!-- 预览弹层：pdf 原版式直渲；docx 文本 + 原文件下载；纯文本简历文本预览 -->
     <div v-if="previewing" class="fixed inset-0 z-50 flex items-center justify-center
@@ -150,10 +157,19 @@ import { Message, Modal } from '@arco-design/web-vue'
 import api from '../api'
 import EmptyState from '../components/EmptyState.vue'
 import LoadingBlock from '../components/LoadingBlock.vue'
+import ResumeVersionsModal from '../components/ResumeVersionsModal.vue'
 
 const items = ref([])
 const loading = ref(true)
 const previewing = ref(null)
+// M44 版本历史弹层
+const versionsVisible = ref(false)
+const versionTarget = ref(null)
+
+function openVersions(r) {
+  versionTarget.value = r
+  versionsVisible.value = true
+}
 const previewText = ref('')
 const pdfLoading = ref(false)
 const selected = ref(new Set())

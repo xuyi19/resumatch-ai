@@ -23,6 +23,10 @@ export default {
   },
   // A1 粘贴文本简历直存（跳过文件解析）
   uploadResumeText: (data) => api.post('/resumes/upload-text', data),
+  // M44 简历版本链
+  saveResumeVersion: (id, text) => api.post(`/resumes/${id}/save-version`, { text }),
+  listResumeVersions: (id) => api.get(`/resumes/${id}/versions`),
+  getResumeVersion: (id, vid) => api.get(`/resumes/${id}/versions/${vid}`),
 
   // 实时分析
   startLiveAnalyze: (data) => api.post('/live/analyze', data),

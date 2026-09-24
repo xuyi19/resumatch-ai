@@ -399,12 +399,22 @@ async function saveToLibrary() {
     return
   }
   savingToLibrary.value = true
+  const name = `${data.value.name || '未命名'}的简历.txt`
   try {
-    const res = await api.uploadResumeText({
-      filename: `${data.value.name || '未命名'}的简历.txt`,
-      text,
-    })
-    Message.success(`已保存到简历库（#${res.data.id}），可在简历库一键发起诊断`)
+    // M44 版本链：同名简历已存在则追加版本（不重复堆简历），否则新建
+    const listRes = await api.listResumes()
+    const same = (listRes.data || []).find((r) => r.filename === name)
+    if (same) {
+      const res = await api.saveResumeVersion(same.id, text)
+      Message.success(
+        res.data.updated
+          ? `已更新「${name}」（v${res.data.version_count}），可在简历库查看版本对比`
+          : `内容与「${name}」当前版本相同，无需保存`,
+      )
+    } else {
+      const res = await api.uploadResumeText({ filename: name, text })
+      Message.success(`已保存到简历库（#${res.data.id}），可在简历库一键发起诊断`)
+    }
   } catch (e) {
     Message.error(e.response?.data?.detail || '保存失败')
   } finally {

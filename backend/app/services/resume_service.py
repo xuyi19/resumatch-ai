@@ -6,16 +6,35 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.models.entities import Resume
+from app.models.entities import Resume, ResumeVersion
 from app.utils.file_parser import parse_bytes
 
 # 需要保留原文件做浏览器预览的扩展名（pdf 可 iframe 直渲；docx 提供下载）
 _STORE_EXTS = {".pdf", ".docx"}
 
+# M44 每份简历的版本快照上限（超出删最旧，防膨胀）
+_VERSION_CAP = 20
+
 
 class ResumeService:
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    async def _add_version(self, resume_id: int, owner_id: str, content: str, source: str) -> None:
+        """落一条版本快照；超过上限时删最旧（尽力而为，失败不影响主流程）。"""
+        self.db.add(ResumeVersion(resume_id=resume_id, owner_id=owner_id, content=content, source=source))
+        await self.db.flush()
+        res = await self.db.execute(
+            select(ResumeVersion.id)
+            .where(ResumeVersion.resume_id == resume_id, ResumeVersion.owner_id == owner_id)
+            .order_by(ResumeVersion.id.desc())
+            .offset(_VERSION_CAP)  # 保留最新 _VERSION_CAP 条，其余删掉
+        )
+        stale = [row[0] for row in res.all()]
+        if stale:
+            for vid in stale:
+                await self.db.delete(await self.db.get(ResumeVersion, vid))
+        await self.db.commit()
 
     def _save_original(self, resume_id: int, filename: str, content: bytes) -> str | None:
         """原文件落盘到 FILES_DIR/{resume_id}{ext}，返回路径；不支持的类型返回 None。
@@ -54,6 +73,7 @@ class ResumeService:
 
         await self.db.commit()
         await self.db.refresh(resume)
+        await self._add_version(resume.id, owner_id, raw_text, "initial")  # M44 版本链 v1
 
         logger.info(f"简历已入库，id={resume.id}，原文件={'有' if resume.file_path else '无'}")
         return resume
@@ -64,8 +84,52 @@ class ResumeService:
         self.db.add(resume)
         await self.db.commit()
         await self.db.refresh(resume)
+        await self._add_version(resume.id, owner_id, text, "initial")  # M44 版本链 v1
         logger.info(f"文本简历已入库，id={resume.id}，{len(text)} 字")
         return resume
+
+    async def save_version(self, resume_id: int, text: str, owner_id: str, source: str = "editor") -> dict:
+        """M44 编辑器保存：文本有变化时追加版本并更新 raw_text；无变化不落库。
+
+        返回 {updated: bool, version_count: int}。
+        """
+        resume = await self.get_by_id(resume_id, owner_id)
+        if not resume:
+            raise LookupError("简历不存在")
+        if resume.raw_text == text:
+            return {"updated": False, "version_count": await self.count_versions(resume_id, owner_id)}
+        resume.raw_text = text
+        await self.db.commit()
+        await self._add_version(resume_id, owner_id, text, source)
+        logger.info(f"简历版本已更新，id={resume_id}，{len(text)} 字")
+        return {"updated": True, "version_count": await self.count_versions(resume_id, owner_id)}
+
+    async def count_versions(self, resume_id: int, owner_id: str) -> int:
+        res = await self.db.execute(
+            select(ResumeVersion.id).where(
+                ResumeVersion.resume_id == resume_id, ResumeVersion.owner_id == owner_id
+            )
+        )
+        return len(res.all())
+
+    async def list_versions(self, resume_id: int, owner_id: str) -> list[ResumeVersion]:
+        """版本列表（时间倒序，不含全文，轻量）。"""
+        res = await self.db.execute(
+            select(ResumeVersion)
+            .where(ResumeVersion.resume_id == resume_id, ResumeVersion.owner_id == owner_id)
+            .order_by(ResumeVersion.id.desc())
+        )
+        return list(res.scalars().all())
+
+    async def get_version(self, resume_id: int, version_id: int, owner_id: str) -> ResumeVersion | None:
+        res = await self.db.execute(
+            select(ResumeVersion).where(
+                ResumeVersion.id == version_id,
+                ResumeVersion.resume_id == resume_id,
+                ResumeVersion.owner_id == owner_id,
+            )
+        )
+        return res.scalar_one_or_none()
 
     @staticmethod
     def remove_original_file(file_path: str | None) -> None:

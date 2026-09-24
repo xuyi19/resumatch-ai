@@ -269,13 +269,20 @@ async def delete_resumes_batch(
     if not req.ids:
         return {"deleted": 0}
 
-    # 先取原文件路径用于落盘清理，再删记录
+    # 先取原文件路径用于落盘清理，再删记录（M44 级联清理版本快照）
     res = await db.execute(
         select(Resume.file_path).where(Resume.id.in_(req.ids), Resume.owner_id == owner_id)
     )
     for (fp,) in res.all():
         ResumeService.remove_original_file(fp)
 
+    from app.models.entities import ResumeVersion
+
+    await db.execute(
+        sa_delete(ResumeVersion).where(
+            ResumeVersion.resume_id.in_(req.ids), ResumeVersion.owner_id == owner_id
+        )
+    )
     res = await db.execute(
         sa_delete(Resume).where(Resume.id.in_(req.ids), Resume.owner_id == owner_id)
     )
@@ -312,6 +319,72 @@ async def rename_resume(
     return ResumeOut(id=resume.id, filename=resume.filename, text_length=len(resume.raw_text))
 
 
+class SaveVersionRequest(BaseModel):
+    text: str
+
+
+@router.post("/{resume_id}/save-version")
+async def save_resume_version(
+    resume_id: int,
+    req: SaveVersionRequest,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """M44 编辑器保存到已有简历：文本有变化时追加版本快照并更新 raw_text"""
+    text = (req.text or "").strip()
+    if len(text) < 50:
+        raise HTTPException(status_code=400, detail="简历文本太短（至少 50 字）")
+    if len(text) > 50000:
+        raise HTTPException(status_code=400, detail="简历文本过长（超过 5 万字）")
+    service = ResumeService(db)
+    try:
+        return await service.save_version(resume_id, text, owner_id)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="简历不存在")
+
+
+@router.get("/{resume_id}/versions")
+async def list_resume_versions(
+    resume_id: int,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """M44 版本链列表（时间倒序，不含全文）"""
+    service = ResumeService(db)
+    if not await service.get_by_id(resume_id, owner_id):
+        raise HTTPException(status_code=404, detail="简历不存在")
+    versions = await service.list_versions(resume_id, owner_id)
+    return [
+        {
+            "id": v.id,
+            "source": v.source,
+            "chars": len(v.content),
+            "created_at": v.created_at.isoformat() if v.created_at else None,
+        }
+        for v in versions
+    ]
+
+
+@router.get("/{resume_id}/versions/{version_id}")
+async def get_resume_version(
+    resume_id: int,
+    version_id: int,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """M44 单版本全文（diff 对比时取内容）"""
+    service = ResumeService(db)
+    v = await service.get_version(resume_id, version_id, owner_id)
+    if not v:
+        raise HTTPException(status_code=404, detail="版本不存在")
+    return {
+        "id": v.id,
+        "source": v.source,
+        "content": v.content,
+        "created_at": v.created_at.isoformat() if v.created_at else None,
+    }
+
+
 @router.delete("/{resume_id}")
 async def delete_resume(
     resume_id: int,
@@ -323,6 +396,13 @@ async def delete_resume(
     if not resume:
         raise HTTPException(status_code=404, detail="简历不存在")
     service.remove_original_file(resume.file_path)
+    from app.models.entities import ResumeVersion
+
+    await db.execute(
+        sa_delete(ResumeVersion).where(
+            ResumeVersion.resume_id == resume_id, ResumeVersion.owner_id == owner_id
+        )
+    )
     await db.delete(resume)
     await db.commit()
     return {"message": "已删除"}
