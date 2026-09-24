@@ -107,37 +107,42 @@
 
     <!-- 预览弹层：pdf 原版式直渲；docx 文本 + 原文件下载；纯文本简历文本预览 -->
     <div v-if="previewing" class="fixed inset-0 z-50 flex items-center justify-center
-      bg-black/60 backdrop-blur-sm p-4 md:p-8" @click.self="previewing = null">
-      <div class="bg-panel border border-line rounded-xl w-full max-w-5xl h-[90vh]
-        flex flex-col shadow-2xl overflow-hidden">
-        <div class="flex items-center justify-between px-5 py-3 border-b border-line shrink-0">
+      bg-black/50 backdrop-blur-sm p-4 md:p-8" @click.self="previewing = null">
+      <div class="bg-panel border-2 border-ink/70 rounded-xl w-full max-w-5xl h-[90vh]
+        flex flex-col shadow-[8px_8px_0_0] shadow-ink/20 overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-3 border-b border-line shrink-0
+          bg-gradient-to-r from-accent/10 to-accent/[0.03]">
           <div class="flex items-center gap-2 min-w-0">
-            <span class="shrink-0 w-6 h-6 rounded-md bg-inset border border-line
+            <span class="shrink-0 w-6 h-6 rounded-md bg-accent/10 border border-ink/50
               flex items-center justify-center text-[10px] font-mono uppercase text-accent">
               {{ previewing.file_type || 'txt' }}
             </span>
-            <span class="text-sm font-medium text-ink truncate">{{ previewing.filename }}</span>
+            <span class="text-sm font-semibold text-ink truncate">{{ previewing.filename }}</span>
+            <span class="text-[10px] text-ink-faint hidden sm:inline">简历原文件预览</span>
           </div>
-          <div class="flex items-center gap-3 shrink-0">
+          <div class="flex items-center gap-2 shrink-0">
             <a v-if="previewing.file_type"
               :href="`/api/v1/resumes/${previewing.id}/file`" :download="previewing.filename"
-              class="text-xs text-accent hover:underline">下载原文件</a>
+              class="px-3 py-1.5 text-xs font-medium rounded-lg bg-accent text-white
+                hover:bg-accent-hover transition-colors shadow-sm">⬇ 下载原文件</a>
             <button @click="previewing = null"
-              class="w-7 h-7 rounded-md text-ink-faint hover:text-ink hover:bg-inset
-                transition-colors flex items-center justify-center">✕</button>
+              class="w-7 h-7 rounded-md border border-line text-ink-sub hover:text-ink hover:bg-inset
+                hover:border-line-strong transition-colors flex items-center justify-center">✕</button>
           </div>
         </div>
 
         <!-- PDF：iframe 浏览器原生渲染（保真版式）
           #toolbar=0&navpanes=0 隐藏 viewer 自带工具栏/侧栏，观感更干净；@load 前显示加载态 -->
-        <div v-if="previewing.file_type === 'pdf'" class="relative flex-1 bg-inset">
+        <div v-if="previewing.file_type === 'pdf'" class="relative flex-1 bg-inset p-3">
           <div v-if="pdfLoading" class="absolute inset-0 z-10 flex items-center justify-center
             text-xs text-ink-faint bg-inset">
             正在加载原文件…
           </div>
-          <iframe :src="`/api/v1/resumes/${previewing.id}/file#toolbar=0&navpanes=0`"
-            class="w-full h-full bg-white" :title="previewing.filename"
-            @load="pdfLoading = false"></iframe>
+          <div class="w-full h-full rounded-lg overflow-hidden border border-line-strong shadow-inner bg-white">
+            <iframe :src="`/api/v1/resumes/${previewing.id}/file#toolbar=0&navpanes=0`"
+              class="w-full h-full bg-white" :title="previewing.filename"
+              @load="pdfLoading = false"></iframe>
+          </div>
         </div>
 
         <!-- 其他：提取文本预览 -->

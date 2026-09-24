@@ -185,10 +185,10 @@
         {{ filteredJobs.length }}/{{ jobs.length }}
       </span>
       <span class="w-px h-4 bg-line shrink-0" />
-      <button @click="toggleSelMode"
-        class="px-3 py-2 text-xs font-medium rounded-lg transition-colors"
-        :class="selMode ? 'bg-accent/10 text-accent' : 'text-ink-sub hover:text-ink'">
-        {{ selMode ? '完成' : '管理' }}
+      <button @click="toggleSelMode" :title="selMode ? '退出管理模式' : '进入管理模式，勾选岗位批量删除'"
+        class="px-3 py-2 text-xs font-medium rounded-lg border transition-colors shrink-0"
+        :class="selMode ? 'bg-accent text-white border-accent' : 'border-line text-ink-sub hover:border-accent/60 hover:text-accent'">
+        {{ selMode ? '✓ 完成' : '☐ 批量管理' }}
       </button>
       <button v-if="selMode" @click="toggleSelectAllCards"
         class="px-3 py-2 text-xs text-ink-sub hover:text-ink transition-colors">
@@ -262,48 +262,44 @@
             hover:bg-accent/10 transition-colors">清除筛选</button>
       </div>
 
-      <div v-else class="space-y-3">
+      <div v-else class="space-y-2.5">
         <div v-for="j in displayJobs" :key="j.id"
-          class="bg-panel rounded-2xl p-5 hover:shadow-md transition-shadow"
-          :class="selMode && selIds.has(j.id) && 'ring-2 ring-accent/50'">
+          class="bg-panel rounded-xl px-4 py-3 border border-line hover:border-line-strong
+            hover:shadow-md transition-all"
+          :class="selMode && selIds.has(j.id) && 'ring-2 ring-accent/50 border-accent/40'">
           <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <div class="flex items-center gap-2 flex-wrap">
-                <!-- 管理模式复选框 -->
-                <input v-if="selMode" type="checkbox" :checked="selIds.has(j.id)"
-                  @change="toggleCardSel(j.id)"
-                  class="w-4 h-4 accent-accent shrink-0 cursor-pointer" />
-                <span class="text-sm font-semibold">{{ j.title }}</span>
-                <span class="text-xs text-ink-faint font-mono">{{ j.company || '公司待定' }}</span>
-              </div>
-              <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                <span v-if="j.city" class="px-1.5 py-0.5 rounded text-[11px] bg-inset text-ink-sub">{{ j.city }}</span>
-                <span v-if="j.salary" class="px-1.5 py-0.5 rounded text-[11px] bg-ok/10 text-ok font-mono">{{ j.salary }}</span>
-                <span class="px-1.5 py-0.5 rounded text-[11px] bg-inset text-ink-faint">{{ sourceLabel(j.source) }}</span>
-                <span class="text-[11px] text-ink-faint">{{ fmtTime(j.created_at) }}</span>
-              </div>
+            <div class="min-w-0 flex items-center gap-2 flex-wrap">
+              <!-- 管理模式复选框 -->
+              <input v-if="selMode" type="checkbox" :checked="selIds.has(j.id)"
+                @change="toggleCardSel(j.id)"
+                class="w-4 h-4 accent-accent shrink-0 cursor-pointer" />
+              <span class="text-sm font-semibold shrink-0">{{ j.title }}</span>
+              <span class="text-xs text-ink-sub truncate max-w-[180px]">{{ j.company || '公司待定' }}</span>
+              <span v-if="j.city" class="px-1.5 py-0.5 rounded text-[11px] bg-inset text-ink-sub shrink-0">{{ j.city }}</span>
+              <span v-if="j.salary" class="px-1.5 py-0.5 rounded text-[11px] bg-ok/10 text-ok font-mono shrink-0">{{ j.salary }}</span>
+              <span class="px-1.5 py-0.5 rounded text-[11px] bg-inset text-ink-faint shrink-0">{{ sourceLabel(j.source) }}</span>
             </div>
             <!-- 匹配分徽标 -->
-            <div v-if="matchMap[j.id]" class="text-right shrink-0">
-              <div class="px-2 py-1 rounded-lg text-sm font-mono font-semibold"
+            <div v-if="matchMap[j.id]" class="flex items-center gap-2 shrink-0">
+              <span class="text-[10px] text-ink-faint max-w-[120px] truncate">{{ matchMap[j.id].reason }}</span>
+              <div class="px-2 py-0.5 rounded-lg text-sm font-mono font-semibold"
                 :class="matchMap[j.id].score >= 70 ? 'bg-ok/10 text-ok'
                   : matchMap[j.id].score >= 40 ? 'bg-warn/10 text-warn' : 'bg-inset text-ink-faint'">
                 {{ matchMap[j.id].score }} 分
               </div>
-              <div class="text-[10px] text-ink-faint mt-1 max-w-[140px]">{{ matchMap[j.id].reason }}</div>
             </div>
+            <span v-else class="text-[10px] text-ink-faint shrink-0 mt-1 font-mono">{{ fmtTime(j.created_at) }}</span>
           </div>
 
-          <!-- JD 摘要 / 全文 -->
-          <p v-if="j.jd" class="text-xs text-ink-sub mt-2.5 leading-relaxed whitespace-pre-wrap"
-            :class="expandedId === j.id ? '' : 'line-clamp-3'">{{ j.jd }}</p>
-          <button v-if="j.jd && j.jd.length > 90" @click="expandedId = expandedId === j.id ? null : j.id"
-            class="text-[11px] text-accent hover:underline mt-1">
-            {{ expandedId === j.id ? '收起' : '展开全文' }}
-          </button>
+          <!-- JD 摘要（默认单行截断，点击展开；无 JD 显示占位） -->
+          <p v-if="j.jd" class="text-xs text-ink-faint mt-1.5 leading-relaxed cursor-pointer"
+            :class="expandedId === j.id ? 'whitespace-pre-wrap text-ink-sub' : 'truncate'"
+            :title="expandedId === j.id ? '点击收起' : '点击展开'"
+            @click="expandedId = expandedId === j.id ? null : j.id">{{ j.jd }}</p>
+          <p v-else class="text-xs text-ink-faint/60 mt-1.5 italic">暂无 JD 描述 · 编辑补充后可用于诊断/面试</p>
 
           <!-- 操作行 -->
-          <div class="flex items-center gap-3 mt-3 pt-3 border-t border-line">
+          <div class="flex items-center gap-3 mt-2 pt-2 border-t border-line/60">
             <button @click="diagnoseWith(j)" class="text-xs text-accent hover:underline">🩺 用此岗位诊断</button>
             <button @click="interviewWith(j)" class="text-xs text-accent hover:underline">🎤 用此岗位面试</button>
             <span class="flex-1" />

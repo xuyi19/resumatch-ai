@@ -78,6 +78,35 @@ TEMPLATES = {
         "line_color": "E5E7EB",
         "sidebar_fill": "EEF2F5",
     },
+    # ---- M47 版式级新模板 ----
+    "timeline": {
+        "name_color": (0x11, 0x18, 0x27),
+        "section_color": (0x0D, 0x94, 0x88),
+        "text_color": (0x37, 0x41, 0x51),
+        "line_color": "E5E7EB",
+        "time_color": (0x94, 0xA3, 0xB8),
+    },
+    "banner": {
+        "name_color": (0xFF, 0xFF, 0xFF),   # 页眉色块内白字
+        "section_color": (0x1E, 0x3A, 0x8A),
+        "text_color": (0x1F, 0x29, 0x37),
+        "line_color": "1E3A8A",
+        "banner_fill": "1E3A8A",            # 顶部整行深蓝底
+        "banner_text": (0xFF, 0xFF, 0xFF),
+    },
+    "numbered": {
+        "name_color": (0x0F, 0x17, 0x2A),
+        "section_color": (0xB4, 0x53, 0x09),  # 焦糖橙编号
+        "text_color": (0x37, 0x41, 0x51),
+        "line_color": "FED7AA",
+    },
+    "sectionbar": {
+        "name_color": (0x14, 0x2A, 0x1E),
+        "section_color": (0x16, 0x65, 0x34),  # 墨绿
+        "text_color": (0x33, 0x41, 0x55),
+        "line_color": "E7F0E9",
+        "bar_fill": "EAF3EC",                 # 区块标题通栏浅绿底纹
+    },
 }
 
 # 前端模板选择器目录
@@ -92,6 +121,10 @@ TEMPLATE_CATALOG = [
     {"id": "creative", "name": "活力橙", "desc": "暖色调圆点标题，适合运营/市场"},
     {"id": "twocol", "name": "单行页眉", "desc": "姓名与联系方式同行，节省纵向空间"},
     {"id": "compact", "name": "紧凑单页", "desc": "行距压缩，内容多时一页放下"},
+    {"id": "timeline", "name": "时间轴", "desc": "左时间右内容两列对齐，最贴近主流简历版式，推荐"},
+    {"id": "banner", "name": "深色页眉", "desc": "顶部整行深蓝色块白字，互联网/设计岗常见风格"},
+    {"id": "numbered", "name": "编号区块", "desc": "01/02/03 焦糖橙编号标题，层次分明个性鲜明"},
+    {"id": "sectionbar", "name": "底纹标题", "desc": "区块标题通栏浅绿底纹，沉稳清晰，通用性强"},
 ]
 
 
@@ -491,6 +524,267 @@ def _build_sidebar(doc, data, photo_path=None):
                  bullet=True, skip=("skills", "certificates"))
 
 
+# ---------- M47 版式级新模板 ----------
+
+_TIME_HINT_WORDS = ("至今", "现在", "present", "在读", "目前")
+
+def _split_time_head(line: str):
+    """把 '2020-2024 某公司 后端' 拆为 (时间, 其余)；非时间开头返回 (None, 原行)。
+
+    条目字符串是 time/公司/职位空格拼接的（EditorView buildWordData），首 token
+    含年份数字或时间提示词即视为时间。
+    """
+    parts = line.split(None, 1)
+    if not parts:
+        return None, line
+    head = parts[0].lower()
+    if any(ch.isdigit() for ch in head) or any(w in head for w in _TIME_HINT_WORDS):
+        return parts[0], parts[1] if len(parts) > 1 else ""
+    return None, line
+
+
+def _group_entries(lines):
+    """扁平行列表 → 条目组：首行开条目（拆时间），后续行归入该条目 desc。"""
+    entries = []
+    for line in lines:
+        line = str(line).strip()
+        if not line:
+            continue
+        if entries and len(line) > 24 and not any(ch.isdigit() for ch in line[:4]):
+            # 启发式：后续长描述行（行首非年份）归入当前条目
+            entries[-1]["desc"].append(line)
+            continue
+        time, rest = _split_time_head(line)
+        entries.append({"time": time or "", "head": rest or line, "desc": []})
+    return entries
+
+
+def _timeline_section(doc, entries, colors, *, head_size=11, desc_size=10):
+    """时间轴区块：每条目一行两列表格（左时间灰字右对齐，右标题加粗+描述）。"""
+    for e in entries:
+        table = doc.add_table(rows=1, cols=2)
+        table.autofit = False
+        left, right = table.rows[0].cells
+        left.width = Cm(3.4)
+        right.width = Cm(12.4)
+        lp = left.paragraphs[0]
+        lp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        if e["time"]:
+            r = lp.add_run(e["time"])
+            r.font.size = Pt(desc_size)
+            r.font.color.rgb = RGBColor(*colors.get("time_color", (0x94, 0xA3, 0xB8)))
+        rp = right.paragraphs[0]
+        r = rp.add_run(e["head"])
+        r.bold = True
+        r.font.size = Pt(head_size)
+        r.font.color.rgb = RGBColor(*colors["text_color"])
+        for d in e["desc"]:
+            dp = right.add_paragraph(d)
+            dp.paragraph_format.space_after = Pt(1)
+            for run in dp.runs:
+                run.font.size = Pt(desc_size)
+                run.font.color.rgb = RGBColor(*colors["text_color"])
+    doc.add_paragraph()
+
+
+def _entries_of(data, key):
+    return _group_entries(data.get(key) or [])
+
+
+def _build_timeline(doc, data, photo_path=None):
+    """时间轴：左时间右内容两列对齐，最贴近主流真实简历版式"""
+    colors = TEMPLATES["timeline"]
+    _header(doc, data, colors, photo_path, "left", 22)
+    p = doc.add_paragraph()
+    _add_bottom_border(p, colors["line_color"], size=12)
+    doc.add_paragraph()
+
+    sections = [
+        ("education", "教育经历", _entries_of(data, "education")),
+        ("experience", "工作经历", _entries_of(data, "experience")),
+        ("projects", "项目经历", _entries_of(data, "projects")),
+    ]
+    for _, title, entries in sections:
+        if not entries:
+            continue
+        _section_title(doc, title, colors, size=12.5)
+        _timeline_section(doc, entries, colors)
+
+    skills = data.get("skills") or []
+    if skills:
+        _section_title(doc, "技能", colors, size=12.5)
+        p = doc.add_paragraph(" · ".join(skills))
+        p.paragraph_format.space_after = Pt(2)
+        _style_run(p.runs[0], colors)
+        doc.add_paragraph()
+    certs = data.get("certificates") or []
+    if certs:
+        _section_title(doc, "证书", colors, size=12.5)
+        for c in certs:
+            _add_bullet(doc, str(c), colors)
+        doc.add_paragraph()
+    summary = str(data.get("summary") or "").strip()
+    if summary:
+        _section_title(doc, "个人简介", colors, size=12.5)
+        p = doc.add_paragraph(summary)
+        p.paragraph_format.space_after = Pt(2)
+        _style_run(p.runs[0] if p.runs else p.add_run(summary), colors)
+
+
+def _build_banner(doc, data, photo_path=None):
+    """深色页眉：顶部整行深蓝色块（白字姓名+联系方式），互联网风格"""
+    colors = TEMPLATES["banner"]
+    table = doc.add_table(rows=1, cols=2)
+    table.autofit = False
+    left, right = table.rows[0].cells
+    left.width = Cm(12.8)
+    right.width = Cm(3.4)
+    _shade_cell(left, colors["banner_fill"])
+    _shade_cell(right, colors["banner_fill"])
+    lp = left.paragraphs[0]
+    r = lp.add_run(data.get("name") or "个人简历")
+    r.bold = True
+    r.font.size = Pt(24)
+    r.font.color.rgb = RGBColor(*colors["banner_text"])
+    contacts = _contacts(data)
+    if contacts:
+        cp = left.add_paragraph("  |  ".join(contacts))
+        for run in cp.runs:
+            run.font.size = Pt(9.5)
+            run.font.color.rgb = RGBColor(0xD9, 0xE2, 0xF5)
+    if photo_path is not None:
+        pp = right.paragraphs[0]
+        run = pp.add_run()
+        run.add_picture(str(photo_path), width=Cm(2.4))
+        pp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    doc.add_paragraph()
+
+    _render_body(
+        doc, data, colors,
+        titles={"summary": "关于我"},
+        title_marker="— ", title_size=12, title_border=True, bullet=True,
+        skill_sep=" / ",
+    )
+
+
+def _build_numbered(doc, data, photo_path=None):
+    """编号区块：01/02/03 焦糖橙编号 + 区块标题，层次个性"""
+    colors = TEMPLATES["numbered"]
+    _header(doc, data, colors, photo_path, "left", 26, contact_color=(0x9A, 0x6B, 0x3F))
+    doc.add_paragraph()
+
+    # 求职意向高亮条（浅橙底）
+    intention = str(data.get("job_intention") or "").strip()
+    if intention:
+        t = doc.add_table(rows=1, cols=1)
+        t.autofit = False
+        cell = t.rows[0].cells[0]
+        cell.width = Cm(15.8)
+        _shade_cell(cell, "FEF3E8")
+        ip = cell.paragraphs[0]
+        r = ip.add_run(f"求职意向：{intention}")
+        r.bold = True
+        r.font.size = Pt(11.5)
+        r.font.color.rgb = RGBColor(*colors["section_color"])
+        doc.add_paragraph()
+
+    idx = 1
+    plan = [
+        ("summary", "个人简介", [data.get("summary", "")]),
+        ("education", "教育经历", data.get("education", [])),
+        ("experience", "工作经历", data.get("experience", [])),
+        ("projects", "项目经历", data.get("projects", [])),
+    ]
+    for _, title, lines in plan:
+        lines = [str(x).strip() for x in (lines or []) if str(x).strip()]
+        if not lines:
+            continue
+        p = doc.add_paragraph()
+        r = p.add_run(f"{idx:02d} ")
+        r.bold = True
+        r.font.size = Pt(14)
+        r.font.color.rgb = RGBColor(*colors["section_color"])
+        r2 = p.add_run(title)
+        r2.bold = True
+        r2.font.size = Pt(13)
+        r2.font.color.rgb = RGBColor(*colors["name_color"])
+        _add_bottom_border(p, colors["line_color"], size=8)
+        for line in lines:
+            _add_bullet(doc, line, colors, size=10.5)
+        doc.add_paragraph()
+        idx += 1
+
+    skills = data.get("skills") or []
+    if skills:
+        p = doc.add_paragraph()
+        r = p.add_run(f"{idx:02d} ")
+        r.bold = True
+        r.font.size = Pt(14)
+        r.font.color.rgb = RGBColor(*colors["section_color"])
+        r2 = p.add_run("技能")
+        r2.bold = True
+        r2.font.size = Pt(13)
+        r2.font.color.rgb = RGBColor(*colors["name_color"])
+        _add_bottom_border(p, colors["line_color"], size=8)
+        sp = doc.add_paragraph(" · ".join(skills))
+        sp.paragraph_format.space_after = Pt(2)
+        _style_run(sp.runs[0], colors)
+        idx += 1
+    certs = data.get("certificates") or []
+    if certs:
+        for c in certs:
+            _add_bullet(doc, str(c), colors)
+
+
+def _build_sectionbar(doc, data, photo_path=None):
+    """底纹标题：区块标题通栏浅绿底纹条，沉稳通用"""
+    colors = TEMPLATES["sectionbar"]
+
+    def bar_title(text):
+        t = doc.add_table(rows=1, cols=1)
+        t.autofit = False
+        cell = t.rows[0].cells[0]
+        cell.width = Cm(15.8)
+        _shade_cell(cell, colors["bar_fill"])
+        bp = cell.paragraphs[0]
+        r = bp.add_run("  " + text)
+        r.bold = True
+        r.font.size = Pt(12)
+        r.font.color.rgb = RGBColor(*colors["section_color"])
+
+    # 照片复用左页眉表格（姓名+联系方式+右侧照片）
+    _header(doc, data, colors, photo_path, "left", 22)
+    doc.add_paragraph()
+
+    summary = str(data.get("summary") or "").strip()
+    if summary:
+        bar_title("个人简介")
+        p = doc.add_paragraph(summary)
+        p.paragraph_format.space_after = Pt(2)
+        _style_run(p.runs[0] if p.runs else p.add_run(summary), colors)
+        doc.add_paragraph()
+    for key, title in (("education", "教育经历"), ("experience", "工作经历"), ("projects", "项目经历")):
+        lines = [str(x).strip() for x in (data.get(key) or []) if str(x).strip()]
+        if not lines:
+            continue
+        bar_title(title)
+        for line in lines:
+            _add_bullet(doc, line, colors)
+        doc.add_paragraph()
+    skills = data.get("skills") or []
+    if skills:
+        bar_title("技能")
+        sp = doc.add_paragraph(" · ".join(skills))
+        sp.paragraph_format.space_after = Pt(2)
+        _style_run(sp.runs[0], colors)
+        doc.add_paragraph()
+    certs = data.get("certificates") or []
+    if certs:
+        bar_title("证书")
+        for c in certs:
+            _add_bullet(doc, str(c), colors)
+
+
 BUILDERS = {
     "classic": _build_classic,
     "modern": _build_modern,
@@ -502,6 +796,10 @@ BUILDERS = {
     "compact": _build_compact,
     "elegant": _build_elegant,
     "sidebar": _build_sidebar,
+    "timeline": _build_timeline,
+    "banner": _build_banner,
+    "numbered": _build_numbered,
+    "sectionbar": _build_sectionbar,
 }
 
 
