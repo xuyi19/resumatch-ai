@@ -91,9 +91,10 @@
         </div>
 
         <div v-else class="space-y-3">
-          <button v-for="s in sessions" :key="s.task_id" @click="resumeSession(s.task_id)"
-            class="w-full text-left bg-panel border border-line rounded-lg p-5
-              hover:border-accent transition-colors group">
+          <div v-for="s in sessions" :key="s.task_id"
+            class="bg-panel border border-line rounded-lg p-5 cursor-pointer
+              hover:border-accent transition-colors group"
+            @click="resumeSession(s.task_id)">
             <div class="flex items-center gap-2.5 mb-2 flex-wrap">
               <span class="text-xs px-2 py-0.5 rounded-md"
                 :class="s.source === '独立面试' ? 'bg-accent/10 text-accent' : 'bg-inset text-ink-sub'">
@@ -112,11 +113,15 @@
               <span class="ml-auto text-xs text-ink-faint font-mono">
                 {{ (s.updated_at || '').slice(0, 16).replace('T', ' ') }}
               </span>
+              <!-- M37：删除废弃会话（hover 显示，阻止冒泡避免误触恢复） -->
+              <button @click.stop="confirmDelete(s.task_id)" title="删除此会话"
+                class="opacity-0 group-hover:opacity-100 text-xs text-ink-faint
+                  hover:text-warn transition-all shrink-0">删除</button>
             </div>
             <div class="text-sm text-ink leading-relaxed group-hover:text-accent transition-colors">
               {{ s.first_question || '（题单为空）' }}
             </div>
-          </button>
+          </div>
         </div>
       </div>
 
@@ -127,7 +132,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { Message } from '@arco-design/web-vue'
+import { Message, Modal } from '@arco-design/web-vue'
 import api from '../api'
 import InterviewPanel from '../components/InterviewPanel.vue'
 
@@ -168,6 +173,26 @@ async function loadSessions() {
     sessions.value = res.data.items || []
   } catch (e) { /* 忽略，列表展示为空 */ }
   loadingSessions.value = false
+}
+
+// M37：删除废弃/无效会话（确认弹窗后删除，与诊断历史删除同款交互）
+function confirmDelete(taskId) {
+  Modal.warning({
+    title: '确认删除',
+    content: '删除后该场面试记录不可恢复，确定继续？',
+    hideCancel: false,
+    okText: '删除',
+    cancelText: '取消',
+    onOk: async () => {
+      try {
+        await api.interviewDeleteSession(taskId)
+        Message.success('已删除')
+        loadSessions()
+      } catch (e) {
+        Message.error('删除失败：' + (e?.response?.data?.detail || e.message))
+      }
+    },
+  })
 }
 
 async function startInterview() {

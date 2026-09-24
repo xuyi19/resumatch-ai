@@ -357,6 +357,21 @@ async def list_sessions(
     }
 
 
+@router.delete("/sessions/{task_id}")
+async def delete_session(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """M37 删除面试会话（清理误建/废弃会话；只删 Conversation，不影响关联诊断记录）。"""
+    conv = await _get_or_create_conv(db, task_id, owner_id)
+    if not conv:
+        raise HTTPException(404, "面试会话不存在")
+    await db.delete(conv)
+    await db.commit()
+    return {"ok": True}
+
+
 def _plan_payload(conv: Conversation) -> dict:
     return {
         "questions": conv.questions,

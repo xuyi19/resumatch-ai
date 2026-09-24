@@ -36,6 +36,8 @@ export default {
 
   // 历史记录
   getHistory: (params) => api.get('/history', { params }),
+  // M36 工作台仪表盘：简历/诊断/面试统计聚合
+  getStats: () => api.get('/history/stats'),
   getHistoryDetail: (taskId) => api.get(`/history/${taskId}`),
   deleteHistory: (taskId) => api.delete(`/history/${taskId}`),
   // M20 诊断报告导出 Word（blob 下载；桌面态用 exportReportToPath）
@@ -107,6 +109,8 @@ export default {
   // M31 独立面试：按简历 + 意向岗位直接开一场面试（无需先诊断）/ 会话列表
   interviewStartFree: (data) => api.post('/interview/start-free', data),
   interviewSessions: () => api.get('/interview/sessions'),
+  // M37 删除面试会话（清理废弃会话）
+  interviewDeleteSession: (taskId) => api.delete(`/interview/sessions/${taskId}`),
   // M33 面试报告导出 Word（blob 下载；桌面态可传 save_path 服务端直写）
   interviewExport: (taskId) =>
     api.post(`/interview/export/${taskId}`, {}, { responseType: 'blob' }),

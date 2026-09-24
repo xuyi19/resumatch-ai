@@ -13,7 +13,8 @@ export default createRouter({
     {
       path: '/app',
       children: [
-        { path: '', redirect: { name: 'app-analyze' } },
+        { path: '', redirect: { name: 'app-dashboard' } },
+        { path: 'dashboard', name: 'app-dashboard', component: () => import('../views/DashboardView.vue') },
         { path: 'analyze', name: 'app-analyze', component: () => import('../views/AnalyzeView.vue') },
         { path: 'editor', name: 'app-editor-new', component: () => import('../views/EditorView.vue') },
         { path: 'editor/:taskId', name: 'app-editor', component: () => import('../views/EditorView.vue') },
@@ -46,6 +47,6 @@ export default createRouter({
     { path: '/history', redirect: { name: 'app-history' } },
 
     // ---- 404 兜底：乱路径一律回工作台，避免主区空白 ----
-    { path: '/:pathMatch(.*)*', redirect: { name: 'app-analyze' } },
+    { path: '/:pathMatch(.*)*', redirect: { name: 'app-dashboard' } },
   ],
 })

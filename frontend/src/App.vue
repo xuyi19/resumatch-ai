@@ -225,11 +225,19 @@ const ICONS = {
     '<path d="M4 7h7"/><circle cx="14" cy="7" r="2.5"/><path d="M19.5 7H20"/><path d="M4 17h4.5"/><circle cx="11" cy="17" r="2.5"/><path d="M16.5 17H20"/>',
   doc: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h6M10 17h4"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0"/><path d="M12 18v3"/>',
+  dashboard:
+    '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/>',
 }
 
 /* ---- 侧边栏导航 ---- */
 const navItems = computed(() => [
   { label: '介绍', to: '/', icon: ICONS.home, active: route.path === '/' },
+  {
+    label: '总览',
+    to: '/app/dashboard',
+    icon: ICONS.dashboard,
+    active: route.path.startsWith('/app/dashboard'),
+  },
   {
     label: '发起诊断',
     to: '/app/analyze',
