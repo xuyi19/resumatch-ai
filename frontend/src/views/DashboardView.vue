@@ -83,6 +83,17 @@
           上传或创建简历、粘贴意向岗位 JD，AI 将给出六维评分、差距分析与改写建议；
           之后可在岗位市场锁定目标、用 AI 面试官实战演练。
         </p>
+        <div class="flex flex-wrap items-center justify-center gap-3 mt-5">
+          <button @click="$router.push('/app/analyze')"
+            class="bg-accent text-white px-5 py-2 text-xs font-medium rounded-lg transition-all">
+            开始第一份诊断
+          </button>
+          <button @click="showGuide = true"
+            class="px-5 py-2 text-xs font-medium rounded-lg border border-accent/50 text-accent
+              hover:bg-accent/10 transition-colors">
+            🔄 重看新手引导
+          </button>
+        </div>
       </div>
 
       <!-- 继续进行 -->
@@ -198,18 +209,28 @@
         </div>
       </div>
     </template>
+
+    <!-- M55 首次启动引导（fixed 弹层，置于模板根部） -->
+    <OnboardingGuide v-if="showGuide" @done="showGuide = false" />
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import api from '../api'
 import LoadingBlock from '../components/LoadingBlock.vue'
 import LineChart from '../components/LineChart.vue'
+import OnboardingGuide from '../components/OnboardingGuide.vue'
 import { loadFavorites } from '../utils/favorites'
+
+const route = useRoute()
+const router = useRouter()
 
 const loading = ref(true)
 const loadError = ref(false)
+// M55 首次启动引导弹层显隐
+const showGuide = ref(false)
 // M41 收藏岗位数（localStorage，进入页面即读）
 const favCount = ref(loadFavorites().length)
 const stats = ref({
@@ -301,5 +322,14 @@ async function loadAll() {
     loading.value = false
   }
 }
-onMounted(loadAll)
+onMounted(() => {
+  loadAll()
+  // M55 首次启动引导：无标记自动弹；?onboarding=1 强制重看（用后即清，防刷新重触发）
+  let done = true
+  try {
+    done = !!localStorage.getItem('onboarding_done')
+  } catch (e) { /* 存储不可用时视为已读过，不强行打断 */ }
+  if (route.query.onboarding === '1' || !done) showGuide.value = true
+  if (route.query.onboarding) router.replace({ query: { ...route.query, onboarding: undefined } })
+})
 </script>

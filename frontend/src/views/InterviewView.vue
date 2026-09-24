@@ -105,7 +105,11 @@
 
         <div v-if="!sessions.length && !loadingSessions"
           class="bg-panel border border-line rounded-lg p-10 text-center">
-          <div class="text-sm text-ink-faint">还没有面试记录，从上方发起第一场吧</div>
+          <div class="text-3xl mb-3">🎤</div>
+          <div class="text-sm font-medium text-ink mb-1.5">还没有面试记录</div>
+          <p class="text-xs text-ink-faint max-w-xs mx-auto leading-relaxed">
+            从上方选择简历与意向岗位 JD，发起第一场模拟面试；也可以只贴 JD 开独立面试
+          </p>
         </div>
 
         <div v-else class="space-y-3">

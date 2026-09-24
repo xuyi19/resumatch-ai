@@ -2,14 +2,23 @@
   <div class="max-w-4xl mx-auto px-6 md:px-10 py-8 md:py-10">
 
     <!-- 页头（全站统一规范：渐变标题 + 短横线） -->
-    <div class="mb-10">
-      <h1 class="text-xl font-semibold tracking-tight">
-        <span class="bg-gradient-to-r from-ink to-accent bg-clip-text text-transparent">使用说明</span>
-      </h1>
-      <div class="h-0.5 w-14 rounded-full bg-gradient-to-r from-accent to-accent-hover/0 mt-1.5"></div>
-      <p class="text-xs text-ink-faint mt-1.5">
-        从配置到导出的完整指引 · 约 3 分钟读完
-      </p>
+    <div class="mb-10 flex items-end justify-between gap-4">
+      <div>
+        <h1 class="text-xl font-semibold tracking-tight">
+          <span class="bg-gradient-to-r from-ink to-accent bg-clip-text text-transparent">使用说明</span>
+        </h1>
+        <div class="h-0.5 w-14 rounded-full bg-gradient-to-r from-accent to-accent-hover/0 mt-1.5"></div>
+        <p class="text-xs text-ink-faint mt-1.5">
+          从配置到导出的完整指引 · 约 3 分钟读完
+        </p>
+      </div>
+      <!-- M55 重看三步引导 -->
+      <RouterLink to="/app?onboarding=1"
+        class="shrink-0 px-4 py-2 text-xs font-medium rounded-lg border-2 border-ink/80 bg-panel
+          shadow-[2px_2px_0_0] shadow-ink/25 hover:-translate-y-0.5 hover:shadow-[3px_3px_0_0]
+          active:translate-y-0 active:shadow-[2px_2px_0_0] transition-all text-ink">
+        ▶ 三步快速引导
+      </RouterLink>
     </div>
 
     <!-- 快速上手：三步大卡（说明书封面页） -->
