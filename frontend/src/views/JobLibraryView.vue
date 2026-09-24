@@ -291,59 +291,65 @@
             hover:bg-accent/10 transition-colors">清除筛选</button>
       </div>
 
-      <div v-else class="space-y-2.5">
+      <!-- M51+ 网格卡片布局（对齐简历库）：同屏容量与信息可读性平衡 -->
+      <div v-else class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div v-for="j in displayJobs" :key="j.id"
-          class="bg-panel rounded-xl px-4 py-3 border border-line hover:border-line-strong
+          class="bg-panel border border-line rounded-lg p-5 flex flex-col hover:border-accent/50
             hover:shadow-md transition-all"
           :class="selMode && selIds.has(j.id) && 'ring-2 ring-accent/50 border-accent/40'">
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0 flex items-center gap-2 flex-wrap">
-              <!-- 管理模式复选框 -->
-              <input v-if="selMode" type="checkbox" :checked="selIds.has(j.id)"
-                @change="toggleCardSel(j.id)"
-                class="w-4 h-4 accent-accent shrink-0 cursor-pointer" />
-              <span class="text-sm font-semibold shrink-0">{{ j.title }}</span>
-              <span class="text-xs text-ink-sub truncate max-w-[180px]">{{ j.company || '公司待定' }}</span>
-              <span v-if="j.city" class="px-1.5 py-0.5 rounded text-[11px] bg-inset text-ink-sub shrink-0">{{ j.city }}</span>
-              <span v-if="j.salary" class="px-1.5 py-0.5 rounded text-[11px] bg-ok/10 text-ok font-mono shrink-0">{{ j.salary }}</span>
-              <span class="px-1.5 py-0.5 rounded text-[11px] bg-inset text-ink-faint shrink-0">{{ sourceLabel(j.source) }}</span>
-              <!-- M49 投递状态徽标：点击直接切换 -->
-              <select :value="j.status || 'wish'" @change="setStatus(j, $event.target.value)" @click.stop
-                :title="'投递状态：' + (STATUS[j.status || 'wish']?.label || '') + '，点击切换'"
-                class="px-1.5 py-0.5 rounded text-[11px] font-medium shrink-0 border-0 cursor-pointer
-                  appearance-none focus:outline-none focus:ring-1 focus:ring-accent -mr-1"
-                :class="STATUS[j.status || 'wish']?.cls">
-                <option v-for="(s, key) in STATUS" :key="key" :value="key">{{ s.label }}</option>
-              </select>
-            </div>
-            <!-- 匹配分徽标 -->
-            <div v-if="matchMap[j.id]" class="flex items-center gap-2 shrink-0">
-              <span class="text-[10px] text-ink-faint max-w-[120px] truncate">{{ matchMap[j.id].reason }}</span>
-              <div class="px-2 py-0.5 rounded-lg text-sm font-mono font-semibold"
-                :class="matchMap[j.id].score >= 70 ? 'bg-ok/10 text-ok'
-                  : matchMap[j.id].score >= 40 ? 'bg-warn/10 text-warn' : 'bg-inset text-ink-faint'">
-                {{ matchMap[j.id].score }} 分
+          <!-- 头部：复选 + 岗位名/公司 + 匹配分 -->
+          <div class="flex items-start gap-2.5 mb-2">
+            <input v-if="selMode" type="checkbox" :checked="selIds.has(j.id)"
+              @change="toggleCardSel(j.id)"
+              class="mt-1 w-4 h-4 accent-accent shrink-0 cursor-pointer" />
+            <div class="min-w-0 flex-1">
+              <div class="text-sm font-semibold text-ink truncate" :title="j.title">{{ j.title }}</div>
+              <div class="text-xs text-ink-faint mt-0.5 font-mono truncate">
+                {{ j.company || '公司待定' }}<span v-if="j.city"> · {{ j.city }}</span><span
+                  v-if="!matchMap[j.id]"> · {{ fmtTime(j.created_at) }}</span>
               </div>
             </div>
-            <span v-else class="text-[10px] text-ink-faint shrink-0 mt-1 font-mono">{{ fmtTime(j.created_at) }}</span>
+            <div v-if="matchMap[j.id]" class="text-right shrink-0">
+              <div class="text-lg font-semibold font-mono"
+                :class="matchMap[j.id].score >= 70 ? 'text-ok'
+                  : matchMap[j.id].score >= 40 ? 'text-warn' : 'text-ink-faint'">
+                {{ matchMap[j.id].score }}
+              </div>
+              <div class="text-[10px] text-ink-faint">匹配分</div>
+            </div>
           </div>
 
-          <!-- JD 摘要（默认单行截断，点击展开；无 JD 显示占位） -->
-          <p v-if="j.jd" class="text-xs text-ink-faint mt-1.5 leading-relaxed cursor-pointer"
-            :class="expandedId === j.id ? 'whitespace-pre-wrap text-ink-sub' : 'truncate'"
+          <!-- 徽标行：薪资 / 来源 / 匹配理由 / 投递状态（直改） -->
+          <div class="flex items-center gap-1.5 flex-wrap mb-2.5 min-h-[22px]">
+            <span v-if="j.salary" class="px-1.5 py-0.5 rounded text-[11px] bg-ok/10 text-ok font-mono shrink-0">{{ j.salary }}</span>
+            <span class="px-1.5 py-0.5 rounded text-[11px] bg-inset text-ink-faint shrink-0">{{ sourceLabel(j.source) }}</span>
+            <span v-if="matchMap[j.id]?.reason" :title="matchMap[j.id].reason"
+              class="text-[10px] text-ink-faint truncate max-w-[100px]">{{ matchMap[j.id].reason }}</span>
+            <select :value="j.status || 'wish'" @change="setStatus(j, $event.target.value)" @click.stop
+              :title="'投递状态：' + (STATUS[j.status || 'wish']?.label || '') + '，点击切换'"
+              class="ml-auto px-1.5 py-0.5 rounded text-[11px] font-medium shrink-0 border-0 cursor-pointer
+                appearance-none focus:outline-none focus:ring-1 focus:ring-accent -mr-1"
+              :class="STATUS[j.status || 'wish']?.cls">
+              <option v-for="(s, key) in STATUS" :key="key" :value="key">{{ s.label }}</option>
+            </select>
+          </div>
+
+          <!-- JD 摘要（默认两行截断，点击展开；无 JD 显示占位） -->
+          <p v-if="j.jd" class="text-xs text-ink-faint mb-4 leading-relaxed cursor-pointer flex-1"
+            :class="expandedId === j.id ? 'whitespace-pre-wrap text-ink-sub' : 'line-clamp-2'"
             :title="expandedId === j.id ? '点击收起' : '点击展开'"
             @click="expandedId = expandedId === j.id ? null : j.id">{{ j.jd }}</p>
-          <p v-else class="text-xs text-ink-faint/60 mt-1.5 italic">暂无 JD 描述 · 编辑补充后可用于诊断/面试</p>
+          <p v-else class="text-xs text-ink-faint/60 italic mb-4 flex-1">暂无 JD 描述 · 编辑补充后可用于诊断/面试</p>
 
-          <!-- 操作行 -->
-          <div class="flex items-center gap-3 mt-2 pt-2 border-t border-line/60">
-            <button @click="diagnoseWith(j)" class="text-xs text-accent hover:underline">🩺 用此岗位诊断</button>
-            <button @click="interviewWith(j)" class="text-xs text-accent hover:underline">🎤 用此岗位面试</button>
+          <!-- 操作区 -->
+          <div class="mt-auto flex items-center gap-2.5 pt-3 border-t border-line/60">
+            <button @click="diagnoseWith(j)" class="text-xs text-accent hover:underline shrink-0">🩺 诊断</button>
+            <button @click="interviewWith(j)" class="text-xs text-accent hover:underline shrink-0">🎤 面试</button>
             <span class="flex-1" />
             <button v-if="!selMode" @click="openEdit(j)" title="编辑岗位"
-              class="text-xs text-ink-sub hover:text-accent transition-colors">✏️ 编辑</button>
+              class="text-xs text-ink-sub hover:text-accent transition-colors shrink-0">✏️</button>
             <button v-if="!selMode" @click="remove(j)" title="删除岗位"
-              class="text-xs text-ink-sub hover:text-bad transition-colors">🗑 删除</button>
+              class="text-xs text-ink-sub hover:text-bad transition-colors shrink-0">🗑</button>
           </div>
         </div>
       </div>
