@@ -375,6 +375,33 @@ async def test_library_add_skip_duplicates(client):
     assert len(body["items"]) == 1 and body["items"][0]["company"] == "F 信息"
 
 
+# ---------------------------------------------------------------- 收藏迁移（M51）
+
+
+async def test_library_favorite_source_and_stats(client):
+    """M51 收藏迁移：favorite 来源入库 + 重复迁移跳过 + /history/stats 增量计数。"""
+    hd = _sid()
+    before = (await client.get("/api/v1/history/stats", headers=hd)).json()["saved_jobs_count"]
+
+    resp = await _add(client, hd, [
+        {"title": "测试工程师", "company": "C 公司", "jd": "负责功能测试与自动化用例维护。"},
+    ], source="favorite")
+    assert resp.status_code == 200
+    assert resp.json()["items"][0]["source"] == "favorite"
+
+    # 同一批收藏重复迁移 → skip_duplicates 全部跳过，不重复入库
+    resp2 = await client.post(
+        "/api/v1/jobs/library",
+        json={"items": [{"title": "测试工程师", "company": "C 公司"}],
+              "source": "favorite", "skip_duplicates": True},
+        headers=hd,
+    )
+    assert resp2.status_code == 200 and resp2.json()["items"] == []
+
+    after = (await client.get("/api/v1/history/stats", headers=hd)).json()["saved_jobs_count"]
+    assert after - before == 1
+
+
 # ---------------------------------------------------------------- 投递状态（M49）
 
 

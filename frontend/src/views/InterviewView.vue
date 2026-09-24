@@ -267,7 +267,7 @@ onMounted(() => {
   const jd = (route.query.jd || '').toString()
   if (jd) {
     form.jdText = jd.slice(0, 6000)
-    Message.info('已带入收藏岗位的 JD，选择简历后即可开始面试')
+    Message.info('已带入岗位 JD，选择简历后即可开始面试')
   }
 })
 

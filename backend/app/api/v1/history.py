@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.deps import get_owner_id
-from app.models.entities import Conversation, DiagnosisRecord, Resume
+from app.models.entities import Conversation, DiagnosisRecord, Resume, SavedJob
 from app.utils.report_docx import generate_report_docx
 
 router = APIRouter(prefix="/history", tags=["history"])
@@ -36,6 +36,9 @@ async def history_stats(
     """
     resume_count = await db.scalar(
         select(func.count(Resume.id)).where(Resume.owner_id == owner_id))
+    # M51 收藏并入岗位库：工作台「岗位库」统计卡数据源
+    saved_jobs_count = await db.scalar(
+        select(func.count(SavedJob.id)).where(SavedJob.owner_id == owner_id))
 
     diag_rows = (
         await db.execute(
@@ -84,6 +87,7 @@ async def history_stats(
 
     return {
         "resume_count": resume_count or 0,
+        "saved_jobs_count": saved_jobs_count or 0,
         "diagnosis_total": len(diag_rows),
         "diagnosis_avg_score": round(sum(diag_scores) / len(diag_scores), 1) if diag_scores else None,
         # M38 趋势：最近 10 次有分数的记录，时间正序（折线图数据源）

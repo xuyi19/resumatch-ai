@@ -175,40 +175,10 @@
             </div>
           </div>
 
-          <!-- M40：收藏夹 -->
-          <div v-else-if="jobTab === 'favorites'">
-            <div v-if="favList.length" class="space-y-2 max-h-80 overflow-y-auto pr-1">
-              <div v-for="j in favList" :key="j.id" class="p-3 rounded-md border border-line bg-panel">
-                <div class="flex items-start justify-between gap-2">
-                  <div class="min-w-0">
-                    <div class="text-sm font-medium truncate">{{ j.title }}</div>
-                    <div class="text-xs text-ink-faint mt-0.5 truncate font-mono">
-                      {{ j.company || '—' }} · {{ j.city || '—' }} · {{ j.salary || '薪资面议' }}
-                    </div>
-                  </div>
-                  <button @click="fav(j)" title="取消收藏"
-                    class="shrink-0 text-base leading-none text-warn hover:text-ink-faint transition-colors">♥</button>
-                </div>
-                <div class="flex items-center gap-3 mt-2">
-                  <button @click="useJob(j)" class="text-xs text-accent hover:underline">
-                    用此岗位诊断 →
-                  </button>
-                  <button @click="startInterviewWithJob(j)" class="text-xs text-accent hover:underline">
-                    🎤 用此岗位面试 →
-                  </button>
-                  <a v-if="j.url" :href="j.url" target="_blank" rel="noopener"
-                    class="text-xs text-ink-faint hover:text-accent">原文 ↗</a>
-                  <span class="text-[11px] text-ink-faint ml-auto shrink-0">{{ j.source }}</span>
-                </div>
-              </div>
-            </div>
-            <div v-else class="text-xs text-ink-faint py-4 text-center">
-              还没有收藏岗位 · 在「搜岗位」结果里点 ♡ 收藏心仪岗位
-            </div>
-          </div>
+          <!-- M51：收藏夹已并入岗位库（localStorage 收藏由岗位库页迁移引导接管） -->
 
-          <!-- 结果区（两种模式共用；收藏 Tab 时不显示） -->
-          <div v-if="jobTab !== 'favorites' && jobsError" class="mt-3 p-2.5 rounded-md text-xs bg-bad/10 border border-bad/30 text-bad">
+          <!-- 结果区（搜岗位 / 导入比对两种模式共用） -->
+          <div v-if="jobsError" class="mt-3 p-2.5 rounded-md text-xs bg-bad/10 border border-bad/30 text-bad">
             {{ jobsError }}
           </div>
           <div v-else-if="jobsLoading" class="mt-3 text-xs text-ink-faint py-4 text-center">
@@ -229,12 +199,6 @@
                     :class="j.score >= 70 ? 'bg-ok/10 text-ok' : j.score >= 40 ? 'bg-warn/10 text-warn' : 'bg-inset text-ink-faint'">
                     {{ j.score }}分
                   </span>
-                  <!-- M40 收藏 -->
-                  <button @click="fav(j)" :title="isFavJob(j) ? '取消收藏' : '收藏岗位'"
-                    class="text-base leading-none transition-colors"
-                    :class="isFavJob(j) ? 'text-warn' : 'text-ink-faint hover:text-warn'">
-                    {{ isFavJob(j) ? '♥' : '♡' }}
-                  </button>
                 </div>
               </div>
               <div v-if="j.reason" class="text-xs text-ink-sub mt-1.5">{{ j.reason }}</div>
@@ -314,7 +278,6 @@ import { RouterLink } from 'vue-router'
 import { EXAMPLE_RESUME, EXAMPLE_JD } from '../data/example'
 import { useKeyGuide } from '../composables/useKeyGuide'
 import { JOB_SOURCES, loadJobSource } from '../data/jobSources'
-import { loadFavorites, isFavorite, toggleFavorite } from '../utils/favorites'
 
 const route = useRoute()
 const router = useRouter()
@@ -479,7 +442,6 @@ const jobsNotice = ref('')
 const jobTabs = computed(() => [
   { label: '搜岗位', value: 'search' },
   { label: '导入比对', value: 'import' },
-  { label: `★ 收藏${favList.value.length ? ` (${favList.value.length})` : ''}`, value: 'favorites' },
 ])
 const jobTab = ref('search')
 const IMPORT_KEY = 'resumatch_imported_companies'
@@ -489,24 +451,7 @@ const impCity = ref('')
 const impSalary = ref('')
 const importedList = ref(loadImported())
 
-/* ---- M40：岗位收藏夹（localStorage 持久化） ---- */
-const favList = ref(loadFavorites())
-const isFavJob = (j) => isFavorite(j.id, favList.value)
-
-function fav(j) {
-  const added = toggleFavorite(j)
-  favList.value = loadFavorites()
-  Message.success(added ? '已收藏岗位' : '已取消收藏')
-}
-
-/** 收藏岗位一键带 JD 开面试（InterviewView 读取 query.jd 预填表单） */
-function startInterviewWithJob(j) {
-  if (!j.jd_text || j.jd_text.trim().length < 20) {
-    Message.warning('该岗位缺少 JD 描述，无法开面试')
-    return
-  }
-  router.push(`/app/interview?jd=${encodeURIComponent(j.jd_text)}`)
-}
+/* M51：localStorage 收藏夹已并入岗位库——岗位卡「＋ 入库」直达，旧数据由岗位库页迁移引导接管 */
 
 function loadImported() {
   try {

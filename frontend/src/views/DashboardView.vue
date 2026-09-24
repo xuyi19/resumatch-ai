@@ -222,7 +222,6 @@ import api from '../api'
 import LoadingBlock from '../components/LoadingBlock.vue'
 import LineChart from '../components/LineChart.vue'
 import OnboardingGuide from '../components/OnboardingGuide.vue'
-import { loadFavorites } from '../utils/favorites'
 
 const route = useRoute()
 const router = useRouter()
@@ -231,13 +230,12 @@ const loading = ref(true)
 const loadError = ref(false)
 // M55 首次启动引导弹层显隐
 const showGuide = ref(false)
-// M41 收藏岗位数（localStorage，进入页面即读）
-const favCount = ref(loadFavorites().length)
 const stats = ref({
   resume_count: 0, diagnosis_total: 0, diagnosis_avg_score: null,
   latest_diagnosis: null, ongoing_diagnoses: [],
   interview_total: 0, interview_finished: 0, interview_avg_score: null,
   latest_interview_score: null, ongoing_interviews: [],
+  saved_jobs_count: 0,
 })
 const recentDiags = ref([])
 const recentInterviews = ref([])
@@ -281,8 +279,9 @@ const cards = computed(() => [
     sub: stats.value.interview_avg_score != null ? `均分 ${stats.value.interview_avg_score}/10` : '',
   },
   {
-    label: '收藏岗位', icon: '⭐', value: favCount.value, unit: '个', to: '/app/analyze',
-    sub: favCount.value ? '在岗位市场查看与管理' : '去岗位市场收藏心仪岗位',
+    // M51 收藏并入岗位库：统计卡改读后端 saved_jobs_count，直达岗位库
+    label: '岗位库', icon: '⭐', value: stats.value.saved_jobs_count ?? 0, unit: '个', to: '/app/jobs',
+    sub: stats.value.saved_jobs_count ? '管理 / 匹配 / 投递追踪' : '收藏或添加岗位统一管理',
   },
 ])
 

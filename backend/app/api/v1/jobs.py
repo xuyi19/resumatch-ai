@@ -197,7 +197,7 @@ async def import_match_jobs(req: JobImportMatchRequest):
 # ============================ M45 岗位库 ============================
 
 _LIBRARY_JD_MAX = 20000
-_LIBRARY_SOURCES = ("manual", "ai", "ai_gen", "sample")
+_LIBRARY_SOURCES = ("manual", "ai", "ai_gen", "sample", "favorite")  # M51 favorite=收藏迁移/♡入库
 # M49 投递状态机
 _LIBRARY_STATUSES = ("wish", "applied", "interviewing", "offer", "closed")
 

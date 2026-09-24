@@ -171,6 +171,7 @@
         <option value="manual">手动添加</option>
         <option value="ai_gen">AI 生成</option>
         <option value="ai">面板入库</option>
+        <option value="favorite">收藏迁移</option>
         <option value="sample">示例岗位</option>
       </select>
       <select v-if="cityOptions.length" v-model="cityFilter"
@@ -238,6 +239,20 @@
     </div>
 
     <!-- 岗位列表 -->
+    <!-- M51 旧版收藏迁移引导：localStorage 收藏一次性并入岗位库 -->
+    <div v-if="legacyFavs.length" class="bg-accent/10 border border-accent/40 rounded-2xl px-5 py-4
+      flex flex-wrap items-center justify-between gap-3 mb-5">
+      <div class="text-sm text-ink-sub">
+        <span class="font-medium text-ink">检测到 {{ legacyFavs.length }} 条旧版收藏岗位</span>
+        · 收藏已升级并入岗位库，支持投递状态追踪与批量匹配
+      </div>
+      <button @click="migrateLegacyFavorites" :disabled="migrating"
+        class="px-4 py-2 text-xs font-medium rounded-lg bg-accent text-white
+          hover:bg-accent-hover transition-colors disabled:opacity-50 shrink-0">
+        {{ migrating ? '迁移中…' : '一键迁移到岗位库' }}
+      </button>
+    </div>
+
     <LoadingBlock v-if="loading" text="岗位库加载中…" />
     <div v-else-if="loadError" class="bg-warn/10 border border-warn/40 rounded-2xl px-5 py-4
       flex items-center justify-between">
@@ -343,6 +358,7 @@ import { useRouter } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import api from '../api'
 import LoadingBlock from '../components/LoadingBlock.vue'
+import { loadFavorites, clearFavorites } from '../utils/favorites'
 
 const router = useRouter()
 
@@ -436,7 +452,7 @@ const displayJobs = computed(() => {
   )
 })
 
-const SOURCE_LABELS = { manual: '手动添加', ai: '面板入库', ai_gen: 'AI 生成', sample: '示例岗位' }
+const SOURCE_LABELS = { manual: '手动添加', ai: '面板入库', ai_gen: 'AI 生成', sample: '示例岗位', favorite: '收藏迁移' }
 const sourceLabel = (s) => SOURCE_LABELS[s] || s
 
 function fmtTime(iso) {
@@ -511,6 +527,36 @@ async function loadAll() {
     loadError.value = true
   } finally {
     loading.value = false
+  }
+}
+
+/* ---- M51 旧版收藏迁移（localStorage → 岗位库 DB，company+title 去重） ---- */
+const legacyFavs = ref([])
+const migrating = ref(false)
+
+async function migrateLegacyFavorites() {
+  if (!legacyFavs.value.length) return
+  migrating.value = true
+  try {
+    const items = legacyFavs.value.map(j => ({
+      title: j.title || '未命名岗位',
+      company: j.company || '',
+      city: j.city || '',
+      salary: j.salary || '',
+      jd: j.jd_text || '',
+      url: j.url || '',
+    }))
+    const res = await api.addLibraryJobs(items, 'favorite', true)
+    const imported = (res.data.items || []).length
+    const skipped = res.data.skipped || 0
+    clearFavorites()
+    legacyFavs.value = []
+    await loadAll()
+    Message.success(`迁移完成：入库 ${imported} 条${skipped ? `，跳过重复 ${skipped} 条` : ''}`)
+  } catch (e) {
+    Message.error(e.response?.data?.detail || '迁移失败，请重试')
+  } finally {
+    migrating.value = false
   }
 }
 
@@ -795,6 +841,8 @@ function onEscKey(e) {
 
 onMounted(() => {
   loadAll()
+  // M51 旧版收藏检测（有则显示迁移横幅）
+  legacyFavs.value = loadFavorites()
   window.addEventListener('keydown', onEscKey)
 })
 
