@@ -7,8 +7,9 @@
 
       <!-- Logo + 形态标识 -->
       <div class="h-16 px-5 flex items-center gap-2.5 shrink-0">
-        <div class="w-8 h-8 rounded-lg bg-accent text-white font-bold
-          flex items-center justify-center text-sm shrink-0">R</div>
+        <div class="w-8 h-8 rounded-lg text-white font-bold
+          flex items-center justify-center text-sm shrink-0
+          bg-gradient-to-br from-accent to-accent-hover shadow-md shadow-accent/30">R</div>
         <span class="font-semibold text-sm">ResuMatch</span>
         <span v-if="meta.app_mode"
           class="ml-auto px-1.5 py-0.5 rounded text-[10px] font-medium
@@ -94,8 +95,16 @@
             </svg>
           </button>
         </div>
-        <div class="px-1 text-[10px] font-mono text-ink-faint">
-          {{ meta.version || 'v?' }}
+        <!-- M42 品牌徽章卡 -->
+        <div class="mx-1 rounded-lg px-3 py-2 bg-gradient-to-br from-accent/10 to-accent/[0.04]
+          border border-accent/20 flex items-center gap-2">
+          <div class="w-6 h-6 rounded-md bg-gradient-to-br from-accent to-accent-hover
+            text-white text-[11px] font-bold flex items-center justify-center shrink-0
+            shadow-sm shadow-accent/30">R</div>
+          <div class="min-w-0">
+            <div class="text-[11px] font-medium text-accent leading-tight">ResuMatch AI</div>
+            <div class="text-[10px] font-mono text-ink-faint leading-tight">{{ meta.version || 'v?' }} · 本地运行</div>
+          </div>
         </div>
       </div>
     </aside>
@@ -284,7 +293,7 @@ const mobileNav = computed(() => [
 
 function sideItemCls(item) {
   return item.active
-    ? 'bg-accent/10 text-accent'
+    ? 'side-item-active text-accent'
     : 'text-ink-sub hover:bg-inset hover:text-ink'
 }
 
@@ -333,6 +342,11 @@ function goSettings() {
 .side-item.disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+/* 活跃导航项：品牌渐变底 + 左侧指示条（M39 视觉升级） */
+.side-item-active {
+  background-image: linear-gradient(90deg, rgb(var(--c-accent) / 0.14), rgb(var(--c-accent) / 0.04));
+  box-shadow: inset 3px 0 0 rgb(var(--c-accent));
 }
 .icon-btn {
   display: inline-flex;

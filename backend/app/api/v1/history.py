@@ -86,6 +86,12 @@ async def history_stats(
         "resume_count": resume_count or 0,
         "diagnosis_total": len(diag_rows),
         "diagnosis_avg_score": round(sum(diag_scores) / len(diag_scores), 1) if diag_scores else None,
+        # M38 趋势：最近 10 次有分数的记录，时间正序（折线图数据源）
+        "diagnosis_trend": [
+            {"score": s, "date": r.created_at.strftime("%m-%d") if r.created_at else ""}
+            for r in reversed(diag_rows)
+            if (s := _extract_score(r)) is not None
+        ][-10:],
         "latest_diagnosis": (
             {"task_id": latest_diag.task_id, "keyword": latest_diag.keyword,
              "score": _extract_score(latest_diag),
@@ -96,6 +102,13 @@ async def history_stats(
         "interview_finished": len(finished),
         "interview_avg_score": round(sum(iv_scores) / len(iv_scores), 1) if iv_scores else None,
         "latest_interview_score": latest_iv_score,
+        "interview_trend": [
+            {"score": s, "date": (c.updated_at or c.created_at).strftime("%m-%d")
+             if (c.updated_at or c.created_at) else ""}
+            for c in reversed(finished)
+            if isinstance(c.optimized_resume, dict)
+            and (s := c.optimized_resume.get("overall_score")) is not None
+        ][-10:],
         "ongoing_interviews": ongoing_ivs,
     }
 

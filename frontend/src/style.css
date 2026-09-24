@@ -10,15 +10,16 @@
      在应用挂载前写入，避免主题闪屏
    ============================================================ */
 :root {
-  --c-page: 246 247 249;        /* 页面底 */
-  --c-panel: 255 255 255;       /* 面板底 */
-  --c-float: 255 255 255;       /* 浮层底 */
-  --c-inset: 240 241 245;       /* 输入框 / 内嵌底 */
-  --c-line: 228 231 237;        /* 常规边框 */
-  --c-line-strong: 203 209 219; /* 强边框 / 分隔 */
-  --c-ink: 26 30 38;            /* 主文本 */
-  --c-ink-sub: 91 99 112;       /* 次文本 */
-  --c-ink-faint: 143 151 164;   /* 弱化文本 */
+  /* M43 奶油暖白色板：配合 Soft Brutalism 墨边硬影，呈现高级印刷质感（纯白底配墨边生硬） */
+  --c-page: 247 244 237;        /* 页面底：奶油 */
+  --c-panel: 254 252 246;       /* 面板底：暖白 */
+  --c-float: 255 254 250;       /* 浮层底 */
+  --c-inset: 243 239 229;       /* 输入框 / 内嵌底：暖灰 */
+  --c-line: 232 226 213;        /* 常规边框 */
+  --c-line-strong: 211 203 186; /* 强边框 / 分隔 */
+  --c-ink: 39 36 33;            /* 主文本：暖墨 */
+  --c-ink-sub: 112 104 95;      /* 次文本 */
+  --c-ink-faint: 161 153 141;   /* 弱化文本 */
   --c-accent: 109 93 252;       /* 品牌紫 */
   --c-accent-hover: 90 75 233;
   --c-ok: 28 156 105;
@@ -139,6 +140,56 @@ input[type='range']::-webkit-slider-thumb {
 input[type='range']:active::-webkit-slider-thumb {
   border-color: rgb(var(--c-accent));
   box-shadow: 0 0 0 3px rgb(var(--c-accent) / 0.2);
+}
+
+/* ---------- M43 全站设计语言：Soft Brutalism（柔和野兽派，参考 stylekit Neo-Brutalist 柔和变体） ----------
+   粗墨边框 + 偏移硬阴影 + 按压式交互，保留 12px 圆角与品牌紫渐变的「柔」；
+   墨色取 --c-ink，亮暗主题自动反转。点阵背景保留（印刷格纹与此风格同源） */
+body {
+  background-image:
+    radial-gradient(1100px 420px at 12% -100px, rgb(var(--c-accent) / 0.075), transparent 70%),
+    radial-gradient(900px 320px at 88% -80px, rgb(var(--c-accent) / 0.05), transparent 70%),
+    radial-gradient(rgb(var(--c-ink) / 0.05) 1px, transparent 1px);
+  background-size: auto, auto, 22px 22px;
+  background-attachment: fixed;
+}
+
+/* 面板卡片：2px 墨边 + 4px 偏移实心影（贴纸/印刷感），统一 12px 圆角 */
+.bg-panel {
+  border-width: 2px !important;
+  border-color: rgb(var(--c-ink) / 0.8) !important;
+  box-shadow: 4px 4px 0 0 rgb(var(--c-ink) / 0.08);
+  border-radius: 12px;
+}
+/* 可点击卡片的按压反馈（brutalist 标志性交互） */
+button.bg-panel:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0 0 rgb(var(--c-ink) / 0.12);
+}
+button.bg-panel:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 0 rgb(var(--c-ink) / 0.1);
+}
+
+/* 主按钮：品牌渐变 + 2px 墨边 + 墨色硬影 + 按压位移 */
+.bg-accent {
+  border: 2px solid rgb(var(--c-ink) / 0.85) !important;
+  background-image: linear-gradient(135deg, rgb(var(--c-accent)) 0%, rgb(var(--c-accent-hover)) 100%);
+  box-shadow: 3px 3px 0 0 rgb(var(--c-ink) / 0.85);
+  transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.15s ease;
+}
+.bg-accent:hover {
+  background-image: linear-gradient(135deg, rgb(var(--c-accent-hover)) 0%, rgb(var(--c-accent-hover)) 100%);
+  filter: brightness(1.05);
+}
+.bg-accent:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 0 rgb(var(--c-ink) / 0.85);
+}
+.bg-accent:disabled {
+  background-image: none;
+  box-shadow: none;
+  border-color: rgb(var(--c-ink) / 0.25) !important;
 }
 
 /* ---------- Arco 组件微调 ---------- */

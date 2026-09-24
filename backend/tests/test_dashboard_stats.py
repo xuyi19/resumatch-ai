@@ -67,10 +67,15 @@ async def test_stats_structure(client):
     data = resp.json()
     for key in ("resume_count", "diagnosis_total", "diagnosis_avg_score", "latest_diagnosis",
                 "ongoing_diagnoses", "interview_total", "interview_finished",
-                "interview_avg_score", "latest_interview_score", "ongoing_interviews"):
+                "interview_avg_score", "latest_interview_score", "ongoing_interviews",
+                "diagnosis_trend", "interview_trend"):
         assert key in data, f"缺少字段 {key}"
     assert isinstance(data["ongoing_diagnoses"], list)
     assert isinstance(data["ongoing_interviews"], list)
+    assert isinstance(data["diagnosis_trend"], list)   # M38 趋势
+    assert isinstance(data["interview_trend"], list)
+    if data["diagnosis_trend"]:
+        assert all(set(p) == {"score", "date"} for p in data["diagnosis_trend"])
     assert data["resume_count"] >= 0
 
 

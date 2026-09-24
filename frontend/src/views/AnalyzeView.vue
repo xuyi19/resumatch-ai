@@ -1,8 +1,11 @@
 <template>
   <div class="max-w-6xl mx-auto px-6 md:px-10 py-8 md:py-10">
     <div class="mb-8">
-      <h1 class="text-2xl font-semibold tracking-tight mb-1.5">发起诊断</h1>
-      <p class="text-sm text-ink-sub">上传或粘贴简历 + 粘贴岗位 JD，AI 生成针对性诊断报告</p>
+      <h1 class="text-2xl font-semibold tracking-tight mb-1.5">
+        <span class="bg-gradient-to-r from-ink to-accent bg-clip-text text-transparent">发起诊断</span>
+      </h1>
+      <div class="h-0.5 w-14 rounded-full bg-gradient-to-r from-accent to-accent-hover/0"></div>
+      <p class="text-sm text-ink-sub mt-2">上传或粘贴简历 + 粘贴岗位 JD，AI 生成针对性诊断报告</p>
     </div>
 
     <div class="grid lg:grid-cols-2 gap-5 items-start">
@@ -19,8 +22,8 @@
       <section class="bg-panel border border-line rounded-lg p-5 md:p-6">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-sm font-semibold flex items-center gap-2">
-            <span class="w-5 h-5 rounded bg-accent/10 text-accent text-[11px] font-mono
-              flex items-center justify-center">1</span>
+            <span class="w-5 h-5 rounded bg-gradient-to-br from-accent to-accent-hover text-white
+              text-[11px] font-mono flex items-center justify-center shadow-sm shadow-accent/30">1</span>
             简历
           </h2>
           <!-- A1：一键填入示例 -->
@@ -45,10 +48,11 @@
         <!-- 上传文件 -->
         <label v-if="mode === 'file'" class="block cursor-pointer">
           <input type="file" accept=".pdf,.docx,.doc" class="hidden" @change="onFileChange" />
-          <div class="border border-dashed border-line-strong rounded-lg px-6 py-10 text-center
-            hover:border-accent hover:bg-accent/5 active:scale-[0.99]
-            transition-all duration-150">
-            <div class="text-2xl mb-2.5">📄</div>
+          <div class="border-2 border-dashed border-accent/30 rounded-xl px-6 py-12 text-center
+            bg-accent/[0.04] hover:border-accent hover:bg-accent/10 hover:shadow-lg hover:shadow-accent/10
+            active:scale-[0.99] transition-all duration-150">
+            <div class="w-12 h-12 mx-auto mb-3 rounded-xl bg-gradient-to-br from-accent/15 to-accent/5
+              border border-accent/20 flex items-center justify-center text-2xl">📄</div>
             <div v-if="!file" class="text-sm text-ink-sub">点击选择简历文件</div>
             <div v-else class="text-sm text-accent font-medium font-mono">{{ file.name }}</div>
             <div class="text-xs text-ink-faint mt-2">支持 .pdf .docx .doc，≤ 10MB</div>
@@ -73,8 +77,9 @@
         flex flex-col lg:sticky lg:top-6">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-sm font-semibold flex items-center gap-2">
-            <span class="w-5 h-5 rounded bg-accent/10 text-accent text-[11px] font-mono
-              flex items-center justify-center">2</span>
+            <span class="w-5 h-5 rounded text-[11px] font-mono
+              flex items-center justify-center shadow-sm shadow-accent/30
+              bg-gradient-to-br from-accent to-accent-hover text-white">2</span>
             岗位 JD
           </h2>
           <!-- M19：一键获取岗位 -->
@@ -121,7 +126,7 @@
           </div>
 
           <!-- 导入比对（M30：手动录入目标公司，与简历匹配排序） -->
-          <div v-else>
+          <div v-else-if="jobTab === 'import'">
             <div class="flex gap-2">
               <input v-model="impCompany" type="text" placeholder="公司，如：阿里云"
                 class="flex-1 min-w-0 px-3 py-2 text-sm bg-panel rounded-md border border-line
@@ -170,8 +175,40 @@
             </div>
           </div>
 
-          <!-- 结果区（两种模式共用） -->
-          <div v-if="jobsError" class="mt-3 p-2.5 rounded-md text-xs bg-bad/10 border border-bad/30 text-bad">
+          <!-- M40：收藏夹 -->
+          <div v-else-if="jobTab === 'favorites'">
+            <div v-if="favList.length" class="space-y-2 max-h-80 overflow-y-auto pr-1">
+              <div v-for="j in favList" :key="j.id" class="p-3 rounded-md border border-line bg-panel">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <div class="text-sm font-medium truncate">{{ j.title }}</div>
+                    <div class="text-xs text-ink-faint mt-0.5 truncate font-mono">
+                      {{ j.company || '—' }} · {{ j.city || '—' }} · {{ j.salary || '薪资面议' }}
+                    </div>
+                  </div>
+                  <button @click="fav(j)" title="取消收藏"
+                    class="shrink-0 text-base leading-none text-warn hover:text-ink-faint transition-colors">♥</button>
+                </div>
+                <div class="flex items-center gap-3 mt-2">
+                  <button @click="useJob(j)" class="text-xs text-accent hover:underline">
+                    用此岗位诊断 →
+                  </button>
+                  <button @click="startInterviewWithJob(j)" class="text-xs text-accent hover:underline">
+                    🎤 用此岗位面试 →
+                  </button>
+                  <a v-if="j.url" :href="j.url" target="_blank" rel="noopener"
+                    class="text-xs text-ink-faint hover:text-accent">原文 ↗</a>
+                  <span class="text-[11px] text-ink-faint ml-auto shrink-0">{{ j.source }}</span>
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-xs text-ink-faint py-4 text-center">
+              还没有收藏岗位 · 在「搜岗位」结果里点 ♡ 收藏心仪岗位
+            </div>
+          </div>
+
+          <!-- 结果区（两种模式共用；收藏 Tab 时不显示） -->
+          <div v-if="jobTab !== 'favorites' && jobsError" class="mt-3 p-2.5 rounded-md text-xs bg-bad/10 border border-bad/30 text-bad">
             {{ jobsError }}
           </div>
           <div v-else-if="jobsLoading" class="mt-3 text-xs text-ink-faint py-4 text-center">
@@ -186,11 +223,19 @@
                     {{ j.company || '—' }} · {{ j.city || '—' }} · {{ j.salary || '薪资面议' }}
                   </div>
                 </div>
-                <span v-if="j.score != null"
-                  class="shrink-0 px-1.5 py-0.5 rounded text-[11px] font-mono"
-                  :class="j.score >= 70 ? 'bg-ok/10 text-ok' : j.score >= 40 ? 'bg-warn/10 text-warn' : 'bg-inset text-ink-faint'">
-                  {{ j.score }}分
-                </span>
+                <div class="flex items-center gap-2 shrink-0">
+                  <span v-if="j.score != null"
+                    class="px-1.5 py-0.5 rounded text-[11px] font-mono"
+                    :class="j.score >= 70 ? 'bg-ok/10 text-ok' : j.score >= 40 ? 'bg-warn/10 text-warn' : 'bg-inset text-ink-faint'">
+                    {{ j.score }}分
+                  </span>
+                  <!-- M40 收藏 -->
+                  <button @click="fav(j)" :title="isFavJob(j) ? '取消收藏' : '收藏岗位'"
+                    class="text-base leading-none transition-colors"
+                    :class="isFavJob(j) ? 'text-warn' : 'text-ink-faint hover:text-warn'">
+                    {{ isFavJob(j) ? '♥' : '♡' }}
+                  </button>
+                </div>
               </div>
               <div v-if="j.reason" class="text-xs text-ink-sub mt-1.5">{{ j.reason }}</div>
               <div class="flex items-center gap-3 mt-2">
@@ -264,6 +309,7 @@ import { RouterLink } from 'vue-router'
 import { EXAMPLE_RESUME, EXAMPLE_JD } from '../data/example'
 import { useKeyGuide } from '../composables/useKeyGuide'
 import { JOB_SOURCES, loadJobSource } from '../data/jobSources'
+import { loadFavorites, isFavorite, toggleFavorite } from '../utils/favorites'
 
 const route = useRoute()
 const router = useRouter()
@@ -432,10 +478,11 @@ const jobsError = ref('')
 const jobsNotice = ref('')
 
 /* ---- M30：导入比对（手动录入目标公司，localStorage 持久化） ---- */
-const jobTabs = [
+const jobTabs = computed(() => [
   { label: '搜岗位', value: 'search' },
   { label: '导入比对', value: 'import' },
-]
+  { label: `★ 收藏${favList.value.length ? ` (${favList.value.length})` : ''}`, value: 'favorites' },
+])
 const jobTab = ref('search')
 const IMPORT_KEY = 'resumatch_imported_companies'
 const impCompany = ref('')
@@ -443,6 +490,25 @@ const impTitle = ref('')
 const impCity = ref('')
 const impSalary = ref('')
 const importedList = ref(loadImported())
+
+/* ---- M40：岗位收藏夹（localStorage 持久化） ---- */
+const favList = ref(loadFavorites())
+const isFavJob = (j) => isFavorite(j.id, favList.value)
+
+function fav(j) {
+  const added = toggleFavorite(j)
+  favList.value = loadFavorites()
+  Message.success(added ? '已收藏岗位' : '已取消收藏')
+}
+
+/** 收藏岗位一键带 JD 开面试（InterviewView 读取 query.jd 预填表单） */
+function startInterviewWithJob(j) {
+  if (!j.jd_text || j.jd_text.trim().length < 20) {
+    Message.warning('该岗位缺少 JD 描述，无法开面试')
+    return
+  }
+  router.push(`/app/interview?jd=${encodeURIComponent(j.jd_text)}`)
+}
 
 function loadImported() {
   try {

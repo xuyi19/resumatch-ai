@@ -10,8 +10,10 @@
       </div>
 
       <h1 class="text-4xl md:text-6xl font-semibold leading-tight mb-6 tracking-tight">
+        <span class="bg-gradient-to-br from-ink via-ink to-accent bg-clip-text text-transparent">
         简历诊断，<br />
         <span class="text-accent">对着岗位改</span>
+        </span>
       </h1>
       <p class="text-base text-ink-sub max-w-2xl leading-relaxed mb-9">
         多智能体流水线：并行解析简历与岗位 JD，给出六维评分、差距分析与 STAR 改写建议，
