@@ -5,6 +5,9 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# 版本单一事实源：app/__init__.py 的 __version__（env/config.json 仍可覆盖）
+from app import __version__ as _APP_VERSION
+
 
 def _resolve_base_dir() -> Path:
     """数据/配置目录：打包后指向 exe 同级，开发时指向 backend/。"""
@@ -56,7 +59,7 @@ class Settings(BaseSettings):
     )
 
     APP_NAME: str = "ResuMatch AI"
-    APP_VERSION: str = "0.1.0"
+    APP_VERSION: str = _APP_VERSION
     DEBUG: bool = False
 
     # 运行形态：local=桌面/本机单用户；web=线上部署（cookie 会话隔离 + 配额）
@@ -76,6 +79,9 @@ class Settings(BaseSettings):
 
     # 证件照存放目录
     PHOTOS_DIR: str = str((BASE_DIR / "data" / "photos").resolve())
+
+    # 简历原文件存放目录（上传的 PDF/DOCX 原件，供浏览器内原版式预览）
+    FILES_DIR: str = str((BASE_DIR / "data" / "files").resolve())
 
     LLM_API_KEY: str = ""
     LLM_BASE_URL: str = ""

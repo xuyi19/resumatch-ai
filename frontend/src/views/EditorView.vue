@@ -1,57 +1,59 @@
 <template>
-  <div class="min-h-screen bg-[#e0e5ec]">
+  <div class="min-h-screen">
 
     <!-- 屏幕界面 -->
     <div class="editor-screen">
 
       <!-- 顶部工具条 -->
-      <div class="sticky top-0 z-40 bg-[#e0e5ec] border-b border-[#b8bcc2]/30">
+      <div class="sticky top-0 z-40 bg-panel/95 backdrop-blur border-b border-line">
         <div class="max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
           <div class="flex items-center gap-4">
-            <RouterLink v-if="taskId" :to="`/result/${taskId}`"
-            class="text-sm text-gray-600 hover:text-[#6d5dfc] transition-colors">
+            <RouterLink v-if="taskId" :to="`/app/result/${taskId}`"
+            class="text-sm text-ink-sub hover:text-accent transition-colors">
             ← 返回报告
           </RouterLink>
-          <div v-if="taskId" class="w-px h-5 bg-[#b8bcc2]/40"></div>
-          <h1 class="text-base font-semibold text-gray-800">
+          <div v-if="taskId" class="w-px h-5 bg-line-strong/60"></div>
+          <h1 class="text-base font-semibold text-ink">
             {{ taskId ? '简历编辑' : '创建简历' }}
           </h1>
           </div>
 
           <div class="flex items-center gap-3">
             <select v-model="currentTemplate"
-              class="px-3 py-2 text-sm rounded-xl bg-[#e0e5ec] border-0
-                shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]
-                focus:outline-none">
+              class="px-3 py-2 text-sm rounded-lg bg-inset border border-line text-ink
+                focus:outline-none focus:border-accent transition-colors">
               <option v-for="t in templateList" :key="t.id" :value="t.id">
                 {{ t.name }} · {{ t.desc }}
               </option>
             </select>
 
+            <button @click="saveToLibrary" :disabled="savingToLibrary"
+              class="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg
+                bg-accent text-white hover:bg-accent-hover
+                disabled:opacity-50 transition-colors">
+              {{ savingToLibrary ? '保存中...' : '⭐ 保存到简历库' }}
+            </button>
+
             <button @click="downloadWord" :disabled="downloading"
-              class="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl
-                bg-[#e0e5ec] text-gray-700
-                shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-                hover:shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]
-                disabled:opacity-50 transition-all duration-300">
+              class="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg
+                bg-panel border border-line text-ink-sub
+                hover:border-line-strong hover:text-ink
+                disabled:opacity-50 transition-colors">
               📄 {{ downloading ? '生成中...' : '下载 Word' }}
             </button>
 
             <button @click="openHistory"
-              class="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-xl
-                bg-[#e0e5ec] text-gray-700
-                shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-                hover:shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]
-                transition-all duration-300">
+              class="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg
+                bg-panel border border-line text-ink-sub
+                hover:border-line-strong hover:text-ink
+                transition-colors">
               🗂 导出历史
             </button>
 
             <button @click="downloadPdf"
-              class="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl
-                bg-[#6d5dfc] text-white
-                shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-                hover:shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]
-                transition-all duration-300">
+              class="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg
+                bg-accent text-white hover:bg-accent-hover
+                transition-colors">
               🖨 下载 PDF
             </button>
           </div>
@@ -64,17 +66,40 @@
         <!-- 左侧表单 -->
         <div class="space-y-4 editor-panel">
 
+          <!-- F3 简历快速体检：纯规则实时检查 -->
+          <div class="bg-panel border border-line rounded-lg p-5">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <span class="text-base">🩺</span>
+                <span class="text-sm font-semibold text-ink">快速体检</span>
+              </div>
+              <span class="text-xs font-mono"
+                :class="healthBad ? 'text-bad' : 'text-ok'">
+                {{ healthBad ? `${healthBad} 项硬伤` : '无硬伤' }}
+              </span>
+            </div>
+            <ul v-if="healthIssues.length" class="space-y-1.5">
+              <li v-for="(it, i) in healthIssues" :key="i" class="flex items-start gap-2 text-xs">
+                <span :class="it.level === 'bad' ? 'text-bad' : 'text-warn'" class="shrink-0">
+                  {{ it.level === 'bad' ? '✕' : '!' }}
+                </span>
+                <span class="text-ink-sub leading-relaxed">{{ it.msg }}</span>
+              </li>
+            </ul>
+            <div v-else class="text-xs text-ok">各项检查通过，可放心导出</div>
+          </div>
+
           <!-- 基本信息 -->
-          <div class="bg-[#e0e5ec] rounded-2xl p-5 shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]">
+          <div class="bg-panel border border-line rounded-lg p-5">
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center gap-2">
                 <span class="text-base">👤</span>
-                <span class="text-sm font-semibold text-gray-800">基本信息</span>
+                <span class="text-sm font-semibold text-ink">基本信息</span>
               </div>
               <!-- 证件照：上传后嵌入导出的 Word（右上角一寸照位） -->
               <div class="flex items-center gap-3">
                 <div v-if="photoUrl"
-                  class="relative w-[64px] h-[86px] rounded-lg overflow-hidden border border-[#b8bcc2]/50">
+                  class="relative w-[64px] h-[86px] rounded-lg overflow-hidden border border-line">
                   <img :src="photoUrl" class="w-full h-full object-cover" alt="证件照" />
                   <button @click="removePhoto"
                     class="absolute inset-x-0 bottom-0 bg-black/50 text-white text-[10px] py-0.5">
@@ -82,147 +107,147 @@
                   </button>
                 </div>
                 <label v-else
-                  class="w-[64px] h-[86px] rounded-lg border border-dashed border-[#b8bcc2]
-                    flex flex-col items-center justify-center cursor-pointer text-gray-400
-                    hover:text-[#6d5dfc] hover:border-[#6d5dfc] transition-colors">
+                  class="w-[64px] h-[86px] rounded-lg border border-dashed border-line-strong
+                    flex flex-col items-center justify-center cursor-pointer text-ink-faint
+                    hover:text-accent hover:border-accent transition-colors">
                   <span class="text-lg leading-none">📷</span>
                   <span class="text-[10px] mt-1">证件照</span>
                   <input type="file" accept="image/jpeg,image/png" class="hidden"
                     @change="onPhotoChange" />
                 </label>
-                <div v-if="photoUploading" class="text-xs text-gray-400">上传中…</div>
+                <div v-if="photoUploading" class="text-xs text-ink-faint">上传中…</div>
               </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="text-xs text-gray-500 block mb-1">姓名</label>
-                <input v-model="data.name" class="w-full px-3 py-2 text-sm rounded-xl bg-[#e0e5ec] border-0 shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff] focus:outline-none" />
+                <label class="text-xs text-ink-sub block mb-1">姓名</label>
+                <input v-model="data.name" class="w-full px-3 py-2 text-sm rounded-lg bg-inset border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors" />
               </div>
               <div>
-                <label class="text-xs text-gray-500 block mb-1">求职意向</label>
-                <input v-model="data.job_intention" class="w-full px-3 py-2 text-sm rounded-xl bg-[#e0e5ec] border-0 shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff] focus:outline-none" />
+                <label class="text-xs text-ink-sub block mb-1">求职意向</label>
+                <input v-model="data.job_intention" class="w-full px-3 py-2 text-sm rounded-lg bg-inset border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors" />
               </div>
               <div>
-                <label class="text-xs text-gray-500 block mb-1">电话</label>
-                <input v-model="data.phone" class="w-full px-3 py-2 text-sm rounded-xl bg-[#e0e5ec] border-0 shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff] focus:outline-none" />
+                <label class="text-xs text-ink-sub block mb-1">电话</label>
+                <input v-model="data.phone" class="w-full px-3 py-2 text-sm rounded-lg bg-inset border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors" />
               </div>
               <div>
-                <label class="text-xs text-gray-500 block mb-1">邮箱</label>
-                <input v-model="data.email" class="w-full px-3 py-2 text-sm rounded-xl bg-[#e0e5ec] border-0 shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff] focus:outline-none" />
+                <label class="text-xs text-ink-sub block mb-1">邮箱</label>
+                <input v-model="data.email" class="w-full px-3 py-2 text-sm rounded-lg bg-inset border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors" />
               </div>
               <div>
-                <label class="text-xs text-gray-500 block mb-1">微信</label>
-                <input v-model="data.wechat" class="w-full px-3 py-2 text-sm rounded-xl bg-[#e0e5ec] border-0 shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff] focus:outline-none" />
+                <label class="text-xs text-ink-sub block mb-1">微信</label>
+                <input v-model="data.wechat" class="w-full px-3 py-2 text-sm rounded-lg bg-inset border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors" />
               </div>
               <div>
-                <label class="text-xs text-gray-500 block mb-1">现居地</label>
-                <input v-model="data.location" class="w-full px-3 py-2 text-sm rounded-xl bg-[#e0e5ec] border-0 shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff] focus:outline-none" />
+                <label class="text-xs text-ink-sub block mb-1">现居地</label>
+                <input v-model="data.location" class="w-full px-3 py-2 text-sm rounded-lg bg-inset border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors" />
               </div>
             </div>
             <div class="mt-3">
-              <label class="text-xs text-gray-500 block mb-1">个人简介</label>
-              <textarea v-model="data.summary" rows="3" class="w-full px-3 py-2 text-sm rounded-xl bg-[#e0e5ec] border-0 resize-none shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff] focus:outline-none"></textarea>
+              <label class="text-xs text-ink-sub block mb-1">个人简介</label>
+              <textarea v-model="data.summary" rows="3" class="w-full px-3 py-2 text-sm rounded-lg bg-inset border border-line text-ink resize-none focus:outline-none focus:border-accent transition-colors"></textarea>
             </div>
           </div>
 
           <!-- 教育背景 -->
-          <div class="bg-[#e0e5ec] rounded-2xl p-5 shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]">
+          <div class="bg-panel border border-line rounded-lg p-5">
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center gap-2">
                 <span class="text-base">🎓</span>
-                <span class="text-sm font-semibold text-gray-800">教育背景</span>
+                <span class="text-sm font-semibold text-ink">教育背景</span>
               </div>
-              <button @click="addEducation" class="w-7 h-7 rounded-lg bg-[#e0e5ec] text-[#6d5dfc] text-sm font-bold shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]">+</button>
+              <button @click="addEducation" class="w-7 h-7 rounded-lg bg-accent/10 text-accent text-sm font-bold hover:bg-accent/20 transition-colors">+</button>
             </div>
-            <div v-for="(edu, i) in data.education" :key="i" class="p-3 rounded-xl bg-[#e0e5ec] mb-3 shadow-[inset_2px_2px_4px_#b8bcc2,inset_-2px_-2px_4px_#ffffff]">
+            <div v-for="(edu, i) in data.education" :key="i" class="p-3 rounded-lg bg-inset border border-line mb-3">
               <div class="flex items-center justify-between mb-2">
-                <span class="text-xs text-gray-400">#{{ i + 1 }}</span>
-                <button @click="data.education.splice(i, 1)" class="text-xs text-gray-400 hover:text-red-500">删除</button>
+                <span class="text-xs text-ink-faint font-mono">#{{ i + 1 }}</span>
+                <button @click="data.education.splice(i, 1)" class="text-xs text-ink-faint hover:text-bad transition-colors">删除</button>
               </div>
               <div class="grid grid-cols-2 gap-2">
-                <input v-model="edu.school" placeholder="学校" class="px-2 py-1.5 text-xs rounded-lg bg-[#e0e5ec] border-0 shadow-[inset_2px_2px_4px_#b8bcc2,inset_-2px_-2px_4px_#ffffff] focus:outline-none" />
-                <input v-model="edu.major" placeholder="专业" class="px-2 py-1.5 text-xs rounded-lg bg-[#e0e5ec] border-0 shadow-[inset_2px_2px_4px_#b8bcc2,inset_-2px_-2px_4px_#ffffff] focus:outline-none" />
-                <input v-model="edu.degree" placeholder="学历" class="px-2 py-1.5 text-xs rounded-lg bg-[#e0e5ec] border-0 shadow-[inset_2px_2px_4px_#b8bcc2,inset_-2px_-2px_4px_#ffffff] focus:outline-none" />
-                <input v-model="edu.time" placeholder="2017-2021" class="px-2 py-1.5 text-xs rounded-lg bg-[#e0e5ec] border-0 shadow-[inset_2px_2px_4px_#b8bcc2,inset_-2px_-2px_4px_#ffffff] focus:outline-none" />
+                <input v-model="edu.school" placeholder="学校" class="px-2 py-1.5 text-xs rounded-md bg-panel border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors" />
+                <input v-model="edu.major" placeholder="专业" class="px-2 py-1.5 text-xs rounded-md bg-panel border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors" />
+                <input v-model="edu.degree" placeholder="学历" class="px-2 py-1.5 text-xs rounded-md bg-panel border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors" />
+                <input v-model="edu.time" placeholder="2017-2021" class="px-2 py-1.5 text-xs rounded-md bg-panel border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors" />
               </div>
-              <input v-model="edu.courses" placeholder="主修课程" class="w-full mt-2 px-2 py-1.5 text-xs rounded-lg bg-[#e0e5ec] border-0 shadow-[inset_2px_2px_4px_#b8bcc2,inset_-2px_-2px_4px_#ffffff] focus:outline-none" />
+              <input v-model="edu.courses" placeholder="主修课程" class="w-full mt-2 px-2 py-1.5 text-xs rounded-md bg-panel border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors" />
             </div>
-            <div v-if="!data.education?.length" class="text-xs text-gray-400 text-center py-3">暂无，点 + 添加</div>
+            <div v-if="!data.education?.length" class="text-xs text-ink-faint text-center py-3">暂无，点 + 添加</div>
           </div>
 
           <!-- 工作经历 -->
-          <div class="bg-[#e0e5ec] rounded-2xl p-5 shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]">
+          <div class="bg-panel border border-line rounded-lg p-5">
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center gap-2">
                 <span class="text-base">💼</span>
-                <span class="text-sm font-semibold text-gray-800">工作经历</span>
+                <span class="text-sm font-semibold text-ink">工作经历</span>
               </div>
-              <button @click="addExperience" class="w-7 h-7 rounded-lg bg-[#e0e5ec] text-[#6d5dfc] text-sm font-bold shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]">+</button>
+              <button @click="addExperience" class="w-7 h-7 rounded-lg bg-accent/10 text-accent text-sm font-bold hover:bg-accent/20 transition-colors">+</button>
             </div>
-            <div v-for="(exp, i) in data.experience" :key="i" class="p-3 rounded-xl bg-[#e0e5ec] mb-3 shadow-[inset_2px_2px_4px_#b8bcc2,inset_-2px_-2px_4px_#ffffff]">
+            <div v-for="(exp, i) in data.experience" :key="i" class="p-3 rounded-lg bg-inset border border-line mb-3">
               <div class="flex items-center justify-between mb-2">
-                <span class="text-xs text-gray-400">#{{ i + 1 }}</span>
-                <button @click="data.experience.splice(i, 1)" class="text-xs text-gray-400 hover:text-red-500">删除</button>
+                <span class="text-xs text-ink-faint font-mono">#{{ i + 1 }}</span>
+                <button @click="data.experience.splice(i, 1)" class="text-xs text-ink-faint hover:text-bad transition-colors">删除</button>
               </div>
               <div class="grid grid-cols-2 gap-2">
-                <input v-model="exp.company" placeholder="公司" class="px-2 py-1.5 text-xs rounded-lg bg-[#e0e5ec] border-0 shadow-[inset_2px_2px_4px_#b8bcc2,inset_-2px_-2px_4px_#ffffff] focus:outline-none" />
-                <input v-model="exp.position" placeholder="职位" class="px-2 py-1.5 text-xs rounded-lg bg-[#e0e5ec] border-0 shadow-[inset_2px_2px_4px_#b8bcc2,inset_-2px_-2px_4px_#ffffff] focus:outline-none" />
-                <input v-model="exp.time" placeholder="2021.07-2024.07" class="col-span-2 px-2 py-1.5 text-xs rounded-lg bg-[#e0e5ec] border-0 shadow-[inset_2px_2px_4px_#b8bcc2,inset_-2px_-2px_4px_#ffffff] focus:outline-none" />
+                <input v-model="exp.company" placeholder="公司" class="px-2 py-1.5 text-xs rounded-md bg-panel border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors" />
+                <input v-model="exp.position" placeholder="职位" class="px-2 py-1.5 text-xs rounded-md bg-panel border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors" />
+                <input v-model="exp.time" placeholder="2021.07-2024.07" class="col-span-2 px-2 py-1.5 text-xs rounded-md bg-panel border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors" />
               </div>
-              <textarea v-model="exp.desc" rows="3" placeholder="工作描述（每行一条）" class="w-full mt-2 px-2 py-1.5 text-xs rounded-lg bg-[#e0e5ec] border-0 resize-none shadow-[inset_2px_2px_4px_#b8bcc2,inset_-2px_-2px_4px_#ffffff] focus:outline-none"></textarea>
+              <textarea v-model="exp.desc" rows="3" placeholder="工作描述（每行一条）" class="w-full mt-2 px-2 py-1.5 text-xs rounded-md bg-panel border border-line text-ink resize-none placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors"></textarea>
             </div>
-            <div v-if="!data.experience?.length" class="text-xs text-gray-400 text-center py-3">暂无，点 + 添加</div>
+            <div v-if="!data.experience?.length" class="text-xs text-ink-faint text-center py-3">暂无，点 + 添加</div>
           </div>
 
           <!-- 项目经历 -->
-          <div class="bg-[#e0e5ec] rounded-2xl p-5 shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]">
+          <div class="bg-panel border border-line rounded-lg p-5">
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center gap-2">
                 <span class="text-base">📦</span>
-                <span class="text-sm font-semibold text-gray-800">项目经历</span>
+                <span class="text-sm font-semibold text-ink">项目经历</span>
               </div>
-              <button @click="addProject" class="w-7 h-7 rounded-lg bg-[#e0e5ec] text-[#6d5dfc] text-sm font-bold shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]">+</button>
+              <button @click="addProject" class="w-7 h-7 rounded-lg bg-accent/10 text-accent text-sm font-bold hover:bg-accent/20 transition-colors">+</button>
             </div>
-            <div v-for="(proj, i) in data.projects" :key="i" class="p-3 rounded-xl bg-[#e0e5ec] mb-3 shadow-[inset_2px_2px_4px_#b8bcc2,inset_-2px_-2px_4px_#ffffff]">
+            <div v-for="(proj, i) in data.projects" :key="i" class="p-3 rounded-lg bg-inset border border-line mb-3">
               <div class="flex items-center justify-between mb-2">
-                <span class="text-xs text-gray-400">#{{ i + 1 }}</span>
-                <button @click="data.projects.splice(i, 1)" class="text-xs text-gray-400 hover:text-red-500">删除</button>
+                <span class="text-xs text-ink-faint font-mono">#{{ i + 1 }}</span>
+                <button @click="data.projects.splice(i, 1)" class="text-xs text-ink-faint hover:text-bad transition-colors">删除</button>
               </div>
               <div class="grid grid-cols-2 gap-2">
-                <input v-model="proj.name" placeholder="项目名" class="px-2 py-1.5 text-xs rounded-lg bg-[#e0e5ec] border-0 shadow-[inset_2px_2px_4px_#b8bcc2,inset_-2px_-2px_4px_#ffffff] focus:outline-none" />
-                <input v-model="proj.role" placeholder="角色" class="px-2 py-1.5 text-xs rounded-lg bg-[#e0e5ec] border-0 shadow-[inset_2px_2px_4px_#b8bcc2,inset_-2px_-2px_4px_#ffffff] focus:outline-none" />
-                <input v-model="proj.time" placeholder="时间" class="col-span-2 px-2 py-1.5 text-xs rounded-lg bg-[#e0e5ec] border-0 shadow-[inset_2px_2px_4px_#b8bcc2,inset_-2px_-2px_4px_#ffffff] focus:outline-none" />
+                <input v-model="proj.name" placeholder="项目名" class="px-2 py-1.5 text-xs rounded-md bg-panel border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors" />
+                <input v-model="proj.role" placeholder="角色" class="px-2 py-1.5 text-xs rounded-md bg-panel border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors" />
+                <input v-model="proj.time" placeholder="时间" class="col-span-2 px-2 py-1.5 text-xs rounded-md bg-panel border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors" />
               </div>
-              <textarea v-model="proj.desc" rows="3" placeholder="项目描述（每行一条）" class="w-full mt-2 px-2 py-1.5 text-xs rounded-lg bg-[#e0e5ec] border-0 resize-none shadow-[inset_2px_2px_4px_#b8bcc2,inset_-2px_-2px_4px_#ffffff] focus:outline-none"></textarea>
+              <textarea v-model="proj.desc" rows="3" placeholder="项目描述（每行一条）" class="w-full mt-2 px-2 py-1.5 text-xs rounded-md bg-panel border border-line text-ink resize-none placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors"></textarea>
             </div>
-            <div v-if="!data.projects?.length" class="text-xs text-gray-400 text-center py-3">暂无，点 + 添加</div>
+            <div v-if="!data.projects?.length" class="text-xs text-ink-faint text-center py-3">暂无，点 + 添加</div>
           </div>
 
           <!-- 技能 -->
-          <div class="bg-[#e0e5ec] rounded-2xl p-5 shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]">
+          <div class="bg-panel border border-line rounded-lg p-5">
             <div class="flex items-center gap-2 mb-4">
               <span class="text-base">⚡</span>
-              <span class="text-sm font-semibold text-gray-800">专业技能</span>
+              <span class="text-sm font-semibold text-ink">专业技能</span>
             </div>
             <div class="flex flex-wrap gap-2 mb-3">
-              <span v-for="(s, i) in data.skills" :key="i" class="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs bg-[#e0e5ec] text-gray-700 shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]">
+              <span v-for="(s, i) in data.skills" :key="i" class="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs bg-accent/10 text-accent">
                 {{ s }}
-                <button @click="data.skills.splice(i, 1)" class="text-gray-400 hover:text-red-500 ml-1">×</button>
+                <button @click="data.skills.splice(i, 1)" class="text-accent/60 hover:text-bad ml-1 transition-colors">×</button>
               </span>
             </div>
             <div class="flex gap-2">
-              <input v-model="newSkill" @keyup.enter="addSkill" placeholder="输入技能后回车" class="flex-1 px-3 py-2 text-sm rounded-xl bg-[#e0e5ec] border-0 shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff] focus:outline-none" />
-              <button @click="addSkill" class="px-3 py-2 text-sm rounded-xl bg-[#6d5dfc] text-white shadow-[3px_3px_6px_#b8bcc2,-3px_-3px_6px_#ffffff]">+</button>
+              <input v-model="newSkill" @keyup.enter="addSkill" placeholder="输入技能后回车" class="flex-1 px-3 py-2 text-sm rounded-lg bg-inset border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors" />
+              <button @click="addSkill" class="px-3 py-2 text-sm rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors">+</button>
             </div>
           </div>
 
           <!-- 证书 -->
-          <div class="bg-[#e0e5ec] rounded-2xl p-5 shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]">
+          <div class="bg-panel border border-line rounded-lg p-5">
             <div class="flex items-center gap-2 mb-4">
               <span class="text-base">🏆</span>
-              <span class="text-sm font-semibold text-gray-800">证书荣誉</span>
+              <span class="text-sm font-semibold text-ink">证书荣誉</span>
             </div>
-            <textarea v-model="certText" rows="4" placeholder="每行一条" class="w-full px-3 py-2 text-sm rounded-xl bg-[#e0e5ec] border-0 resize-none shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff] focus:outline-none"></textarea>
+            <textarea v-model="certText" rows="4" placeholder="每行一条" class="w-full px-3 py-2 text-sm rounded-lg bg-inset border border-line text-ink resize-none placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors"></textarea>
           </div>
 
         </div>
@@ -230,16 +255,16 @@
         <!-- 右侧预览（真实渲染导出的 Word 文件，与下载版式完全一致） -->
         <div class="preview-area">
           <div class="sticky top-24">
-            <div class="bg-[#d1d5db] rounded-2xl p-6 overflow-auto max-h-[calc(100vh-120px)]">
-              <div class="text-xs text-gray-500 mb-3 text-center">
+            <div class="bg-inset border border-line rounded-lg p-6 overflow-auto max-h-[calc(100vh-120px)]">
+              <div class="text-xs text-ink-sub mb-3 text-center">
                 预览即导出效果 · 实时渲染 Word 文件
               </div>
               <div class="relative">
                 <div ref="docxBox" v-show="!previewError" class="docx-preview-box shadow-2xl mx-auto w-fit"></div>
-                <div v-if="previewLoading" class="absolute inset-0 flex items-center justify-center text-xs text-gray-500 pointer-events-none">
+                <div v-if="previewLoading" class="absolute inset-0 flex items-center justify-center text-xs text-ink-sub pointer-events-none">
                   排版生成中…
                 </div>
-                <div v-else-if="previewError" class="text-center text-xs text-red-500 py-8">{{ previewError }}</div>
+                <div v-else-if="previewError" class="text-center text-xs text-bad py-8">{{ previewError }}</div>
               </div>
             </div>
           </div>
@@ -262,35 +287,34 @@
   <Teleport to="body">
     <div v-if="showHistory" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/40"
       @click.self="showHistory = false">
-      <div class="w-[560px] max-w-[92vw] max-h-[70vh] flex flex-col rounded-2xl bg-[#e0e5ec]
-        shadow-[8px_8px_20px_#8a8f97,-8px_-8px_20px_#ffffff]">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-[#b8bcc2]/30">
-          <h3 class="text-base font-semibold text-gray-800">导出历史</h3>
-          <button @click="showHistory = false" class="text-gray-500 hover:text-gray-800 text-lg leading-none">✕</button>
+      <div class="w-[560px] max-w-[92vw] max-h-[70vh] flex flex-col rounded-lg bg-panel border border-line shadow-xl">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-line">
+          <h3 class="text-base font-semibold text-ink">导出历史</h3>
+          <button @click="showHistory = false" class="text-ink-sub hover:text-ink text-lg leading-none transition-colors">✕</button>
         </div>
         <div class="flex-1 overflow-y-auto px-5 py-3">
-          <div v-if="historyLoading" class="py-8 text-center text-sm text-gray-500">加载中...</div>
-          <div v-else-if="!historyItems.length" class="py-8 text-center text-sm text-gray-500">
-            暂无导出记录，点击「下载 Word」后会出现在这里
-          </div>
+          <LoadingBlock v-if="historyLoading" text="加载中..." />
+          <EmptyState v-else-if="!historyItems.length"
+            title="暂无导出记录"
+            desc="点击「下载 Word」后会出现在这里" />
           <div v-for="h in historyItems" :key="h.id"
-            class="flex items-center justify-between gap-3 py-3 border-b border-[#b8bcc2]/20 last:border-0">
+            class="flex items-center justify-between gap-3 py-3 border-b border-line last:border-0">
             <div class="min-w-0">
-              <div class="text-sm font-medium text-gray-800 truncate">{{ h.filename }}</div>
-              <div class="text-xs text-gray-500 mt-0.5 truncate">
-                {{ formatTime(h.created_at) }}<template v-if="h.save_path"> · {{ h.save_path }}</template>
+              <div class="text-sm font-medium text-ink truncate">{{ h.filename }}</div>
+              <div class="text-xs text-ink-sub mt-0.5 truncate">
+                <span class="font-mono">{{ formatTime(h.created_at) }}</span><template v-if="h.save_path"> · {{ h.save_path }}</template>
                 <template v-else> · 浏览器下载</template>
               </div>
             </div>
             <div class="flex items-center gap-2 shrink-0">
               <button v-if="h.save_path && desktopReady" @click="revealHistoryFile(h.save_path)"
-                class="px-3 py-1.5 text-xs rounded-lg bg-[#e0e5ec] text-[#6d5dfc]
-                  shadow-[3px_3px_6px_#b8bcc2,-3px_-3px_6px_#ffffff] hover:opacity-80 transition">
+                class="px-3 py-1.5 text-xs rounded-lg text-accent
+                  hover:bg-accent/10 transition-colors">
                 打开位置
               </button>
               <button @click="removeHistory(h.id)"
-                class="px-3 py-1.5 text-xs rounded-lg bg-[#e0e5ec] text-gray-500
-                  shadow-[3px_3px_6px_#b8bcc2,-3px_-3px_6px_#ffffff] hover:text-red-500 transition">
+                class="px-3 py-1.5 text-xs rounded-lg text-ink-faint
+                  hover:text-bad hover:bg-bad/10 transition-colors">
                 删除
               </button>
             </div>
@@ -302,12 +326,15 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { renderAsync } from 'docx-preview'
 import api from '../api'
+import { checkResume } from '../utils/checker'
 import ResumePreview from '../components/ResumePreview.vue'
+import EmptyState from '../components/EmptyState.vue'
+import LoadingBlock from '../components/LoadingBlock.vue'
 
 const route = useRoute()
 // 支持两种模式：/editor/:taskId（诊断/对话优化后进入，读取任务数据）
@@ -319,6 +346,71 @@ const SESSION_KEY = `resume_optimized_${taskId || 'blank'}`
 
 const currentTemplate = ref('classic')
 const downloading = ref(false)
+
+// ---- F1：保存到简历库（结构化编辑数据 → 纯文本入库，可从简历库直接发起诊断） ----
+const savingToLibrary = ref(false)
+
+// F3 快速体检：随编辑实时刷新
+const healthIssues = computed(() => checkResume(data.value))
+const healthBad = computed(() => healthIssues.value.filter((i) => i.level === 'bad').length)
+
+function buildPlainText() {
+  const d = data.value
+  const lines = []
+  if (d.name) lines.push(d.name)
+  if (d.job_intention) lines.push(`求职意向：${d.job_intention}`)
+  const contacts = [
+    d.phone && `电话：${d.phone}`,
+    d.email && `邮箱：${d.email}`,
+    d.wechat && `微信：${d.wechat}`,
+    d.location && `现居：${d.location}`,
+  ].filter(Boolean)
+  if (contacts.length) lines.push(contacts.join(' | '))
+  if (d.summary) lines.push(`\n个人总结\n${d.summary}`)
+  if (d.education?.length) {
+    lines.push('\n教育背景')
+    d.education.forEach((e) => {
+      lines.push([e.time, e.school, e.major, e.degree].filter(Boolean).join(' | '))
+    })
+  }
+  if (d.experience?.length) {
+    lines.push('\n工作经历')
+    d.experience.forEach((e) => {
+      lines.push([e.time, e.company, e.position].filter(Boolean).join(' | '))
+      if (e.desc) lines.push(e.desc)
+    })
+  }
+  if (d.projects?.length) {
+    lines.push('\n项目经历')
+    d.projects.forEach((p) => {
+      lines.push([p.time, p.name, p.role].filter(Boolean).join(' | '))
+      if (p.desc) lines.push(p.desc)
+    })
+  }
+  if (d.skills?.length) lines.push(`\n技能\n${d.skills.join('、')}`)
+  if (d.certificates?.length) lines.push(`\n证书\n${d.certificates.join('、')}`)
+  return lines.join('\n')
+}
+
+async function saveToLibrary() {
+  const text = buildPlainText().trim()
+  if (text.length < 50) {
+    Message.warning('简历内容太少（至少 50 字），请先填写完整再保存')
+    return
+  }
+  savingToLibrary.value = true
+  try {
+    const res = await api.uploadResumeText({
+      filename: `${data.value.name || '未命名'}的简历.txt`,
+      text,
+    })
+    Message.success(`已保存到简历库（#${res.data.id}），可在简历库一键发起诊断`)
+  } catch (e) {
+    Message.error(e.response?.data?.detail || '保存失败')
+  } finally {
+    savingToLibrary.value = false
+  }
+}
 const newSkill = ref('')
 const certText = ref('')
 

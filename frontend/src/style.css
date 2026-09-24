@@ -2,77 +2,169 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body, #app { height: 100%; }
-body {
-  margin: 0;
-  background: #e0e5ec;
-  color: #333333;
-  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
-
-/* 滚动条 */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: #e0e5ec; }
-::-webkit-scrollbar-thumb {
-  background: #b8bcc2;
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover { background: #a0a5ad; }
-
-/* 滑块 */
-input[type="range"] {
-  -webkit-appearance: none;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-  width: 100%;
-}
-input[type="range"]::-webkit-slider-runnable-track {
-  height: 8px;
-  background: #e0e5ec;
-  box-shadow: inset 3px 3px 6px #b8bcc2, inset -3px -3px 6px #ffffff;
-  border-radius: 4px;
-}
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  height: 20px;
-  width: 20px;
-  margin-top: -6px;
-  background: #e0e5ec;
-  box-shadow: 3px 3px 6px #b8bcc2, -3px -3px 6px #ffffff;
-  border-radius: 50%;
-  transition: all 0.3s ease-in-out;
-}
-input[type="range"]:active::-webkit-slider-thumb {
-  box-shadow: inset 2px 2px 4px #b8bcc2, inset -2px -2px 4px #ffffff;
-}
-
-/* Select 去掉默认箭头 */
-select {
-  -webkit-appearance: none;
-  appearance: none;
-  background-image: none;
-
-  /* ============ Arco 主题覆盖（紫色主色）============ */
+/* ============================================================
+   D1 语义 token：亮/暗双色板
+   - RGB 三元组格式，Tailwind 以 rgb(var(--c-x) / <alpha>) 引用，
+     因此 text-ink/60、bg-accent/10 等透明度修饰符可用
+   - <html data-theme="light|dark"> 切换；index.html 内联脚本
+     在应用挂载前写入，避免主题闪屏
+   ============================================================ */
 :root {
+  --c-page: 246 247 249;        /* 页面底 */
+  --c-panel: 255 255 255;       /* 面板底 */
+  --c-float: 255 255 255;       /* 浮层底 */
+  --c-inset: 240 241 245;       /* 输入框 / 内嵌底 */
+  --c-line: 228 231 237;        /* 常规边框 */
+  --c-line-strong: 203 209 219; /* 强边框 / 分隔 */
+  --c-ink: 26 30 38;            /* 主文本 */
+  --c-ink-sub: 91 99 112;       /* 次文本 */
+  --c-ink-faint: 143 151 164;   /* 弱化文本 */
+  --c-accent: 109 93 252;       /* 品牌紫 */
+  --c-accent-hover: 90 75 233;
+  --c-ok: 28 156 105;
+  --c-warn: 194 131 24;
+  --c-bad: 224 79 82;
+  color-scheme: light;
+
+  /* Arco 品牌紫（亮色阶） */
   --primary-1: 240, 238, 255;
   --primary-2: 214, 209, 254;
   --primary-3: 189, 181, 253;
   --primary-4: 163, 152, 253;
   --primary-5: 137, 124, 252;
-  --primary-6: 109, 93, 252;      /* #6d5dfc 主色 */
+  --primary-6: 109, 93, 252;
   --primary-7: 89, 76, 204;
   --primary-8: 71, 61, 163;
   --primary-9: 53, 46, 122;
   --primary-10: 35, 30, 82;
 }
 
-/* Arco 消息提示圆角 */
-.arco-message { border-radius: 12px; }
+[data-theme='dark'] {
+  --c-page: 18 20 26;           /* 页面底 */
+  --c-panel: 26 29 37;          /* 面板底 */
+  --c-float: 33 37 47;          /* 浮层底 */
+  --c-inset: 20 22 29;          /* 输入框 / 内嵌底 */
+  --c-line: 44 49 61;           /* 常规边框 */
+  --c-line-strong: 63 70 86;    /* 强边框 / 分隔 */
+  --c-ink: 228 232 240;         /* 主文本 */
+  --c-ink-sub: 152 161 177;     /* 次文本 */
+  --c-ink-faint: 105 113 129;   /* 弱化文本 */
+  --c-accent: 134 118 255;      /* 品牌紫（暗色提亮） */
+  --c-accent-hover: 153 139 255;
+  --c-ok: 66 191 136;
+  --c-warn: 235 173 66;
+  --c-bad: 240 94 98;
+  color-scheme: dark;
 
-/* Arco 表格 */
-.arco-table-th { background-color: #f5f6f8 !important; }
-.arco-table-td { border-color: #e5e7eb !important; }
+  /* Arco 品牌紫（暗色阶） */
+  --primary-1: 35, 30, 82;
+  --primary-2: 46, 41, 102;
+  --primary-3: 58, 52, 124;
+  --primary-4: 71, 61, 163;
+  --primary-5: 89, 76, 204;
+  --primary-6: 134, 118, 255;
+  --primary-7: 153, 139, 255;
+  --primary-8: 173, 161, 255;
+  --primary-9: 194, 184, 255;
+  --primary-10: 214, 207, 255;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: rgb(var(--c-page));
+  color: rgb(var(--c-ink));
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+/* ---------- 原生表单基线走 token ---------- */
+input,
+textarea,
+select {
+  color: rgb(var(--c-ink));
+}
+input::placeholder,
+textarea::placeholder {
+  color: rgb(var(--c-ink-faint));
+}
+
+/* ---------- 滚动条 ---------- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--c-line-strong) / 0.55);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--c-line-strong));
+}
+
+/* ---------- 选中文本 ---------- */
+::selection {
+  background: rgb(var(--c-accent) / 0.25);
+}
+
+/* ---------- 滑块（编辑器字号调节等） ---------- */
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgb(var(--c-inset));
+  cursor: pointer;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 16px;
+  width: 16px;
+  background: rgb(var(--c-panel));
+  border: 1px solid rgb(var(--c-line-strong));
+  border-radius: 50%;
+  transition: all 0.15s ease;
+}
+input[type='range']:active::-webkit-slider-thumb {
+  border-color: rgb(var(--c-accent));
+  box-shadow: 0 0 0 3px rgb(var(--c-accent) / 0.2);
+}
+
+/* ---------- Arco 组件微调 ---------- */
+.arco-message {
+  border-radius: 8px;
+}
+.arco-table-th {
+  background-color: rgb(var(--c-inset)) !important;
+}
+.arco-table-td {
+  border-color: rgb(var(--c-line)) !important;
+}
+
+/* ---------- M20 A2 报告打印（导出 PDF） ----------
+   ResultView 导出 PDF 时给 body 加 printing-report 类：
+   隐藏应用壳（侧边栏/顶栏）与 .print-hide 元素，仅打印报告内容 */
+@media print {
+  body.printing-report aside,
+  body.printing-report header {
+    display: none !important;
+  }
+  body.printing-report main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  body.printing-report .print-hide {
+    display: none !important;
+  }
 }

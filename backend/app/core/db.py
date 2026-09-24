@@ -23,7 +23,9 @@ def _make_engine():
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     engine = create_async_engine(
         url,
-        echo=settings.DEBUG,
+        # SQL echo 固定关闭：服务窗口只保留 uvicorn 启动横幅与错误（用户反馈刷屏）；
+        # DEBUG 开关继续用于其他调试行为
+        echo=False,
         future=True,
         poolclass=AsyncAdaptedQueuePool,
         connect_args={"check_same_thread": False, "timeout": 30},
@@ -66,7 +68,10 @@ async def get_db() -> AsyncSession:
 # 老库升级：create_all 不会给已存在的表加列，这里用 PRAGMA 检查后 ALTER TABLE 补列。
 # 新增列统一登记在这里（表名 → [(列名, DDL 类型), ...]），lifespan 启动时调用。
 _SCHEMA_NEW_COLUMNS: dict[str, list[tuple[str, str]]] = {
-    "resumes": [("owner_id", "VARCHAR(64) DEFAULT 'local'")],
+    "resumes": [
+        ("owner_id", "VARCHAR(64) DEFAULT 'local'"),
+        ("file_path", "VARCHAR(500)"),
+    ],
     "diagnosis_records": [
         ("owner_id", "VARCHAR(64) DEFAULT 'local'"),
         ("stage", "VARCHAR(32) DEFAULT ''"),
@@ -74,8 +79,13 @@ _SCHEMA_NEW_COLUMNS: dict[str, list[tuple[str, str]]] = {
         ("logs", "JSON"),
         ("questions", "JSON"),
         ("clarify_ctx", "JSON"),
+        ("parent_task_id", "VARCHAR(32)"),
     ],
-    "conversations": [("owner_id", "VARCHAR(64) DEFAULT 'local'")],
+    "conversations": [
+        ("owner_id", "VARCHAR(64) DEFAULT 'local'"),
+        ("context", "TEXT"),
+        ("chat_log", "TEXT"),
+    ],
 }
 
 

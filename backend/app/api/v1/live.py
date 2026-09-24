@@ -34,6 +34,7 @@ class AnalyzeRequest(BaseModel):
     llm_config: LLMConfig | None = None
     resume_name: str = ""
     enable_refine: bool | None = None  # self-refine 开关；None 用服务端默认
+    parent_task_id: str | None = None  # M20 重诊溯源：来源诊断任务 id
 
 
 class ClarifyRequest(BaseModel):
@@ -76,8 +77,16 @@ async def start_analyze(
     if len(jd_text) < 20:
         raise HTTPException(400, "JD 文本过短，请至少粘贴 20 个字")
 
-    if LivePipelineService.has_active_task(owner_id):
-        raise HTTPException(409, "已有诊断任务进行中，请等待完成后再发起新诊断")
+    # 24h 未应答的 waiting_clarify 自动作废，避免旧追问永久占用名额
+    await LivePipelineService.expire_stale_waiting()
+
+    active = LivePipelineService.get_active_task(owner_id)
+    if active:
+        raise HTTPException(
+            409,
+            "已有诊断任务进行中，可前往该任务继续或放弃后再发起新诊断",
+            headers={"X-Active-Task": active["id"]},
+        )
 
     await _check_web_quota(db, owner_id, req.llm_config)
 
@@ -97,6 +106,7 @@ async def start_analyze(
         resume_name=req.resume_name,
         owner_id=owner_id,
         enable_refine=enable_refine,
+        parent_task_id=(req.parent_task_id or "").strip() or None,
     )
     task = asyncio.create_task(
         LivePipelineService.run(
@@ -111,6 +121,18 @@ async def start_analyze(
     task.add_done_callback(_RUNNING_TASKS.discard)
 
     return {"task_id": task_id, "status": "pending"}
+
+
+@router.post("/abandon/{task_id}")
+async def abandon_task(
+    task_id: str,
+    owner_id: str = Depends(get_owner_id),
+):
+    """用户主动放弃未完成任务（pending/running/waiting_clarify），释放「进行中」名额。"""
+    ok = await LivePipelineService.abandon_task(task_id, owner_id)
+    if not ok:
+        raise HTTPException(404, "任务不存在或已结束")
+    return {"task_id": task_id, "status": "failed", "message": "已放弃该任务"}
 
 
 @router.post("/clarify/{task_id}")
@@ -141,6 +163,16 @@ async def submit_clarify(
     _RUNNING_TASKS.add(t)
     t.add_done_callback(_RUNNING_TASKS.discard)
     return {"task_id": task_id, "status": "running"}
+
+
+@router.post("/retry/{task_id}")
+async def retry_task(task_id: str, owner_id: str = Depends(get_owner_id)):
+    """B1：失败任务重试——从 checkpointer 断点续跑，已完成节点不重跑。"""
+    try:
+        tid = await LivePipelineService.retry(task_id, owner_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"task_id": tid}
 
 
 @router.get("/status/{task_id}")
@@ -186,6 +218,10 @@ async def stream_task(task_id: str, owner_id: str = Depends(get_owner_id)):
                     "questions": task.get("questions") or [],
                     "result": task.get("result"),
                     "error": task.get("error"),
+                    # M20：前端「重新诊断」与「较上次」增量提示依赖
+                    "resume_id": task.get("resume_id"),
+                    "resume_name": task.get("resume_name") or "",
+                    "parent_task_id": task.get("parent_task_id"),
                 },
                 ensure_ascii=False,
             )

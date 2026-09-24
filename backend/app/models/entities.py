@@ -12,6 +12,8 @@ class Resume(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     filename: Mapped[str] = mapped_column(String(255))
     raw_text: Mapped[str] = mapped_column(Text)
+    # 上传的原文件在 FILES_DIR 内的绝对路径（粘贴文本创建的简历为 NULL，仅文本预览）
+    file_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     owner_id: Mapped[str] = mapped_column(String(64), default="local", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
@@ -36,6 +38,8 @@ class DiagnosisRecord(Base):
     # M16 跨重启恢复：waiting_clarify 任务的追问问题与恢复上下文落库
     questions: Mapped[list | None] = mapped_column(JSON, nullable=True)
     clarify_ctx: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # M20 重诊溯源：来源诊断任务 id（「用当前简历重新诊断」时记录，用于 Before/After 对比）
+    parent_task_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
@@ -63,10 +67,14 @@ class Conversation(Base):
     type: Mapped[str] = mapped_column(String(16), index=True)         # optimize / interview
     owner_id: Mapped[str] = mapped_column(String(64), default="local", index=True)
     skill: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # M31 独立面试会话上下文 JSON（resume_id/jd_text）；诊断内嵌面试不使用（走 DiagnosisRecord）
+    context: Mapped[str | None] = mapped_column(Text, nullable=True)
     questions: Mapped[list] = mapped_column(JSON, default=list)
     answers: Mapped[dict] = mapped_column(JSON, default=dict)
     current_index: Mapped[int] = mapped_column(default=0)
     status: Mapped[str] = mapped_column(String(16), default="ongoing")  # ongoing / finished
+    # M32 多轮自由对话完整记录：[{role: interviewer|candidate, qid, content}] 的 JSON 文本
+    chat_log: Mapped[str | None] = mapped_column(Text, nullable=True)
     optimized_resume: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

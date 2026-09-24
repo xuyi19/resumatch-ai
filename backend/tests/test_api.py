@@ -165,3 +165,57 @@ async def test_owner_isolation(monkeypatch):
             r5 = await client_a.get("/api/v1/history")
             a_task_ids = {item["task_id"] for item in r5.json()["items"]}
             assert not (a_task_ids & task_ids)
+
+
+@pytest.mark.asyncio
+async def test_upload_resume_text():
+    """A1 粘贴文本简历：直存入库，跳过文件解析"""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        text = "张三\n本科，3 年 Python 后端经验，熟悉 FastAPI 与 MySQL，做过电商订单系统。" * 3
+        r = await client.post("/api/v1/resumes/upload-text", json={
+            "filename": "粘贴的简历.txt",
+            "text": text,
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert data["filename"] == "粘贴的简历.txt"
+        assert data["text_length"] == len(text.strip())
+
+        # 文本过短应拒绝
+        r2 = await client.post("/api/v1/resumes/upload-text", json={
+            "filename": "短.txt", "text": "太短了",
+        })
+        assert r2.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_delete_resumes_batch():
+    """F1 批量删除：多份简历一次删除（owner 隔离）；回归：Resume 未 import 曾致 500"""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        ids = []
+        for name, body in (
+            ("批量删除-1.txt", "李四\n后端工程师，熟悉 Redis 与 Kafka，做过日志平台。" * 3),
+            ("批量删除-2.txt", "王五\n前端工程师，熟悉 Vue3 与 TypeScript，做过组件库。" * 3),
+        ):
+            r = await client.post("/api/v1/resumes/upload-text", json={
+                "filename": name, "text": body,
+            })
+            assert r.status_code == 200
+            ids.append(r.json()["id"])
+
+        r = await client.post("/api/v1/resumes/delete-batch", json={"ids": ids})
+        assert r.status_code == 200, r.text
+        assert r.json()["deleted"] == 2
+
+        # 列表中确认消失
+        r2 = await client.get("/api/v1/resumes/list")
+        remain = {x["id"] for x in r2.json()["items"]}
+        assert not (set(ids) & remain)
+
+        # 不存在的 id：幂等返回 0；空列表直接 0
+        r3 = await client.post("/api/v1/resumes/delete-batch", json={"ids": ids})
+        assert r3.status_code == 200 and r3.json()["deleted"] == 0
+        r4 = await client.post("/api/v1/resumes/delete-batch", json={"ids": []})
+        assert r4.status_code == 200 and r4.json()["deleted"] == 0

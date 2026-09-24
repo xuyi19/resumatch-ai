@@ -7,37 +7,33 @@
 
       <div class="text-center mb-10">
         <div class="inline-block relative mb-6">
-          <div class="w-16 h-16 rounded-2xl bg-[#e0e5ec]
-            shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]"></div>
+          <div class="w-16 h-16 rounded-lg bg-inset border border-line"></div>
           <div
-              class="absolute inset-0 w-16 h-16 rounded-2xl border-4 border-transparent border-t-[#6d5dfc] animate-spin"></div>
+              class="absolute inset-0 w-16 h-16 rounded-lg border-4 border-transparent border-t-accent animate-spin"></div>
         </div>
-        <div class="text-xl font-semibold text-gray-800 mb-1">
+        <div class="text-xl font-semibold text-ink mb-1">
           {{ message || '正在初始化...' }}
         </div>
-        <div class="text-xs text-gray-500 mt-2">
+        <div class="text-xs text-ink-sub mt-2">
           多智能体诊断约需 60 秒
         </div>
-        <div v-if="elapsedText" class="text-xs text-[#6d5dfc] mt-1 font-mono">
+        <div v-if="elapsedText" class="text-xs text-accent mt-1 font-mono">
           ⏱ 已运行 {{ elapsedText }}
         </div>
       </div>
 
-      <div class="bg-[#e0e5ec] rounded-2xl p-6 mb-6
-        shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
+      <div class="bg-panel border border-line rounded-lg p-6 mb-6">
         <div class="flex items-center justify-between mb-3">
-          <span class="text-xs font-medium text-gray-500">整体进度</span>
-          <span class="text-sm font-semibold text-[#6d5dfc]">{{ progress }}%</span>
+          <span class="text-xs font-medium text-ink-sub">整体进度</span>
+          <span class="text-sm font-semibold text-accent font-mono">{{ progress }}%</span>
         </div>
-        <div class="h-3 rounded-full bg-[#e0e5ec]
-          shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff] overflow-hidden">
-          <div class="h-full bg-[#6d5dfc] rounded-full transition-all duration-300"
+        <div class="h-3 rounded-full bg-inset overflow-hidden">
+          <div class="h-full bg-accent rounded-full transition-all duration-300"
                :style="{ width: progress + '%' }"/>
         </div>
       </div>
 
-      <div class="bg-[#e0e5ec] rounded-2xl p-6 mb-6
-        shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
+      <div class="bg-panel border border-line rounded-lg p-6 mb-6">
         <div class="space-y-3">
           <div v-for="(s, i) in stages" :key="i"
                class="flex items-center gap-3 transition-all duration-300">
@@ -49,29 +45,28 @@
               <span v-else>{{ i + 1 }}</span>
             </div>
             <span class="text-sm font-medium transition-colors duration-300"
-                  :class="isStageDone(s.key) ? 'text-gray-400 line-through' :
-                      isStageActive(s.key) ? 'text-[#6d5dfc]' :
-                      'text-gray-500'">
+                  :class="isStageDone(s.key) ? 'text-ink-faint line-through' :
+                      isStageActive(s.key) ? 'text-accent' :
+                      'text-ink-sub'">
               {{ s.label }}
             </span>
-            <span v-if="isStageDone(s.key)" class="ml-auto text-xs text-green-500">完成</span>
+            <span v-if="isStageDone(s.key)" class="ml-auto text-xs text-ok">完成</span>
           </div>
         </div>
       </div>
 
-      <div class="bg-[#e0e5ec] rounded-2xl p-6
-        shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
+      <div class="bg-panel border border-line rounded-lg p-6">
         <div class="flex items-center justify-between mb-4">
-          <span class="text-xs font-medium text-gray-500">实时日志</span>
-          <span class="w-2 h-2 rounded-full bg-[#6d5dfc] animate-pulse"></span>
+          <span class="text-xs font-medium text-ink-sub">实时日志</span>
+          <span class="w-2 h-2 rounded-full bg-accent animate-pulse"></span>
         </div>
         <div ref="logRef" class="space-y-2 max-h-64 overflow-y-auto pr-2">
           <div v-for="(log, i) in logs" :key="i"
                class="flex items-start gap-3 text-xs animate-fade-in">
-            <span class="text-gray-400 font-mono shrink-0">{{ log.time }}</span>
-            <span class="text-gray-700 flex-1 leading-relaxed">{{ log.message }}</span>
+            <span class="text-ink-faint font-mono shrink-0">{{ log.time }}</span>
+            <span class="text-ink-sub flex-1 leading-relaxed">{{ log.message }}</span>
           </div>
-          <div v-if="!logs.length" class="text-xs text-gray-400 text-center py-4">
+          <div v-if="!logs.length" class="text-xs text-ink-faint text-center py-4">
             等待后端返回日志...
           </div>
         </div>
@@ -84,63 +79,127 @@
 
       <div class="text-center mb-8">
         <div class="text-4xl mb-4">🤔</div>
-        <h1 class="text-xl font-semibold text-gray-800">需要补充几条信息</h1>
-        <p class="text-sm text-gray-500 mt-2">
+        <h1 class="text-xl font-semibold text-ink">需要补充几条信息</h1>
+        <p class="text-sm text-ink-sub mt-2">
           AI 判断回答以下问题能让差距结论与改写建议更可靠，一两句话回答即可
         </p>
       </div>
 
       <div class="space-y-4">
         <div v-for="(q, i) in clarifyQuestions" :key="q.id || i"
-             class="bg-[#e0e5ec] rounded-2xl p-6
-            shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
-          <div class="text-xs font-semibold text-[#6d5dfc] mb-2">
+             class="bg-panel border border-line rounded-lg p-6">
+          <div class="text-xs font-semibold text-accent mb-2">
             追问 {{ i + 1 }}<span v-if="q.gap"> · 针对：{{ q.gap }}</span>
           </div>
-          <div class="text-sm text-gray-800 mb-3 leading-relaxed">{{ q.question }}</div>
-          <div v-if="q.hint" class="text-xs text-gray-400 mb-2">💡 {{ q.hint }}</div>
+          <div class="text-sm text-ink mb-3 leading-relaxed">{{ q.question }}</div>
+          <div v-if="q.hint" class="text-xs text-ink-faint mb-2">💡 {{ q.hint }}</div>
           <textarea v-model="clarifyAnswers[q.id || `q${i + 1}`]" rows="2"
                     placeholder="一句话回答即可，例：该项目峰值 QPS 约 3000，日活 5 万"
-                    class="w-full px-4 py-3 rounded-xl bg-[#e0e5ec] text-sm text-gray-800
-                placeholder-gray-400 outline-none resize-none
-                shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]
-                focus:ring-2 focus:ring-[#6d5dfc]/30"></textarea>
+                    class="w-full px-4 py-3 rounded-lg bg-inset border border-line text-sm text-ink
+                placeholder:text-ink-faint resize-none
+                focus:outline-none focus:border-accent transition-colors"></textarea>
         </div>
       </div>
 
       <div class="text-center mt-8">
         <button @click="submitClarify" :disabled="clarifySubmitting"
-                class="px-8 py-3 text-sm font-medium rounded-xl bg-[#6d5dfc] text-white
-            shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]
-            hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-            transition-all duration-300 disabled:opacity-50">
+                class="px-8 py-3 text-sm font-medium rounded-lg bg-accent text-white
+            hover:bg-accent-hover transition-colors disabled:opacity-50">
           {{ clarifySubmitting ? '提交中...' : '提交并继续诊断' }}
         </button>
-        <div class="text-xs text-gray-400 mt-3">至少回答一个问题；提交后诊断将在改写建议处继续</div>
+        <div class="text-xs text-ink-faint mt-3">至少回答一个问题；提交后诊断将在改写建议处继续</div>
+        <button @click="abandonTask" :disabled="clarifySubmitting"
+                class="mt-4 text-xs text-ink-faint hover:text-bad transition-colors underline
+                  underline-offset-4 decoration-line">
+          不想继续了？放弃此任务
+        </button>
       </div>
     </div>
 
     <!-- 结果 -->
     <div v-else-if="status === 'success'">
 
+      <!-- D3 吸顶摘要条：任意位置一屏可见综合分与关键结论 + 集中动作区 -->
+      <div class="sticky top-0 z-30 -mx-6 md:-mx-8 px-6 md:px-8 py-3 mb-8
+        bg-page/95 backdrop-blur border-b border-line print-hide">
+        <div class="flex items-center gap-x-5 gap-y-2 flex-wrap min-w-0">
+          <div class="flex items-baseline gap-2 shrink-0">
+            <span class="text-xs text-ink-sub">综合分</span>
+            <span class="text-2xl font-semibold text-accent font-mono">
+              {{ result.diagnosis?.scores?.overall ?? '--' }}
+            </span>
+          </div>
+          <div class="flex items-baseline gap-2 shrink-0">
+            <span class="text-xs text-ink-sub">差距</span>
+            <span class="text-lg font-semibold text-warn font-mono">{{ gaps.length }}</span>
+            <span class="text-xs text-ink-sub">项</span>
+          </div>
+          <div v-if="deltaInfo" class="flex items-baseline gap-1.5 shrink-0">
+            <span class="text-xs text-ink-sub">较上次</span>
+            <span class="text-sm font-semibold font-mono"
+                  :class="deltaInfo.delta >= 0 ? 'text-ok' : 'text-bad'">
+              {{ deltaInfo.delta >= 0 ? '+' : '' }}{{ deltaInfo.delta }}
+            </span>
+          </div>
+
+          <!-- 页内锚点 -->
+          <nav class="hidden lg:flex items-center gap-1 ml-2">
+            <button v-for="a in anchors" :key="a.id" @click="scrollTo(a.id)"
+              class="px-2.5 py-1 text-xs rounded-md text-ink-sub
+                hover:bg-inset hover:text-ink transition-colors">
+              {{ a.label }}
+            </button>
+          </nav>
+
+          <!-- 右上动作区：导出 / 重诊 / 编辑 -->
+          <div class="flex items-center gap-2 ml-auto flex-wrap">
+            <button @click="exportReportWord" :disabled="exportingReport"
+              class="px-3 py-1.5 text-xs font-medium rounded-lg
+                bg-accent text-white hover:bg-accent-hover
+                disabled:opacity-50 transition-colors">
+              {{ exportingReport ? '生成中...' : '导出 Word' }}
+            </button>
+            <button @click="exportReportPdf"
+              class="px-3 py-1.5 text-xs font-medium rounded-lg
+                bg-panel border border-line text-ink-sub
+                hover:border-line-strong hover:text-ink transition-colors">
+              导出 PDF
+            </button>
+            <button @click="reanalyze" :disabled="reanalyzing || !resumeId"
+              :title="resumeId ? '沿用同一 JD 重新诊断当前简历' : '缺少关联简历，无法重诊'"
+              class="px-3 py-1.5 text-xs font-medium rounded-lg
+                bg-panel border border-accent/50 text-accent
+                hover:bg-accent/10 disabled:opacity-40 disabled:cursor-not-allowed
+                transition-colors">
+              {{ reanalyzing ? '发起中...' : '⟳ 重新诊断' }}
+            </button>
+            <RouterLink :to="`/app/editor/${taskId}`"
+              class="px-3 py-1.5 text-xs font-medium rounded-lg
+                bg-panel border border-line text-ink-sub
+                hover:border-line-strong hover:text-ink transition-colors">
+              编辑
+            </RouterLink>
+          </div>
+        </div>
+      </div>
+
       <div class="text-center mb-8">
-        <h1 class="text-3xl md:text-4xl font-semibold text-gray-800 mb-2">诊断报告</h1>
-        <p v-if="result.diagnosis_target" class="text-sm text-gray-600">
+        <h1 class="text-3xl md:text-4xl font-semibold text-ink mb-2">诊断报告</h1>
+        <p v-if="result.diagnosis_target" class="text-sm text-ink-sub">
           {{ result.diagnosis_target.title }} · {{ result.diagnosis_target.company }}
         </p>
       </div>
 
       <!-- Tab 导航 -->
-      <div class="flex justify-center mb-8">
-        <div class="inline-flex gap-2 p-1.5 rounded-2xl bg-[#e0e5ec]
-          shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]">
+      <div class="flex justify-center mb-8 print-hide">
+        <div class="inline-flex gap-2 p-1.5 rounded-lg bg-inset border border-line">
           <button v-for="tab in tabs" :key="tab.key"
                   @click="activeTab = tab.key"
-                  class="px-5 py-2.5 text-sm font-medium rounded-xl
-              transition-all duration-300 ease-in-out"
+                  class="px-5 py-2.5 text-sm font-medium rounded-md
+              transition-colors"
                   :class="activeTab === tab.key
-              ? 'bg-[#e0e5ec] text-[#6d5dfc] shadow-[3px_3px_6px_#b8bcc2,-3px_-3px_6px_#ffffff]'
-              : 'text-gray-600 hover:text-gray-800'">
+              ? 'bg-accent/10 text-accent'
+              : 'text-ink-sub hover:text-ink'">
             {{ tab.icon }} {{ tab.label }}
           </button>
         </div>
@@ -149,21 +208,18 @@
       <!-- ============ Tab 1: 诊断报告 ============ -->
       <div v-show="activeTab === 'diagnosis'" class="space-y-6">
 
-        <div class="bg-[#e0e5ec] rounded-2xl p-8
-          shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
+        <div id="sec-scores" class="bg-panel border border-line rounded-lg p-8">
           <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-center">
             <div class="text-center md:text-left">
-              <div class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">综合评分</div>
-              <div class="text-6xl font-semibold text-[#6d5dfc]">{{ result.diagnosis?.scores?.overall || '--' }}</div>
-              <div class="text-xs text-gray-500 mt-1">/ 100</div>
+              <div class="text-xs font-medium text-ink-sub uppercase tracking-wider mb-1">综合评分</div>
+              <div class="text-6xl font-semibold text-accent font-mono">{{ result.diagnosis?.scores?.overall || '--' }}</div>
+              <div class="text-xs text-ink-sub mt-1 font-mono">/ 100</div>
             </div>
             <div class="md:col-span-3">
-              <div class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">技能标签</div>
+              <div class="text-xs font-medium text-ink-sub uppercase tracking-wider mb-3">技能标签</div>
               <div class="flex flex-wrap gap-2">
                 <span v-for="s in result.diagnosis?.parsed?.skills || []" :key="s"
-                      class="px-3 py-1.5 rounded-xl text-xs font-medium
-                    bg-[#e0e5ec] text-[#6d5dfc]
-                    shadow-[3px_3px_6px_#b8bcc2,-3px_-3px_6px_#ffffff]">
+                      class="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent/10 text-accent">
                   {{ s }}
                 </span>
               </div>
@@ -172,89 +228,98 @@
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div class="lg:col-span-2 bg-[#e0e5ec] rounded-2xl p-6
-            shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
-            <h2 class="text-base font-semibold text-gray-800 mb-4">六维评分</h2>
-            <div ref="chartRef" style="width:100%; height:360px"/>
+          <div class="lg:col-span-2 bg-panel border border-line rounded-lg p-6">
+            <h2 class="text-base font-semibold text-ink mb-4">六维评分</h2>
+            <div style="height:360px">
+              <RadarChart :series="radarSeries" />
+            </div>
           </div>
 
-          <div class="bg-[#e0e5ec] rounded-2xl p-6
-            shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
-            <h2 class="text-base font-semibold text-gray-800 mb-4">综合评价</h2>
-            <p class="text-sm text-gray-600 leading-relaxed">{{ overallComment }}</p>
+          <div class="bg-panel border border-line rounded-lg p-6">
+            <h2 class="text-base font-semibold text-ink mb-4">综合评价</h2>
+            <p class="text-sm text-ink-sub leading-relaxed">{{ overallComment }}</p>
           </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div class="bg-[#e0e5ec] rounded-2xl p-6
-            shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
+          <div id="sec-strengths" class="bg-panel border border-line rounded-lg p-6">
             <div class="flex items-center gap-3 mb-4">
-              <div class="w-8 h-8 rounded-xl bg-[#e0e5ec] flex items-center justify-center text-green-600
-                shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]">✓
+              <div class="w-8 h-8 rounded-lg bg-ok/10 flex items-center justify-center text-ok">✓
               </div>
-              <h2 class="text-base font-semibold text-gray-800">主要优势</h2>
+              <h2 class="text-base font-semibold text-ink">主要优势</h2>
             </div>
-            <ul class="space-y-3 text-sm text-gray-700">
+            <ul class="space-y-3 text-sm text-ink-sub">
               <li v-for="(item, i) in strengths" :key="i" class="flex gap-3 items-start">
-                <span class="text-green-600 shrink-0 mt-0.5">✓</span>
+                <span class="text-ok shrink-0 mt-0.5">✓</span>
                 <span>{{ item }}</span>
               </li>
-              <li v-if="!strengths.length" class="text-gray-400 text-sm">暂无高亮优势维度</li>
+              <li v-if="!strengths.length" class="text-ink-faint text-sm">暂无高亮优势维度</li>
             </ul>
           </div>
 
-          <div class="bg-[#e0e5ec] rounded-2xl p-6
-            shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
+          <div id="sec-gaps" class="bg-panel border border-line rounded-lg p-6">
             <div class="flex items-center gap-3 mb-4">
-              <div class="w-8 h-8 rounded-xl bg-[#e0e5ec] flex items-center justify-center text-amber-600
-                shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]">△
+              <div class="w-8 h-8 rounded-lg bg-warn/10 flex items-center justify-center text-warn">△
               </div>
-              <h2 class="text-base font-semibold text-gray-800">待提升项</h2>
+              <h2 class="text-base font-semibold text-ink">待提升项</h2>
             </div>
-            <ul class="space-y-3 text-sm text-gray-700">
-              <li v-for="(g, i) in gaps" :key="i" class="flex gap-3 items-start">
-                <span :class="severityColor(g.severity)" class="shrink-0 mt-0.5">△</span>
-                <span class="flex-1">
-                  <span :class="severityColor(g.severity)" class="text-xs font-semibold">[{{
-                      g.severity || '-'
-                    }}]</span>
-                  {{ g.description }}
-                  <span v-if="g.is_inferred"
-                        class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-500 align-middle">推断</span>
-                  <!-- RAG 证据引用（M11-A）：展示支撑该差距的简历原文 -->
-                  <span v-if="g.evidence && g.evidence.length" class="block mt-2 space-y-1.5">
-                    <span v-for="ev in g.evidence" :key="ev.id"
-                          class="block text-xs text-gray-500 rounded-lg px-3 py-2 border-l-2 border-[#6d5dfc]/40 bg-white/40">
-                      <span class="font-mono text-[#6d5dfc] mr-1">[{{ ev.id }}]</span>{{ ev.text }}
+            <!-- D3：按维度分组折叠 -->
+            <div v-for="grp in gapsByDimension" :key="grp.dimension" class="mb-2">
+              <button @click="toggleGapGroup(grp.dimension)"
+                class="w-full flex items-center gap-2 px-3 py-2 rounded-lg
+                  bg-inset hover:bg-line/30 transition-colors"
+                :class="collapsedGapGroups.has(grp.dimension) ? '' : 'mb-2'">
+                <span class="text-xs text-ink-faint font-mono transition-transform inline-block"
+                      :class="collapsedGapGroups.has(grp.dimension) ? '' : 'rotate-90'">▶</span>
+                <span class="text-sm font-medium text-ink">{{ grp.dimension }}</span>
+                <span class="text-xs text-ink-faint font-mono">{{ grp.items.length }} 项</span>
+              </button>
+              <ul v-show="!collapsedGapGroups.has(grp.dimension)"
+                  class="space-y-3 text-sm text-ink-sub px-3 pt-1">
+                <li v-for="(g, i) in grp.items" :key="i" class="flex gap-3 items-start">
+                  <span :class="severityColor(g.severity)" class="shrink-0 mt-0.5">△</span>
+                  <span class="flex-1">
+                    <span :class="severityColor(g.severity)" class="text-xs font-semibold">[{{
+                        g.severity || '-'
+                      }}]</span>
+                    {{ g.description }}
+                    <span v-if="g.is_inferred"
+                          class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-inset text-ink-sub align-middle">推断</span>
+                    <!-- RAG 证据引用（M11-A）：展示支撑该差距的简历原文 -->
+                    <span v-if="g.evidence && g.evidence.length" class="block mt-2 space-y-1.5">
+                      <span v-for="ev in g.evidence" :key="ev.id"
+                            class="block text-xs text-ink-sub rounded-lg px-3 py-2 border-l-2 border-accent/40 bg-accent/5">
+                        <span class="font-mono text-accent mr-1">[{{ ev.id }}]</span>{{ ev.text }}
+                      </span>
                     </span>
                   </span>
-                </span>
-              </li>
-              <li v-if="!gaps.length" class="text-gray-400 text-sm">暂无差距分析</li>
-            </ul>
-            <p v-if="gapSummary" class="mt-3 text-sm text-amber-700 leading-relaxed">{{ gapSummary }}</p>
+                </li>
+              </ul>
+            </div>
+            <div v-if="!gapsByDimension.length" class="text-ink-faint text-sm">
+              暂无差距分析
+            </div>
+            <p v-if="gapSummary" class="mt-3 text-sm text-warn leading-relaxed">{{ gapSummary }}</p>
           </div>
         </div>
 
-        <div class="bg-[#e0e5ec] rounded-2xl p-6
-          shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
-          <h2 class="text-base font-semibold text-gray-800 mb-4">改写建议</h2>
+        <div id="sec-suggestions" class="bg-panel border border-line rounded-lg p-6">
+          <h2 class="text-base font-semibold text-ink mb-4">改写建议</h2>
           <div class="space-y-4">
             <div v-for="(s, i) in suggestions" :key="i"
-                 class="p-5 rounded-xl bg-[#e0e5ec]
-                shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]">
-              <div class="text-xs text-gray-500 mb-2">{{ s.target }}</div>
-              <div class="text-sm text-gray-400 line-through mb-2">{{ s.original || '（新增内容）' }}</div>
-              <div class="text-sm text-gray-800 px-3 py-2 rounded-lg bg-[#6d5dfc]/10 border-l-2 border-[#6d5dfc]">
+                 class="p-5 rounded-lg bg-inset border border-line">
+              <div class="text-xs text-ink-sub mb-2">{{ s.target }}</div>
+              <div class="text-sm text-ink-faint line-through mb-2">{{ s.original || '（新增内容）' }}</div>
+              <div class="text-sm text-ink px-3 py-2 rounded-lg bg-accent/10 border-l-2 border-accent">
                 {{ s.rewritten }}
               </div>
-              <div class="text-xs text-gray-500 mt-3">💡 {{ s.reason }}</div>
-              <div v-if="s.evidence_ids && s.evidence_ids.length" class="text-xs text-gray-400 mt-1">
+              <div class="text-xs text-ink-sub mt-3">💡 {{ s.reason }}</div>
+              <div v-if="s.evidence_ids && s.evidence_ids.length" class="text-xs text-ink-faint mt-1">
                 📎 依据证据：{{ s.evidence_ids.join(' / ') }}
               </div>
             </div>
-            <div v-if="overallAdvice" class="p-5 rounded-xl bg-[#6d5dfc]/10 text-sm text-gray-800">
-              <span class="font-semibold text-[#6d5dfc]">整体建议：</span>{{ overallAdvice }}
+            <div v-if="overallAdvice" class="p-5 rounded-lg bg-accent/10 text-sm text-ink">
+              <span class="font-semibold text-accent">整体建议：</span>{{ overallAdvice }}
             </div>
           </div>
         </div>
@@ -264,95 +329,80 @@
       <div v-show="activeTab === 'optimize'">
 
         <div v-if="!optimizedResume && !optimizing"
-             class="bg-[#e0e5ec] rounded-2xl p-12
-            shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
+             class="bg-panel border border-line rounded-lg p-12">
           <div class="text-center mb-10">
-            <div class="inline-flex items-center justify-center w-20 h-20 rounded-3xl mb-6
-              bg-[#e0e5ec]
-              shadow-[inset_6px_6px_12px_#b8bcc2,inset_-6px_-6px_12px_#ffffff]">
+            <div class="inline-flex items-center justify-center w-20 h-20 rounded-lg mb-6
+              bg-inset border border-line">
               <span class="text-4xl">📝</span>
             </div>
-            <div class="text-lg font-semibold text-gray-800 mb-2">优化你的简历</div>
-            <p class="text-sm text-gray-600">选择优化模式</p>
+            <div class="text-lg font-semibold text-ink mb-2">优化你的简历</div>
+            <p class="text-sm text-ink-sub">选择优化模式</p>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-            <button @click="$router.push(`/chat/${taskId}`)"
-                    class="p-6 rounded-2xl text-left
-    bg-[#e0e5ec]
-    shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]
-    hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-    active:shadow-[inset_4px_4px_8px_#b8bcc2,inset_-4px_-4px_8px_#ffffff]
-    transition-all duration-300">
+            <button @click="$router.push(`/app/chat/${taskId}`)"
+                    class="p-6 rounded-lg text-left
+    bg-inset border border-line
+    hover:border-accent
+    transition-colors">
               <div class="text-2xl mb-3">💬</div>
-              <div class="font-semibold text-[#6d5dfc] mb-2">对答式优化</div>
-              <div class="text-xs text-gray-600 leading-relaxed">
+              <div class="font-semibold text-accent mb-2">对答式优化</div>
+              <div class="text-xs text-ink-sub leading-relaxed">
                 AI 追问 3-5 个关键信息，你补充后生成更精准的简历
               </div>
-              <div class="text-xs text-gray-400 mt-3">约 2 分钟，推荐</div>
+              <div class="text-xs text-ink-faint mt-3">约 2 分钟，推荐</div>
             </button>
 
             <button @click="quickGenerate" :disabled="optimizing"
-                    class="p-6 rounded-2xl text-left
-                bg-[#e0e5ec]
-                shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]
-                hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-                active:shadow-[inset_4px_4px_8px_#b8bcc2,inset_-4px_-4px_8px_#ffffff]
-                transition-all duration-300">
+                    class="p-6 rounded-lg text-left
+                bg-inset border border-line
+                hover:border-accent
+                transition-colors">
               <div class="text-2xl mb-3">⚡</div>
-              <div class="font-semibold text-gray-700 mb-2">快速生成</div>
-              <div class="text-xs text-gray-600 leading-relaxed">
+              <div class="font-semibold text-ink mb-2">快速生成</div>
+              <div class="text-xs text-ink-sub leading-relaxed">
                 直接基于诊断结果生成优化简历
               </div>
-              <div class="text-xs text-gray-400 mt-3">约 30 秒</div>
+              <div class="text-xs text-ink-faint mt-3">约 30 秒</div>
             </button>
           </div>
         </div>
 
         <div v-else-if="optimizing"
-             class="bg-[#e0e5ec] rounded-2xl p-16 text-center
-            shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
+             class="bg-panel border border-line rounded-lg p-16 text-center">
           <div class="inline-block relative mb-8">
-            <div class="w-16 h-16 rounded-2xl bg-[#e0e5ec]
-              shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]"></div>
+            <div class="w-16 h-16 rounded-lg bg-inset border border-line"></div>
             <div
-                class="absolute inset-0 w-16 h-16 rounded-2xl border-4 border-transparent border-t-[#6d5dfc] animate-spin"></div>
+                class="absolute inset-0 w-16 h-16 rounded-lg border-4 border-transparent border-t-accent animate-spin"></div>
           </div>
-          <div class="text-base font-semibold text-gray-800 mb-2">
+          <div class="text-base font-semibold text-ink mb-2">
             {{ 'AI 正在重写简历...' }}
           </div>
-          <div class="text-sm text-gray-500">{{ '约 30 秒，请稍候' }}</div>
+          <div class="text-sm text-ink-sub">{{ '约 30 秒，请稍候' }}</div>
         </div>
 
         <div v-else-if="optimizedResume" class="space-y-6">
           <div class="flex items-center justify-between flex-wrap gap-4">
             <div>
-              <h2 class="text-lg font-semibold text-gray-800">优化后的简历</h2>
-              <p class="text-xs text-gray-500 mt-1">点击编辑可自定义内容，再导出</p>
+              <h2 class="text-lg font-semibold text-ink">优化后的简历</h2>
+              <p class="text-xs text-ink-sub mt-1">点击编辑可自定义内容，再导出</p>
             </div>
             <div class="flex gap-2">
-              <RouterLink :to="`/chat/${taskId}`"
-                          class="flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl
-    bg-[#6d5dfc] text-white
-    shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-    hover:shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]
-    transition-all duration-300">
+              <RouterLink :to="`/app/chat/${taskId}`"
+                          class="flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg
+    bg-accent text-white hover:bg-accent-hover transition-colors">
                 💬 对答式优化
               </RouterLink>
-              <RouterLink :to="`/editor/${taskId}`"
-                          class="flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl
-    bg-[#e0e5ec] text-gray-700
-    shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-    hover:shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]
-    transition-all duration-300">
+              <RouterLink :to="`/app/editor/${taskId}`"
+                          class="flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg
+    bg-panel border border-line text-ink-sub
+    hover:border-line-strong hover:text-ink transition-colors">
                 ✏️ 编辑
               </RouterLink>
               <button @click="downloadDocx" :disabled="downloading"
-                      class="flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl
-                  bg-[#6d5dfc] text-white
-                  shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-                  hover:shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]
-                  disabled:opacity-50">
+                      class="flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg
+                  bg-accent text-white hover:bg-accent-hover
+                  disabled:opacity-50 transition-colors">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
@@ -362,22 +412,21 @@
             </div>
           </div>
 
-          <div class="bg-[#e0e5ec] rounded-2xl p-6
-            shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
-            <div class="text-xs font-medium text-gray-500 mb-3">选择模板</div>
+          <div class="bg-panel border border-line rounded-lg p-6">
+            <div class="text-xs font-medium text-ink-sub mb-3">选择模板</div>
             <div class="flex gap-2 flex-wrap">
               <button v-for="t in templates" :key="t.key"
                       @click="currentTemplate = t.key"
-                      class="px-5 py-2.5 text-sm font-medium rounded-xl transition-all duration-300"
+                      class="px-5 py-2.5 text-sm font-medium rounded-lg transition-colors"
                       :class="currentTemplate === t.key
-                  ? 'bg-[#e0e5ec] text-[#6d5dfc] shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]'
-                  : 'bg-[#e0e5ec] text-gray-600 shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]'">
+                  ? 'bg-accent/10 text-accent'
+                  : 'bg-inset border border-line text-ink-sub hover:text-ink'">
                 {{ t.label }}
               </button>
             </div>
           </div>
 
-          <div class="rounded-xl bg-[#d1d5db] p-4 md:p-6 overflow-auto">
+          <div class="rounded-lg bg-inset border border-line p-4 md:p-6 overflow-auto">
             <div class="mx-auto bg-white shadow-lg"
                  style="max-width: 720px; min-height: 500px; padding: 40px 44px;">
               <div :class="`resume-paper ${currentTemplate}`">
@@ -409,56 +458,60 @@
         </div>
       </div>
 
-      <!-- ============ Tab 3: 面试准备 ============ -->
-      <div v-show="activeTab === 'interview'"
-           class="bg-[#e0e5ec] rounded-2xl p-16 text-center
-          shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
-        <div class="inline-flex items-center justify-center w-24 h-24 rounded-3xl mb-6
-          bg-[#e0e5ec]
-          shadow-[inset_6px_6px_12px_#b8bcc2,inset_-6px_-6px_12px_#ffffff]">
-          <span class="text-4xl">🎤</span>
-        </div>
-        <div class="text-lg font-semibold text-gray-800 mb-2">面试准备</div>
-        <p class="text-sm text-gray-600 max-w-md mx-auto">
-          基于简历与目标岗位，AI 生成面试官可能的问题、考察点与回答提示。
-          <br/>
-          <span class="text-xs text-[#6d5dfc]">即将上线</span>
-        </p>
-      </div>
-
-      <!-- ============ Tab 4: 模拟面试 ============ -->
-      <div v-show="activeTab === 'mock'"
-           class="bg-[#e0e5ec] rounded-2xl p-16 text-center
-          shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
-        <div class="inline-flex items-center justify-center w-24 h-24 rounded-3xl mb-6
-          bg-[#e0e5ec]
-          shadow-[inset_6px_6px_12px_#b8bcc2,inset_-6px_-6px_12px_#ffffff]">
-          <span class="text-4xl">🎬</span>
-        </div>
-        <div class="text-lg font-semibold text-gray-800 mb-2">模拟面试</div>
-        <p class="text-sm text-gray-600 max-w-md mx-auto">
-          与 AI 面试官实时对话，模拟真实面试场景。
-          <br/>
-          <span class="text-xs text-[#6d5dfc]">即将上线</span>
-        </p>
+      <!-- ============ Tab 3: 面试（M31：准备 + 模拟合并为 InterviewPanel，独立页复用） ============ -->
+      <div v-if="activeTab === 'interview'">
+        <InterviewPanel :task-id="taskId" />
       </div>
 
     </div>
 
     <!-- 失败 -->
-    <div v-else-if="status === 'failed'"
-         class="max-w-2xl mx-auto bg-[#e0e5ec] rounded-2xl p-12 text-center mt-12
-        shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
-      <div class="text-5xl mb-4">⚠️</div>
-      <div class="text-base text-gray-700 mb-6">{{ errorMsg }}</div>
-      <RouterLink to="/analyze"
-                  class="inline-block px-6 py-3 text-sm font-medium rounded-xl
-          bg-[#6d5dfc] text-white
-          shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]
-          hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-          transition-all duration-300">
-        返回重试
-      </RouterLink>
+    <div v-else-if="status === 'failed'" class="max-w-2xl mx-auto mt-12">
+
+      <!-- B1：部分结果保留——显示已完成节点产出，支持留在本页断点重试 -->
+      <div v-if="partialResult" class="bg-panel border border-line rounded-lg p-6 mb-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-8 h-8 rounded-lg bg-warn/10 flex items-center justify-center text-warn">!
+          </div>
+          <h2 class="text-base font-semibold text-ink">已产出的部分结果（未丢弃）</h2>
+        </div>
+        <div class="flex items-center gap-6 flex-wrap text-sm">
+          <div v-if="partialResult.diagnosis?.scores?.overall" class="flex items-baseline gap-2">
+            <span class="text-ink-sub text-xs">六维评分</span>
+            <span class="text-xl font-semibold text-ok font-mono">✓
+              {{ partialResult.diagnosis.scores.overall }} 分</span>
+          </div>
+          <div v-if="partialResult.diagnosis?.gaps?.length" class="flex items-baseline gap-2">
+            <span class="text-ink-sub text-xs">差距分析</span>
+            <span class="text-lg font-semibold text-ok font-mono">✓
+              {{ partialResult.diagnosis.gaps.length }} 项</span>
+          </div>
+          <div v-if="partialResult.diagnosis?.suggestions?.length" class="flex items-baseline gap-2">
+            <span class="text-ink-sub text-xs">改写建议</span>
+            <span class="text-lg font-semibold text-ok font-mono">✓
+              {{ partialResult.diagnosis.suggestions.length }} 条</span>
+          </div>
+        </div>
+        <p class="text-xs text-ink-faint mt-3">
+          重试将从上次失败处继续，已完成的节点不会重跑（不重复消耗 API 费用）
+        </p>
+      </div>
+
+      <EmptyState type="error" title="诊断任务失败" :desc="errorMsg || '任务执行出错，请重试'">
+        <div class="flex items-center justify-center gap-3">
+          <button @click="retryTask" :disabled="retrying"
+            class="inline-block px-6 py-2.5 text-sm font-medium rounded-lg
+              bg-accent text-white hover:bg-accent-hover disabled:opacity-50
+              transition-colors">
+            {{ retrying ? '正在重试...' : (partialResult ? '🔁 从失败处继续' : '重试') }}
+          </button>
+          <RouterLink to="/app/analyze"
+                      class="inline-block px-6 py-2.5 text-sm font-medium rounded-lg
+              bg-panel border border-line text-ink-sub hover:text-ink transition-colors">
+            重新发起
+          </RouterLink>
+        </div>
+      </EmptyState>
     </div>
 
   </div>
@@ -466,12 +519,15 @@
 
 <script setup>
 import {ref, reactive, computed, onMounted, onUnmounted, nextTick, watch} from 'vue'
-import {useRoute, RouterLink} from 'vue-router'
-import {Message} from '@arco-design/web-vue'
-import * as echarts from 'echarts'
+import {useRoute, useRouter, RouterLink} from 'vue-router'
+import {Message, Modal} from '@arco-design/web-vue'
 import api from '../api'
+import EmptyState from '../components/EmptyState.vue'
+import RadarChart from '../components/RadarChart.vue'
+import InterviewPanel from '../components/InterviewPanel.vue'
 
 const route = useRoute()
+const router = useRouter()
 const taskId = route.params.taskId
 
 const status = ref('running')
@@ -479,7 +535,27 @@ const message = ref('')
 const progress = ref(0)
 const result = ref({})
 const errorMsg = ref('')
-const chartRef = ref(null)
+// B1：失败任务保留的部分结果（scores/gaps/suggestions 已完成的项）
+const partialResult = ref(null)
+const retrying = ref(false)
+
+async function retryTask() {
+  retrying.value = true
+  try {
+    await api.retryLive(taskId)
+    Message.success('已从上次失败处继续，已完成节点不重跑')
+    partialResult.value = null
+    errorMsg.value = ''
+    status.value = 'running'
+    message.value = '正在从上次失败处继续...'
+    progress.value = 55
+    startTracking()  // 重新接入 SSE/轮询
+  } catch (e) {
+    Message.error(e.response?.data?.detail || '重试失败')
+  } finally {
+    retrying.value = false
+  }
+}
 
 const activeTab = ref('diagnosis')
 const currentTemplate = ref('classic')
@@ -536,13 +612,36 @@ function loadClarifyDraft() {
   } catch { /* 草稿损坏则忽略 */ }
 }
 
+async function abandonTask() {
+  Modal.confirm({
+    title: '放弃此诊断任务？',
+    content: '放弃后该任务不再占用「进行中」名额，可直接发起新诊断；已生成的部分结果不会保留。',
+    okText: '放弃任务',
+    cancelText: '再想想',
+    onOk: async () => {
+      try {
+        await api.abandonTask(route.params.taskId)
+        Message.success('已放弃该任务')
+        router.push('/app/analyze')
+      } catch (e) {
+        Message.error(e.response?.data?.detail || '操作失败')
+      }
+    },
+  })
+}
+
 async function submitClarify() {
   const answers = {}
   Object.entries(clarifyAnswers).forEach(([k, v]) => {
     if (v && String(v).trim()) answers[k] = String(v).trim()
   })
   if (!Object.keys(answers).length) {
-    Message.warning('请至少回答一个问题')
+    // C3：逐条指出哪几题空着
+    const empty = clarifyQuestions.value
+      .map((q, i) => ({ i: i + 1, answered: !!(clarifyAnswers[q.id || `q${i + 1}`] || '').trim() }))
+      .filter(x => !x.answered)
+      .map(x => `追问 ${x.i}`)
+    Message.warning(empty.length ? `请至少回答一个问题：${empty.join('、')} 还空着` : '请至少回答一个问题')
     return
   }
   clarifySubmitting.value = true
@@ -589,12 +688,12 @@ function isStageActive(stageKey) {
 
 function stageStatusClass(stageKey) {
   if (isStageDone(stageKey)) {
-    return 'bg-green-50 text-green-600 shadow-[inset_2px_2px_4px_#b8bcc2,inset_-2px_-2px_4px_#ffffff]'
+    return 'bg-ok/10 text-ok'
   }
   if (isStageActive(stageKey)) {
-    return 'bg-[#6d5dfc]/10 text-[#6d5dfc] shadow-[inset_2px_2px_4px_#b8bcc2,inset_-2px_-2px_4px_#ffffff]'
+    return 'bg-accent/10 text-accent'
   }
-  return 'bg-[#e0e5ec] text-gray-400 shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]'
+  return 'bg-inset text-ink-faint'
 }
 
 watch(logs, () => {
@@ -608,8 +707,7 @@ watch(logs, () => {
 const tabs = [
   {key: 'diagnosis', label: '诊断报告', icon: '📊'},
   {key: 'optimize', label: '优化简历', icon: '📝'},
-  {key: 'interview', label: '面试准备', icon: '🎤'},
-  {key: 'mock', label: '模拟面试', icon: '🎬'},
+  {key: 'interview', label: '面试', icon: '🎤'},
 ]
 
 const templates = [
@@ -625,9 +723,144 @@ const templates = [
 
 let pollTimer = null
 let es = null
-let chart = null
 
 const scores = computed(() => result.value.diagnosis?.scores || {})
+
+// 雷达图数据（M20 抽取 RadarChart 组件，历史对比页复用）
+const DIM_KEYS = ['completeness', 'quantification', 'star_structure',
+  'skill_match', 'achievement', 'readability']
+
+const radarSeries = computed(() => [
+  { name: '本次诊断', values: DIM_KEYS.map(k => scores.value[k]?.score || 0) },
+])
+
+// ---- M20 A3：重诊上下文（resume 关联 + parent 溯源） ----
+const resumeId = ref(null)
+const resumeName = ref('')
+const parentTaskId = ref('')
+const reanalyzing = ref(false)
+const exportingReport = ref(false)
+const deltaInfo = ref(null)
+
+async function loadDeltaInfo() {
+  deltaInfo.value = null
+  const parent = parentTaskId.value
+  if (!parent) return
+  try {
+    const res = await api.getHistoryDetail(parent)
+    const rec = res.data
+    if (rec.status !== 'success' || !rec.result) return
+    const prev = rec.result?.diagnosis?.scores?.overall
+    const cur = result.value.diagnosis?.scores?.overall
+    if (typeof prev === 'number' && typeof cur === 'number') {
+      deltaInfo.value = { delta: cur - prev, prev }
+    }
+  } catch (e) { /* 父记录不存在则不显示增量 */ }
+}
+
+async function reanalyze() {
+  if (!resumeId.value) return
+  reanalyzing.value = true
+  try {
+    let cfg = null
+    try {
+      const c = JSON.parse(localStorage.getItem('llm_config') || '{}')
+      if (c.api_key) cfg = c
+    } catch (e) { /* 忽略配置解析失败 */ }
+    const res = await api.startLiveAnalyze({
+      resume_id: resumeId.value,
+      jd_text: result.value.jd_text || '',
+      resume_name: resumeName.value || '',
+      llm_config: cfg,
+      parent_task_id: taskId,
+    })
+    Message.success('已发起重新诊断，沿用同一岗位 JD')
+    router.push(`/app/result/${res.data.task_id}`)
+  } catch (e) {
+    Message.error('发起失败：' + (e.response?.data?.detail || e.message))
+  } finally {
+    reanalyzing.value = false
+  }
+}
+
+// ---- M20 A2：报告导出（Word / PDF 打印） ----
+async function exportReportWord() {
+  exportingReport.value = true
+  try {
+    const res = await api.exportReport(taskId)
+    const url = URL.createObjectURL(new Blob([res.data], {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `诊断报告_${result.value.keyword || taskId}.docx`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    Message.success('报告已下载，可在导出历史中查看记录')
+  } catch (e) {
+    let detail = e.message
+    if (e.response?.data instanceof Blob) {
+      try { detail = JSON.parse(await e.response.data.text()).detail || detail } catch { /* 保留原信息 */ }
+    }
+    Message.error('导出失败：' + detail)
+  } finally {
+    exportingReport.value = false
+  }
+}
+
+function exportReportPdf() {
+  // 打印前切亮色主题（保证纸面可读），打印后恢复
+  const html = document.documentElement
+  const prevTheme = html.getAttribute('data-theme')
+  html.setAttribute('data-theme', 'light')
+  document.body.classList.add('printing-report')
+  const cleanup = () => {
+    document.body.classList.remove('printing-report')
+    if (prevTheme) html.setAttribute('data-theme', prevTheme)
+    window.removeEventListener('afterprint', cleanup)
+  }
+  window.addEventListener('afterprint', cleanup)
+  window.print()
+  setTimeout(cleanup, 1500)
+}
+
+// ---- M20 D3：吸顶摘要条锚点 ----
+const anchors = [
+  { id: 'sec-scores', label: '评分' },
+  { id: 'sec-strengths', label: '优势' },
+  { id: 'sec-gaps', label: '差距' },
+  { id: 'sec-suggestions', label: '建议' },
+]
+
+function scrollTo(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+// ---- M20 D3：差距按维度分组折叠 ----
+const gapsByDimension = computed(() => {
+  const groups = []
+  const map = new Map()
+  for (const g of gaps.value) {
+    const dim = g.dimension || '其他'
+    if (!map.has(dim)) {
+      map.set(dim, { dimension: dim, items: [] })
+      groups.push(map.get(dim))
+    }
+    map.get(dim).items.push(g)
+  }
+  return groups
+})
+
+const collapsedGapGroups = ref(new Set())
+
+function toggleGapGroup(dim) {
+  const s = new Set(collapsedGapGroups.value)
+  if (s.has(dim)) s.delete(dim)
+  else s.add(dim)
+  collapsedGapGroups.value = s
+}
 
 const optimizedResume = computed(() =>
     optimizedResumeLocal.value || result.value.diagnosis?.optimized_resume || null
@@ -660,9 +893,9 @@ const suggestions = computed(() => result.value.diagnosis?.suggestions || [])
 const overallAdvice = computed(() => result.value.diagnosis?.overall_advice || '')
 
 function severityColor(sev) {
-  if (sev === 'high') return 'text-red-500'
-  if (sev === 'medium') return 'text-amber-600'
-  return 'text-gray-500'
+  if (sev === 'high') return 'text-bad'
+  if (sev === 'medium') return 'text-warn'
+  return 'text-ink-sub'
 }
 
 function handleTaskData(t) {
@@ -671,6 +904,10 @@ function handleTaskData(t) {
   progress.value = t.progress
   runningStage.value = t.stage || '准备中'
   if (typeof t.refine === 'boolean') refineEnabled.value = t.refine
+  // M20：重诊上下文（SSE 与轮询 payload 均携带）
+  if ('resume_id' in t) resumeId.value = t.resume_id ?? null
+  if ('resume_name' in t) resumeName.value = t.resume_name || ''
+  if ('parent_task_id' in t) parentTaskId.value = t.parent_task_id || ''
   if (t.status === 'running' || t.status === 'pending') startElapsed()
   if (Array.isArray(t.questions) && t.questions.length) {
     clarifyQuestions.value = t.questions
@@ -684,9 +921,11 @@ function handleTaskData(t) {
   if (t.status === 'success') {
     result.value = t.result
     stopTracking()
-    nextTick(() => renderChart())
+    nextTick(() => loadDeltaInfo())
   } else if (t.status === 'failed') {
     errorMsg.value = t.error || '任务失败'
+    // B1：失败但带部分结果（result 与 error 并存）
+    if (t.result && t.result.partial) partialResult.value = t.result
     stopTracking()
   }
 }
@@ -707,14 +946,20 @@ async function fallbackToHistory() {
   try {
     const hres = await api.getHistoryDetail(taskId)
     const record = hres.data
+    // M20：历史回退路径同样恢复重诊上下文
+    resumeId.value = record.resume_id ?? null
+    resumeName.value = record.resume_name || ''
+    parentTaskId.value = record.parent_task_id || ''
     if (record.status === 'success' && record.result) {
       status.value = 'success'
       result.value = record.result
       await nextTick()
-      renderChart()
+      loadDeltaInfo()
     } else {
       status.value = 'failed'
       errorMsg.value = record.error || '任务已过期'
+      // B1：重启后恢复失败任务的 partialResult 展示
+      if (record.result && record.result.partial) partialResult.value = record.result
     }
   } catch (err) {
     status.value = 'failed'
@@ -819,49 +1064,12 @@ async function downloadDocx() {
   }
 }
 
-function renderChart() {
-  if (!chartRef.value) return
-  chart = echarts.init(chartRef.value)
-  const s = scores.value
-  const dims = [
-    {key: 'completeness', name: '信息完整'},
-    {key: 'quantification', name: '量化成果'},
-    {key: 'star_structure', name: 'STAR 结构'},
-    {key: 'skill_match', name: '技能含金量'},
-    {key: 'achievement', name: '业绩亮点'},
-    {key: 'readability', name: '可读性'},
-  ]
-  const values = dims.map(d => s[d.key]?.score || 0)
-
-  chart.setOption({
-    radar: {
-      indicator: dims.map(d => ({name: d.name, max: 100})),
-      splitNumber: 5,
-      axisName: {color: '#6b7280', fontSize: 12, fontWeight: 500},
-      splitLine: {lineStyle: {color: '#b8bcc2'}},
-      splitArea: {areaStyle: {color: ['#e0e5ec', '#e8ecf2']}},
-      axisLine: {lineStyle: {color: '#b8bcc2'}},
-    },
-    series: [{
-      type: 'radar',
-      data: [{
-        value: values,
-        areaStyle: {color: 'rgba(109, 93, 252, 0.2)'},
-        lineStyle: {color: '#6d5dfc', width: 2},
-        itemStyle: {color: '#6d5dfc'},
-      }],
-    }],
-  })
-}
-
 onMounted(() => {
   startTracking()
-  window.addEventListener('resize', () => chart?.resize())
 })
 
 onUnmounted(() => {
   stopTracking()
-  chart?.dispose()
 })
 </script>
 

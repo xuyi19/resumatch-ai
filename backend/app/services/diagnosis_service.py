@@ -36,6 +36,19 @@ def _collect_stream(graph, graph_input, config) -> list:
     return list(graph.stream(graph_input, config, stream_mode="updates"))
 
 
+class DiagnosisPartialError(Exception):
+    """B1：诊断中断但已有部分结果（失败保留部分结果）。
+
+    partial 为已完成节点的结果摘要（scores/gaps/suggestions 等非空项），
+    cause 为原始异常。仅在交互模式（有 checkpointer）下产生。
+    """
+
+    def __init__(self, partial: dict, cause: Exception):
+        self.partial = partial
+        self.cause = cause
+        super().__init__(str(cause))
+
+
 class DiagnosisService:
     async def diagnose(
         self,
@@ -70,18 +83,50 @@ class DiagnosisService:
             }
 
         graph = _get_interactive_graph() if thread_id else diagnosis_graph
-        base = completed_offset
-        completed = 0
-        final_state: dict = {}
 
         if thread_id:
-            chunks = await asyncio.to_thread(_collect_stream, graph, graph_input, config)
-        else:
-            chunks = [
-                chunk async for chunk in graph.astream(graph_input, stream_mode="updates")
-            ]
+            try:
+                return await self._run_interactive(graph, graph_input, config,
+                                                   base=completed_offset,
+                                                   on_progress=on_progress)
+            except DiagnosisPartialError:
+                raise
+            except Exception as e:
+                # B1：图执行中断 → 从 checkpointer 快照恢复已完成节点结果
+                partial = self._partial_from_snapshot(graph, config)
+                raise DiagnosisPartialError(partial, e) from e
 
+        # 离线模式（无 checkpointer）：失败无部分结果可救
+        chunks = [chunk async for chunk in graph.astream(graph_input, stream_mode="updates")]
+        final_state: dict = {}
+        completed = 0
+        for chunk in chunks:
+            if "__interrupt__" in chunk:
+                continue
+            for node, update in chunk.items():
+                if not update:
+                    continue
+                for key, value in update.items():
+                    if key == "messages":
+                        final_state.setdefault("messages", []).extend(value)
+                    else:
+                        final_state[key] = value
+                if node in NODE_STAGES:
+                    completed += 1
+                    if on_progress:
+                        try:
+                            on_progress(completed, len(NODE_STAGES), NODE_STAGES[node])
+                        except Exception:
+                            pass
+        return self._extract(final_state, paused=False)
+
+    async def _run_interactive(self, graph, graph_input, config, base=0, on_progress=None) -> dict:
+        """交互模式：流式收集 + 快照补全 + 组装（diagnose 与断点续跑共用）。"""
+        chunks = await asyncio.to_thread(_collect_stream, graph, graph_input, config)
+        completed = 0
+        final_state: dict = {}
         paused = False
+
         for chunk in chunks:
             if "__interrupt__" in chunk:  # clarify_wait 暂停标记，非节点更新
                 paused = True
@@ -103,18 +148,20 @@ class DiagnosisService:
                         except Exception:
                             pass
 
-        if thread_id:
-            # 交互模式：以 checkpointer 快照为准（恢复执行时 updates 只含后半程节点）
-            snapshot = graph.get_state(config)
-            values = snapshot.values or {}
-            for key, value in values.items():
-                if key != "messages":  # messages 以流式累加为准（含暂停前后全部）
-                    final_state[key] = value
-            final_state.setdefault("messages", [])
-            paused = paused or bool(snapshot.next)  # 待执行节点非空 → 在 clarify_wait 暂停
+        # 以 checkpointer 快照为准（恢复执行时 updates 只含后半程节点）
+        snapshot = graph.get_state(config)
+        values = snapshot.values or {}
+        for key, value in values.items():
+            if key != "messages":  # messages 以流式累加为准（含暂停前后全部）
+                final_state[key] = value
+        final_state.setdefault("messages", [])
+        paused = paused or bool(snapshot.next)  # 待执行节点非空 → 在 clarify_wait 暂停
 
+        return self._extract(final_state, paused=paused)
+
+    @staticmethod
+    def _extract(final_state: dict, paused: bool) -> dict:
         questions = final_state.get("clarify_questions") or []
-
         return {
             "parsed": final_state.get("parsed", {}),
             "job_analysis": final_state.get("job_analysis", {}),
@@ -128,6 +175,46 @@ class DiagnosisService:
             "waiting": paused and bool(questions),
             "clarify_questions": questions,
         }
+
+    def _partial_from_snapshot(self, graph, config) -> dict:
+        """B1：从 checkpointer 快照提取已完成节点的非空结果。"""
+        try:
+            values = graph.get_state(config).values or {}
+        except Exception:
+            return {}
+        partial = {}
+        for key in ("scores", "gaps", "gap_summary", "suggestions",
+                    "overall_advice", "job_analysis", "parsed"):
+            value = values.get(key)
+            if value:
+                partial[key] = value
+        return partial
+
+    def has_checkpoint(self, thread_id: str) -> bool:
+        """B1：判断该任务是否有可恢复的 graph 快照（重试前置校验）。"""
+        return self.snapshot_values(thread_id) is not None
+
+    def snapshot_values(self, thread_id: str) -> dict | None:
+        """B1：取 graph 快照 values（无快照返回 None），供重试时恢复上下文。"""
+        graph = _get_interactive_graph()
+        try:
+            snapshot = graph.get_state({"configurable": {"thread_id": thread_id}})
+            return dict(snapshot.values) if snapshot.values else None
+        except Exception:
+            return None
+
+    async def resume_after_error(self, thread_id: str, on_progress=None) -> dict:
+        """B1：失败任务从 checkpointer 断点续跑（input=None），不重跑已完成节点。"""
+        graph = _get_interactive_graph()
+        config = {"configurable": {"thread_id": thread_id}}
+        # 断点续跑与首跑共用收集逻辑；异常同样转 DiagnosisPartialError
+        try:
+            return await self._run_interactive(graph, None, config)
+        except DiagnosisPartialError:
+            raise
+        except Exception as e:
+            partial = self._partial_from_snapshot(graph, config)
+            raise DiagnosisPartialError(partial, e) from e
 
     async def release_thread(self, thread_id: str):
         """任务终态后释放 checkpointer 内存快照。"""

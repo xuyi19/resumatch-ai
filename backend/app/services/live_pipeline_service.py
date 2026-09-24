@@ -8,7 +8,11 @@ from sqlalchemy import select
 
 from app.core.db import AsyncSessionLocal
 from app.models.entities import DiagnosisRecord
-from app.services.diagnosis_service import DiagnosisService, NODE_STAGES
+from app.services.diagnosis_service import (
+    DiagnosisPartialError,
+    DiagnosisService,
+    NODE_STAGES,
+)
 
 # 内存任务表（前端轮询/SSE 用）；完成条目超过 TTL 后惰性清理
 TASKS: dict[str, dict] = {}
@@ -38,6 +42,7 @@ class LivePipelineService:
         resume_name: str = "",
         owner_id: str = "local",
         enable_refine: bool = True,
+        parent_task_id: str | None = None,
     ) -> str:
         _cleanup_expired_tasks()
         task_id = uuid4().hex[:12]
@@ -53,6 +58,7 @@ class LivePipelineService:
             "resume_name": resume_name,
             "owner_id": owner_id,
             "refine": enable_refine,
+            "parent_task_id": parent_task_id,
             "result": None,
             "error": None,
         }
@@ -65,15 +71,94 @@ class LivePipelineService:
 
     # 视为「进行中」的状态：新诊断发起前用于重复防护
     _ACTIVE_STATUSES = ("pending", "running", "waiting_clarify")
+    # waiting_clarify 超过该时长视为废弃（用户不会回来回答了），不再阻塞新诊断
+    _WAITING_STALE_SECONDS = 24 * 3600
+
+    @classmethod
+    def get_active_task(cls, owner_id: str) -> dict | None:
+        """该用户当前未完成的任务（409 响应带出 id，前端可引导跳转/放弃）。"""
+        _cleanup_expired_tasks()
+        for t in TASKS.values():
+            if t.get("owner_id") == owner_id and t.get("status") in cls._ACTIVE_STATUSES:
+                return t
+        return None
 
     @classmethod
     def has_active_task(cls, owner_id: str) -> bool:
         """该用户是否已有未完成的诊断任务（防重复发起浪费 LLM 调用）。"""
-        _cleanup_expired_tasks()
-        return any(
-            t.get("owner_id") == owner_id and t.get("status") in cls._ACTIVE_STATUSES
-            for t in TASKS.values()
-        )
+        return cls.get_active_task(owner_id) is not None
+
+    @classmethod
+    async def expire_stale_waiting(cls) -> int:
+        """启动补偿补充：长时间无人应答的 waiting_clarify 自动作废（DB + 内存），
+        避免旧追问永久占用「进行中」名额导致无法发起新诊断。"""
+        now = time.time()
+        stale_ids = []
+        for tid, t in TASKS.items():
+            if t.get("status") != "waiting_clarify":
+                continue
+            try:
+                age = now - datetime.fromisoformat(t.get("created_at") or "").timestamp()
+            except (ValueError, TypeError):
+                continue
+            if age > cls._WAITING_STALE_SECONDS:
+                stale_ids.append(tid)
+        for tid in stale_ids:
+            TASKS.pop(tid, None)
+            await cls._save_failed(tid, "追问超过 24 小时未回答，任务已自动作废")
+        return len(stale_ids)
+
+    @classmethod
+    async def abandon_task(cls, task_id: str, owner_id: str) -> bool:
+        """用户主动放弃未完成任务：内存 + DB 双清，立即释放「进行中」名额。
+
+        任务刚创建还在 pending（DB 记录由 run() 落库，可能尚未写入）时也允许放弃：
+        以内存任务为准，同时用 abandoned 标记阻断 run() 的后续落库（防复活）。
+        """
+        task = TASKS.get(task_id)
+        if task and task.get("owner_id") and task["owner_id"] != owner_id:
+            return False
+        if task and task.get("status") not in cls._ACTIVE_STATUSES:
+            return False  # 已终态（成功/失败/已放弃）的任务无需重复放弃
+        if task is None:
+            # 内存无快照（服务重启过）：只能依据 DB 记录判断
+            async with AsyncSessionLocal() as session:
+                res = await session.execute(
+                    select(DiagnosisRecord).where(DiagnosisRecord.task_id == task_id)
+                )
+                rec = res.scalar_one_or_none()
+                if rec is None:
+                    return False
+                if rec.owner_id and rec.owner_id != owner_id:
+                    return False
+                if rec.status not in cls._ACTIVE_STATUSES:
+                    return False  # 已终态的任务无需放弃
+                rec.status = "failed"
+                rec.error = "用户主动放弃该任务"
+                rec.finished_at = datetime.now()
+                await session.commit()
+            return True
+
+        task.update({
+            "status": "failed",
+            "error": "用户主动放弃该任务",
+            "finished_at": time.time(),
+            "abandoned": True,
+        })
+        # DB 已有记录则同步终态（run() 尚未落库时跳过，run() 被 abandoned 标记阻断）
+        async with AsyncSessionLocal() as session:
+            res = await session.execute(
+                select(DiagnosisRecord).where(DiagnosisRecord.task_id == task_id)
+            )
+            rec = res.scalar_one_or_none()
+            if rec and rec.status in cls._ACTIVE_STATUSES:
+                if rec.owner_id and rec.owner_id != owner_id:
+                    return False
+                rec.status = "failed"
+                rec.error = "用户主动放弃该任务"
+                rec.finished_at = datetime.now()
+                await session.commit()
+        return True
 
     @staticmethod
     async def get_task_from_db(task_id: str, owner_id: str | None = None) -> dict | None:
@@ -93,6 +178,10 @@ class LivePipelineService:
                 "message": "",
                 "logs": rec.logs or [],
                 "refine": True,
+                # M20：前端重诊/增量对比需要简历 id 与来源任务链
+                "resume_id": rec.resume_id,
+                "resume_name": rec.resume_name or "",
+                "parent_task_id": rec.parent_task_id,
             }
             if rec.status == "success":
                 data["result"] = rec.result
@@ -103,6 +192,9 @@ class LivePipelineService:
     @staticmethod
     def _update(task_id: str, **kwargs):
         if task_id not in TASKS:
+            return
+        # 用户已放弃的任务：不再接受任何状态/进度更新（防止 run() 在途时复活任务）
+        if TASKS[task_id].get("abandoned"):
             return
         TASKS[task_id].update(kwargs)
 
@@ -152,8 +244,27 @@ class LivePipelineService:
         loop.create_task(_flush())
 
     @staticmethod
-    async def _save_failed(task_id: str, error: str):
+    async def _save_failed(task_id: str, error: str,
+                           partial: dict | None = None,
+                           city: str = "", jd_text: str = ""):
+        """失败落库。partial 非空时（B1）把已完成节点的部分结果与 error 并存落库。"""
         task = TASKS.get(task_id) or {}
+        if task.get("abandoned"):
+            return  # 用户已放弃，DB 终态已写，不覆写
+        partial_result = None
+        if partial:
+            summary = (partial.get("job_analysis") or {}).get("summary", "").strip()
+            job_title = summary[:24] if summary else "用户输入"
+            partial_result = {
+                "keyword": job_title,
+                "city": city,
+                "jd_text": jd_text,
+                "diagnosis_target": {
+                    "job_id": 0, "title": job_title, "company": "", "city": city,
+                },
+                "diagnosis": partial,
+                "partial": True,  # 前端识别：这是失败任务的部分结果
+            }
         async with AsyncSessionLocal() as session:
             result = await session.execute(
                 select(DiagnosisRecord).where(DiagnosisRecord.task_id == task_id)
@@ -165,6 +276,8 @@ class LivePipelineService:
                 rec.stage = task.get("stage", "")
                 rec.progress = task.get("progress", 0)
                 rec.logs = task.get("logs", [])
+                if partial_result:
+                    rec.result = partial_result
                 await session.commit()
 
     @classmethod
@@ -184,6 +297,10 @@ class LivePipelineService:
         由 /live/clarify 提交回答后经 cls.resume() 恢复执行。
         """
         info = TASKS.get(task_id) or {}
+        # 用户在任务启动瞬间放弃：直接终止，不创建 DB 记录、不跑 LLM
+        if info.get("abandoned"):
+            logger.info(f"[{task_id}] 任务已被用户放弃，跳过执行")
+            return
         owner_id = info.get("owner_id", "local")
         resume_id = info.get("resume_id")
         resume_name = resume_name or info.get("resume_name") or "未命名简历"
@@ -206,6 +323,7 @@ class LivePipelineService:
                 resume_name=resume_name,
                 owner_id=owner_id,
                 status="running",
+                parent_task_id=info.get("parent_task_id"),
             )
             session.add(rec)
             await session.commit()
@@ -400,6 +518,27 @@ class LivePipelineService:
                 return
 
             await cls._finalize(task_id, diagnosis, city, jd_text)
+        except DiagnosisPartialError as e:
+            # B1：中断但有部分结果——result 与 error 并存落库，快照保留供断点重试
+            partial = e.partial or {}
+            err_text = str(e.cause or e)[:500]
+            logger.exception(f"[{task_id}] 失败（保留部分结果 {len(partial)} 项）: {e.cause}")
+            partial_result = None
+            if partial:
+                summary = (partial.get("job_analysis") or {}).get("summary", "").strip()
+                job_title = summary[:24] if summary else "用户输入"
+                partial_result = {
+                    "keyword": job_title, "city": city, "jd_text": jd_text,
+                    "diagnosis_target": {"job_id": 0, "title": job_title,
+                                         "company": "", "city": city},
+                    "diagnosis": partial, "partial": True,
+                }
+            cls._update(task_id, status="failed", error=err_text,
+                        result=partial_result,
+                        message=f"❌ 任务失败：{err_text[:100]}（已保留部分结果）",
+                        finished_at=time.time())
+            await cls._save_failed(task_id, err_text, partial=partial,
+                                   city=city, jd_text=jd_text)
         except Exception as e:
             logger.exception(f"[{task_id}] 失败: {e}")
             cls._update(task_id, status="failed", error=str(e)[:500],
@@ -407,9 +546,9 @@ class LivePipelineService:
                         finished_at=time.time())
             await cls._save_failed(task_id, str(e)[:500])
         finally:
-            # 终态（成功/失败）释放 checkpointer 快照；暂停任务保留以便恢复
+            # 终态释放快照：成功释放；失败保留（B1 断点重试），重新发起走新 thread_id
             task = TASKS.get(task_id) or {}
-            if task.get("status") in ("success", "failed"):
+            if task.get("status") == "success":
                 await DiagnosisService().release_thread(task_id)
 
     @classmethod
@@ -446,17 +585,99 @@ class LivePipelineService:
             finished_at=time.time(),
         )
 
-        # 落库（终态含进度快照）
+        # 落库（终态含进度快照）；已放弃任务不覆写 DB（防复活）
+        if not (TASKS.get(task_id) or {}).get("abandoned"):
+            async with AsyncSessionLocal() as session:
+                rec_res = await session.execute(
+                    select(DiagnosisRecord).where(DiagnosisRecord.task_id == task_id)
+                )
+                rec = rec_res.scalar_one_or_none()
+                if rec:
+                    rec.status = "success"
+                    rec.keyword = job_title
+                    rec.result = result_data
+                    rec.stage = "完成"
+                    rec.progress = 100
+                    rec.logs = TASKS.get(task_id, {}).get("logs", [])
+                    await session.commit()
+
+    @classmethod
+    async def retry(cls, task_id: str, owner_id: str = "local") -> str:
+        """B1：失败任务重试——从 checkpointer 断点续跑，沿用原简历/JD/LLM 配置，
+        已完成节点不重跑（不重复消耗 API 费用）。"""
+        _cleanup_expired_tasks()
         async with AsyncSessionLocal() as session:
-            rec_res = await session.execute(
-                select(DiagnosisRecord).where(DiagnosisRecord.task_id == task_id)
+            res = await session.execute(
+                select(DiagnosisRecord).where(
+                    DiagnosisRecord.task_id == task_id,
+                    DiagnosisRecord.owner_id == owner_id,
+                )
             )
-            rec = rec_res.scalar_one_or_none()
-            if rec:
-                rec.status = "success"
-                rec.keyword = job_title
-                rec.result = result_data
-                rec.stage = "完成"
-                rec.progress = 100
-                rec.logs = TASKS.get(task_id, {}).get("logs", [])
-                await session.commit()
+            rec = res.scalar_one_or_none()
+        if not rec:
+            raise ValueError("任务不存在")
+        if rec.status != "failed":
+            raise ValueError("仅失败任务可重试")
+
+        svc = DiagnosisService()
+        values = svc.snapshot_values(task_id)
+        if not values:
+            raise ValueError("无可恢复的断点（快照已释放），请重新发起诊断")
+
+        # 重置任务态进入续跑
+        cls._update(task_id, status="running", stage="重新诊断", progress=55,
+                    error=None, message="🔁 从上次失败处继续（已完成节点不重跑）...")
+        asyncio.create_task(cls._retry_run(task_id))
+        return task_id
+
+    @classmethod
+    async def _retry_run(cls, task_id: str):
+        """断点续跑执行体：复用交互图收集逻辑，终态处理与 run() 一致。"""
+        svc = DiagnosisService()
+
+        def on_progress(step: int, total: int, stage: str):
+            pct = 55 + int(step / total * 35)  # 续跑从 55% 起步（粗略）
+            cls._update(task_id, stage=stage, progress=pct,
+                        message=f"🤖 续跑 · {stage} 完成")
+
+        try:
+            diagnosis = await svc.resume_after_error(task_id, on_progress=on_progress)
+
+            # 防御：断点恰好停在 clarify interrupt（正常不应发生）
+            if diagnosis.get("waiting"):
+                questions = diagnosis.get("clarify_questions") or []
+                cls._update(task_id, status="waiting_clarify", stage="等待补充信息",
+                            message=f"🤔 需要补充 {len(questions)} 条信息",
+                            questions=questions)
+                await cls._save_waiting(task_id, questions)
+                return
+
+            # city/jd_text 从落库的部分结果恢复（jd_text 兜底取 graph 快照）
+            city, jd_text = "", ""
+            async with AsyncSessionLocal() as session:
+                res = await session.execute(
+                    select(DiagnosisRecord).where(DiagnosisRecord.task_id == task_id)
+                )
+                rec = res.scalar_one_or_none()
+                if rec and rec.result:
+                    city = rec.result.get("city", "")
+                    jd_text = rec.result.get("jd_text", "")
+            if not jd_text:
+                values = svc.snapshot_values(task_id) or {}
+                jd_text = values.get("jd_text", "")
+
+            await cls._finalize(task_id, diagnosis, city, jd_text)
+        except DiagnosisPartialError as e:
+            partial = e.partial or {}
+            err_text = str(e.cause or e)[:500]
+            logger.exception(f"[{task_id}] 续跑仍失败（保留部分结果 {len(partial)} 项）: {e.cause}")
+            cls._update(task_id, status="failed", error=err_text,
+                        message=f"❌ 续跑失败：{err_text[:100]}",
+                        finished_at=time.time())
+            await cls._save_failed(task_id, err_text, partial=partial)
+        except Exception as e:
+            logger.exception(f"[{task_id}] 续跑失败: {e}")
+            cls._update(task_id, status="failed", error=str(e)[:500],
+                        message=f"❌ 续跑失败：{str(e)[:100]}",
+                        finished_at=time.time())
+            await cls._save_failed(task_id, str(e)[:500])

@@ -3,25 +3,30 @@
     <div class="max-w-3xl mx-auto px-6">
 
       <div class="mb-12">
-        <h1 class="text-3xl font-semibold text-gray-800 mb-2">更新日志</h1>
-        <p class="text-sm text-gray-600">ResuMatch AI 的版本历史与发布说明</p>
+        <div class="flex items-center gap-3 mb-2">
+          <h1 class="text-3xl font-semibold text-ink">更新日志</h1>
+          <span v-if="meta.version" class="px-2.5 py-1 rounded-lg text-xs font-mono
+            bg-accent/10 text-accent border border-accent/20">当前 v{{ meta.version }}</span>
+        </div>
+        <p class="text-sm text-ink-sub">ResuMatch AI 的版本历史与发布说明</p>
       </div>
 
       <div class="relative pl-8">
-        <div class="absolute left-[5px] top-2 bottom-2 w-px bg-[#b8bcc2]/60"></div>
+        <div class="absolute left-[5px] top-2 bottom-2 w-px bg-line-strong/60"></div>
 
         <div v-for="log in logs" :key="log.version"
           class="relative mb-12 last:mb-0">
 
-          <div class="absolute -left-8 top-1.5 w-3 h-3 rounded-full bg-[#6d5dfc]
-            shadow-[0_0_0_4px_rgba(109,93,252,0.15)]"></div>
+          <div class="absolute -left-8 top-1.5 w-3 h-3 rounded-full bg-accent ring-4 ring-accent/15"></div>
 
           <div class="flex items-baseline gap-4 mb-4 flex-wrap">
-            <div class="text-xl font-semibold text-gray-800">{{ log.version }}</div>
-            <div class="text-sm text-gray-500 font-mono">{{ log.date }}</div>
+            <div class="text-xl font-semibold text-ink font-mono">{{ log.version }}</div>
+            <div class="text-sm text-ink-sub font-mono">{{ log.date }}</div>
+            <span v-if="log.current" class="px-2 py-0.5 rounded-md text-xs font-medium
+              bg-ok/10 text-ok border border-ok/25">当前版本</span>
           </div>
 
-          <div v-if="log.title" class="text-base font-medium text-gray-700 mb-4">
+          <div v-if="log.title" class="text-base font-medium text-ink-sub mb-4">
             {{ log.title }}
           </div>
 
@@ -29,11 +34,10 @@
             <div v-for="(item, j) in log.items" :key="j"
               class="flex gap-3 items-start">
               <span :class="tagClass(item.type)"
-                class="shrink-0 mt-0.5 px-2.5 py-1 rounded-lg text-xs font-medium
-                  shadow-[inset_2px_2px_4px_rgba(184,188,194,0.3),inset_-2px_-2px_4px_rgba(255,255,255,0.5)]">
+                class="shrink-0 mt-0.5 px-2.5 py-1 rounded-lg text-xs font-medium">
                 {{ item.type }}
               </span>
-              <span class="text-sm text-gray-700 leading-relaxed">{{ item.text }}</span>
+              <span class="text-sm text-ink-sub leading-relaxed">{{ item.text }}</span>
             </div>
           </div>
         </div>
@@ -41,12 +45,10 @@
 
       <div class="mt-16 text-center">
         <RouterLink to="/"
-          class="inline-block px-6 py-3 text-sm font-medium rounded-xl
-            bg-[#e0e5ec] text-gray-700
-            shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-            hover:shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]
-            active:shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]
-            transition-all duration-300 ease-in-out">
+          class="inline-block px-6 py-3 text-sm font-medium rounded-lg
+            bg-panel border border-line text-ink-sub
+            hover:border-line-strong hover:text-ink
+            transition-colors">
           返回首页
         </RouterLink>
       </div>
@@ -57,8 +59,64 @@
 
 <script setup>
 import { RouterLink } from 'vue-router'
+import { useAppMode } from '../composables/useAppMode'
+
+const { meta } = useAppMode()
 
 const logs = [
+  {
+    version: 'v0.9.0',
+    date: '2026-09-23',
+    title: '岗位市场 + 简历库 + 报告闭环',
+    current: true,
+    items: [
+      { type: '新增', text: '岗位市场：粘贴 JD 一键获取在招岗位，按简历智能推荐（官方数据接口）' },
+      { type: '新增', text: '诊断报告导出 Word；两次诊断自动对比（Before/After 综合分与差距变化）' },
+      { type: '新增', text: '简历库独立页：多简历管理、重命名/预览/删除/批量删除，重复上传自动拦截复用' },
+      { type: '新增', text: '简历库 PDF 原版式预览（浏览器内直渲）+ 原文件下载' },
+      { type: '新增', text: '面试准备（6 题定制题单 + 回答思路）与模拟面试（逐题点评 + 总评）' },
+      { type: '新增', text: '失败任务断点续跑（已完成节点不重跑）；追问回答草稿暂存，刷新不丢' },
+      { type: '新增', text: '一键清空本机全部数据（隐私合规）' },
+      { type: '优化', text: '简历编辑器支持入库保存，从简历库一键发起诊断；一键启动降噪 + 关浏览器自动停服' },
+      { type: '修复', text: '修复结果页白屏（变量初始化顺序）等问题' },
+    ],
+  },
+  {
+    version: 'v0.8.0',
+    date: '2026-09-22',
+    title: '全站风格重做：类 Codex 控制台',
+    items: [
+      { type: '变更', text: '全站视觉重做：统一深色控制台风格，亮 / 暗双主题一键切换（跟随系统记忆）' },
+      { type: '变更', text: '页面结构分离：首页 = 产品介绍页，工作台承载功能；桌面端启动直进工作台' },
+      { type: '新增', text: '用户 API Key 引导：首次使用三步完成模型接入（预设厂商一键填入 + 连接测试）' },
+      { type: '优化', text: 'web 形态压力加固：匿名会话隔离、服务端 Key 每日配额' },
+    ],
+  },
+  {
+    version: 'v0.7.0',
+    date: '2026-09-21',
+    title: '证据接地 RAG + 动态追问',
+    items: [
+      { type: '新增', text: 'RAG 证据接地：每条差距结论 / 改写建议引用简历原文出处，可点击查看' },
+      { type: '新增', text: '动态多轮追问：AI 判定信息不足时先向用户提问，补齐后再继续诊断' },
+      { type: '优化', text: '证据检索升级 BM25-lite 加权，区分性关键词（如 Kubernetes）排名提升' },
+      { type: '新增', text: '独立简历编辑器：表单 + 实时预览，导出与预览版式完全一致（真实分页）' },
+      { type: '新增', text: '跨重启恢复：诊断中断 / 服务重启后重新打开任务可继续，不从头重跑' },
+      { type: '新增', text: 'Word 导出历史记录，桌面版可再次定位已保存文件' },
+    ],
+  },
+  {
+    version: 'v0.6.0',
+    date: '2026-09-18',
+    title: '双形态交付 + 实时诊断',
+    items: [
+      { type: '变更', text: '移除招聘网络爬虫：JD 改为用户粘贴输入，岗位数据走官方数据接口' },
+      { type: '新增', text: '网站版 / 桌面 exe 双形态同一套代码，界面按形态自动适配' },
+      { type: '新增', text: '诊断实时进度 + 阶段日志（流式推送），不再黑盒等待' },
+      { type: '新增', text: 'Word 模板扩充至 8 套，支持嵌入证件照' },
+      { type: '优化', text: '启动性能优化（健康检查 52s → 2s），端口占用检测修复' },
+    ],
+  },
   {
     version: 'v0.5.0',
     date: '2026-09-11',
@@ -130,12 +188,12 @@ const logs = [
 
 function tagClass(type) {
   const map = {
-    '新增': 'bg-green-50 text-green-700',
-    '变更': 'bg-blue-50 text-blue-700',
-    '修复': 'bg-amber-50 text-amber-700',
-    '删除': 'bg-red-50 text-red-700',
-    '优化': 'bg-purple-50 text-purple-700',
+    '新增': 'bg-ok/10 text-ok',
+    '变更': 'bg-accent/10 text-accent',
+    '修复': 'bg-warn/10 text-warn',
+    '删除': 'bg-bad/10 text-bad',
+    '优化': 'bg-accent/10 text-accent',
   }
-  return map[type] || 'bg-gray-100 text-gray-700'
+  return map[type] || 'bg-inset text-ink-sub'
 }
 </script>

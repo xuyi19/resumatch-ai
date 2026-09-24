@@ -10,6 +10,8 @@ export default {
   health: () => api.get('/health'),
   // 运行形态（桌面版 / 网页版界面切换依据）
   getMeta: () => api.get('/meta'),
+  // 页面心跳（run.py 看门狗：浏览器窗口关闭后仍有人使用则不关停服务）
+  heartbeat: () => api.post('/meta/heartbeat'),
 
   // 简历
   uploadResume: (file) => {
@@ -19,17 +21,29 @@ export default {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
+  // A1 粘贴文本简历直存（跳过文件解析）
+  uploadResumeText: (data) => api.post('/resumes/upload-text', data),
 
   // 实时分析
   startLiveAnalyze: (data) => api.post('/live/analyze', data),
   getTaskStatus: (taskId) => api.get(`/live/status/${taskId}`),
   // 动态追问（M11-B）：提交补充回答，恢复暂停的诊断
   submitClarify: (taskId, answers) => api.post(`/live/clarify/${taskId}`, { answers }),
+  // B1 失败任务重试（断点续跑，已完成节点不重跑）
+  retryLive: (taskId) => api.post(`/live/retry/${taskId}`),
+  // 放弃未完成任务（pending/running/waiting_clarify），释放「进行中」名额
+  abandonTask: (taskId) => api.post(`/live/abandon/${taskId}`),
 
   // 历史记录
   getHistory: (params) => api.get('/history', { params }),
   getHistoryDetail: (taskId) => api.get(`/history/${taskId}`),
   deleteHistory: (taskId) => api.delete(`/history/${taskId}`),
+  // M20 诊断报告导出 Word（blob 下载；桌面态用 exportReportToPath）
+  exportReport: (taskId) => api.post(`/history/${taskId}/export-report`, {}, {
+    responseType: 'blob',
+  }),
+  exportReportToPath: (taskId, savePath) =>
+    api.post(`/history/${taskId}/export-report`, { save_path: savePath }),
 
   // 一键优化（基于诊断结果生成优化简历，可携带追问回答）
   quickOptimize: (taskId, llmConfig, answers = {}) =>
@@ -72,4 +86,37 @@ export default {
   testLLM: (config) => api.post('/settings/test-llm', config),
   // 服务端是否已预置 Key（零配置分发）
   llmDefault: () => api.get('/settings/llm-default'),
+
+  // M19 岗位市场：一键获取岗位 + 按简历推荐 + 数据源测试
+  searchJobs: (data) => api.post('/jobs/search', data),
+  recommendJobs: (data) => api.post('/jobs/recommend', data),
+  // M30 手动导入公司比对推荐（用户录入目标公司，与简历匹配排序）
+  importMatchJobs: (data) => api.post('/jobs/import-match', data),
+  testJobProvider: (config) => api.post('/settings/test-job', config),
+
+  // M22 数据与隐私：一键清空本用户全部数据
+  clearAllData: () => api.delete('/data'),
+
+  // M23 面试：题单生成 / 恢复会话；M32 多轮自由对话（聊天式模拟面试）
+  interviewStart: (taskId, llmConfig, regenerate = false) =>
+    api.post(`/interview/start/${taskId}`, { llm_config: llmConfig || null, regenerate }),
+  interviewGet: (taskId) => api.get(`/interview/${taskId}`),
+  interviewChat: (taskId, content, forceAdvance = false, llmConfig = null) =>
+    api.post(`/interview/chat/${taskId}`,
+      { content, force_advance: forceAdvance, llm_config: llmConfig }),
+  // M31 独立面试：按简历 + 意向岗位直接开一场面试（无需先诊断）/ 会话列表
+  interviewStartFree: (data) => api.post('/interview/start-free', data),
+  interviewSessions: () => api.get('/interview/sessions'),
+  // M33 面试报告导出 Word（blob 下载；桌面态可传 save_path 服务端直写）
+  interviewExport: (taskId) =>
+    api.post(`/interview/export/${taskId}`, {}, { responseType: 'blob' }),
+  interviewExportToPath: (taskId, savePath) =>
+    api.post(`/interview/export/${taskId}`, { save_path: savePath }),
+
+  // F1 简历库：列表（含最近诊断分）/ 详情（预览原文）/ 重命名 / 删除
+  listResumes: () => api.get('/resumes/list'),
+  getResume: (id) => api.get(`/resumes/${id}`),
+  renameResume: (id, filename) => api.post(`/resumes/rename/${id}`, { filename }),
+  deleteResume: (id) => api.delete(`/resumes/${id}`),
+  deleteResumesBatch: (ids) => api.post('/resumes/delete-batch', { ids }),
 }

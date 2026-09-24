@@ -195,6 +195,8 @@ def main() -> None:
         return
 
     _log(f"服务就绪：http://127.0.0.1:{port}/")
+    # M22 C2：后台线程检查新版本（只提示不打扰，任何异常静默跳过）
+    threading.Thread(target=_check_update, args=(port,), daemon=True).start()
     if no_browser:
         _hold()  # 烟测模式：无窗口，保持服务运行
         return
@@ -209,6 +211,59 @@ def main() -> None:
     # 原生窗口：阻塞在 webview.start()，窗口关闭即退出（uvicorn 为 daemon 线程）
     _open_window(port)
     _log("窗口已关闭，进程退出。")
+
+
+def _check_update(port: int, timeout: float = 5.0):
+    """M22 C2：请求仓库 VERSION 与本地版本对比，有新版则弹原生提示。
+
+    只提示不自动下载；网络不通/仓库不可达时完全静默。
+    """
+    import urllib.request
+
+    try:
+        from app import __version__
+
+        # 服务端 /api/v1/health 之类不提供版本，本地直接用包版本
+        local = tuple(int(x) for x in __version__.split(".")[:3] if x.isdigit())
+        sources = [
+            "https://gitee.com/raw/master/VERSION",  # 占位：发布时替换为实际仓库路径
+            "https://raw.githubusercontent.com/master/VERSION",
+        ]
+        remote = None
+        for url in sources:
+            try:
+                with urllib.request.urlopen(url, timeout=timeout) as r:
+                    remote_text = r.read().decode("utf-8").strip()
+                remote = tuple(int(x) for x in remote_text.split(".")[:3] if x.isdigit())
+                break
+            except Exception:
+                continue
+        if remote and remote > local:
+            _log(f"发现新版本 {remote_text}（当前 {__version__}）")
+            _notify_update(__version__, remote_text)
+    except Exception as e:
+        _log(f"更新检查跳过: {e}")
+
+
+def _notify_update(current: str, latest: str):
+    """更新提示：优先 webview 原生弹窗，失败落日志。"""
+    try:
+        import webview
+
+        webview.create_window(
+            "发现新版本",
+            html=(
+                f"<body style='font-family:sans-serif;padding:24px;text-align:center'>"
+                f"<h2>ResuMatch AI 有新版本</h2>"
+                f"<p>当前 {current} → 最新 {latest}</p>"
+                f"<p style='color:#888'>请到发布页下载新版本（本次不自动更新）</p>"
+                f"</body>"
+            ),
+            width=420, height=240, on_top=True,
+        )
+        webview.start()
+    except Exception as e:
+        _log(f"更新弹窗失败: {e}")
 
 
 def _hold() -> None:

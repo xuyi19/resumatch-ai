@@ -1,3 +1,5 @@
+import time
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -49,6 +51,25 @@ async def signature():
         "f": get_author_fingerprint(),
         "t": __build_tag__,
     }
+
+
+# 页面心跳（run.py 看门狗用）：前端每 20s POST 一次记录活跃时间。
+# 浏览器窗口关闭 ≠ 没人在用（用户可能用自己的浏览器继续操作），
+# run.py 在浏览器进程退出后轮询心跳，彻底无心跳才关停服务。
+_last_page_beat = {"ts": 0.0}
+
+
+@router.post("/meta/heartbeat")
+async def page_heartbeat():
+    _last_page_beat["ts"] = time.time()
+    return {"ok": True}
+
+
+@router.get("/meta/heartbeat")
+async def page_heartbeat_status():
+    """距最近一次页面心跳的秒数（从未收到心跳时返回极大值）"""
+    idle = time.time() - _last_page_beat["ts"] if _last_page_beat["ts"] else 1e9
+    return {"idle_seconds": round(idle, 1)}
 
 
 @router.get("/meta")

@@ -1,5 +1,6 @@
 import json
 import re
+import time
 from typing import Type, TypeVar
 
 from loguru import logger
@@ -48,10 +49,13 @@ async def call_llm_for_json(
     temperature: float = 0.2,
     max_retries: int = 2,
     llm_config: dict | None = None,
+    total_timeout: float = 150.0,
 ) -> T:
     """
     调 LLM 并要求返回符合 schema 的 JSON。
     llm_config: {"api_key": ..., "base_url": ..., "model": ...}，None 表示用 .env 默认配置
+    total_timeout: 整个调用（含重试）的总时限秒数——防止「模型响应慢/JSON 反复不合法」
+    时重试循环叠加拖到数分钟（前端 axios 180s 会先超时，后端继续空烧）。
     """
     llm_config = llm_config or {}
     llm = get_llm(
@@ -73,6 +77,7 @@ JSON Schema:
 直接输出 JSON："""
 
     last_err: Exception | None = None
+    deadline = time.monotonic() + total_timeout
     for attempt in range(max_retries + 1):
         try:
             resp = await llm.ainvoke(full_prompt)
@@ -93,6 +98,9 @@ JSON Schema:
             last_err = e
             logger.warning(f"LLM 返回 JSON 解析失败（第 {attempt + 1} 次）: {e}")
             if attempt < max_retries:
+                if time.monotonic() >= deadline:
+                    logger.warning("LLM 调用已达总时限，提前停止重试")
+                    break
                 full_prompt += (
                     "\n\n【重要】上次输出不是合法 JSON，请只输出 JSON，"
                     "不要任何前置说明、代码块标记或后缀解释。"

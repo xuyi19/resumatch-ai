@@ -4,13 +4,16 @@ from urllib.parse import quote
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
+from sqlalchemy import delete as sa_delete
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.deps import get_owner_id
+from app.models.entities import Resume
 from app.services.resume_service import ResumeService
 from app.utils.docx_generator import generate_resume_docx
 
@@ -28,6 +31,8 @@ class ResumeOut(BaseModel):
     id: int
     filename: str
     text_length: int
+    raw_text: str | None = None  # 仅 get_resume 返回（F1 预览用）
+    duplicated: bool = False  # 重复上传拦截命中：复用了已有记录
 
 
 class ExportDocxRequest(BaseModel):
@@ -127,6 +132,202 @@ async def upload_resume(
     )
 
 
+class UploadTextRequest(BaseModel):
+    filename: str = "粘贴的简历.txt"
+    text: str
+
+
+@router.post("/upload-text", response_model=ResumeOut)
+async def upload_resume_text(
+    req: UploadTextRequest,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """粘贴文本简历直存（A1）：跳过文件解析，文本即简历内容"""
+    text = (req.text or "").strip()
+    if len(text) < 50:
+        raise HTTPException(
+            status_code=400, detail="简历文本太短（至少 50 字），请检查是否粘贴完整"
+        )
+    if len(text) > 50000:
+        raise HTTPException(status_code=400, detail="简历文本过长（超过 5 万字）")
+    filename = (req.filename or "").strip() or "粘贴的简历.txt"
+
+    service = ResumeService(db)
+
+    # 重复上传拦截：同 owner 下内容完全相同的简历直接复用，不再新建
+    dup = await service.find_duplicate(text, owner_id)
+    if dup:
+        return ResumeOut(
+            id=dup.id,
+            filename=dup.filename,
+            text_length=len(dup.raw_text),
+            duplicated=True,
+        )
+
+    resume = await service.save_text(filename, text, owner_id)
+    return ResumeOut(
+        id=resume.id,
+        filename=resume.filename,
+        text_length=len(resume.raw_text),
+    )
+
+
+@router.get("/list")
+async def list_resumes(
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """F1 简历库：列表 + 每份简历最近一次成功诊断的综合分。"""
+    from app.models.entities import DiagnosisRecord
+
+    service = ResumeService(db)
+    resumes = await service.list_recent(limit=200, owner_id=owner_id)
+
+    rec_res = await db.execute(
+        select(DiagnosisRecord)
+        .where(
+            DiagnosisRecord.owner_id == owner_id,
+            DiagnosisRecord.status == "success",
+            DiagnosisRecord.resume_id.isnot(None),
+        )
+        .order_by(DiagnosisRecord.created_at.desc())
+    )
+    latest = {}
+    for rec in rec_res.scalars():
+        if rec.resume_id in latest:
+            continue  # 已按时间倒序，首见即最近
+        scores = ((rec.result or {}).get("diagnosis") or {}).get("scores") or {}
+        latest[rec.resume_id] = {
+            "task_id": rec.task_id,
+            "overall": scores.get("overall"),
+            "created_at": rec.created_at.isoformat() if rec.created_at else None,
+        }
+
+    return {
+        "items": [
+            {
+                "id": r.id,
+                "filename": r.filename,
+                "text_length": len(r.raw_text),
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "latest_diagnosis": latest.get(r.id),
+                # 原文件类型（pdf 可浏览器内预览；docx 可下载；null=纯文本简历）
+                "file_type": _file_ext(r.file_path) or None,
+            }
+            for r in resumes
+        ]
+    }
+
+
+def _file_ext(file_path: str | None) -> str:
+    """从存储路径取小写扩展名（不带点），无路径返回空串"""
+    if not file_path:
+        return ""
+    return Path(file_path).suffix.lower().lstrip(".")
+
+
+_MEDIA_TYPES = {
+    "pdf": "application/pdf",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+
+
+@router.get("/{resume_id}/file")
+async def get_resume_file(
+    resume_id: int,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """原文件（PDF/DOCX）供浏览器内预览/下载；纯文本简历 404。"""
+    service = ResumeService(db)
+    resume = await service.get_by_id(resume_id, owner_id)
+    if not resume:
+        raise HTTPException(status_code=404, detail="简历不存在")
+    if not resume.file_path:
+        raise HTTPException(status_code=404, detail="该简历无原文件（粘贴文本创建），请用文本预览")
+    path = Path(resume.file_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="原文件已丢失，请用文本预览")
+    ext = _file_ext(resume.file_path)
+    return FileResponse(
+        path,
+        media_type=_MEDIA_TYPES.get(ext, "application/octet-stream"),
+        filename=resume.filename,  # 下载时用库内名称（改名后仍正确）
+        # inline：iframe 内直接渲染；「下载原文件」靠 <a download> 属性触发下载
+        content_disposition_type="inline",
+    )
+
+
+@router.post("/delete-batch")
+async def delete_resumes_batch(
+    req: "BatchDeleteRequest",
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """F1 批量删除：一次清理多份简历（按 owner 隔离），并连带删除原文件。"""
+    if not req.ids:
+        return {"deleted": 0}
+
+    # 先取原文件路径用于落盘清理，再删记录
+    res = await db.execute(
+        select(Resume.file_path).where(Resume.id.in_(req.ids), Resume.owner_id == owner_id)
+    )
+    for (fp,) in res.all():
+        ResumeService.remove_original_file(fp)
+
+    res = await db.execute(
+        sa_delete(Resume).where(Resume.id.in_(req.ids), Resume.owner_id == owner_id)
+    )
+    await db.commit()
+    return {"deleted": res.rowcount}
+
+
+class RenameRequest(BaseModel):
+    filename: str
+
+
+class BatchDeleteRequest(BaseModel):
+    ids: list[int]
+
+
+@router.post("/rename/{resume_id}", response_model=ResumeOut)
+async def rename_resume(
+    resume_id: int,
+    req: RenameRequest,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    name = (req.filename or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="名称不能为空")
+    if len(name) > 255:
+        raise HTTPException(status_code=400, detail="名称过长")
+    service = ResumeService(db)
+    resume = await service.get_by_id(resume_id, owner_id)
+    if not resume:
+        raise HTTPException(status_code=404, detail="简历不存在")
+    resume.filename = name
+    await db.commit()
+    return ResumeOut(id=resume.id, filename=resume.filename, text_length=len(resume.raw_text))
+
+
+@router.delete("/{resume_id}")
+async def delete_resume(
+    resume_id: int,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    service = ResumeService(db)
+    resume = await service.get_by_id(resume_id, owner_id)
+    if not resume:
+        raise HTTPException(status_code=404, detail="简历不存在")
+    service.remove_original_file(resume.file_path)
+    await db.delete(resume)
+    await db.commit()
+    return {"message": "已删除"}
+
+
 @router.get("/{resume_id}", response_model=ResumeOut)
 async def get_resume(
     resume_id: int,
@@ -141,6 +342,7 @@ async def get_resume(
         id=resume.id,
         filename=resume.filename,
         text_length=len(resume.raw_text),
+        raw_text=resume.raw_text,  # F1 简历库预览需要原文
     )
 
 

@@ -1,186 +1,128 @@
 <template>
-  <div class="max-w-6xl mx-auto px-6 md:px-8 pb-24">
-
-    <!-- ★ 快入口：随滚动固定在顶栏下方，随时一键直达诊断 -->
-    <div class="sticky top-16 z-40 -mx-6 md:-mx-8 px-6 md:px-8 py-3 bg-[#e0e5ec]/95 backdrop-blur-sm">
-      <div class="flex items-center justify-between gap-4 rounded-2xl px-5 py-3
-        bg-[#e0e5ec] shadow-[inset_4px_4px_8px_#b8bcc2,inset_-4px_-4px_8px_#ffffff]">
-        <p class="text-xs md:text-sm text-gray-600 truncate">
-          <span class="font-medium text-gray-800">上传简历 + 粘贴 JD</span>
-          <span class="hidden sm:inline">，约 3 分钟拿到六维评分与改写建议</span>
-        </p>
-        <RouterLink to="/analyze"
-          class="shrink-0 px-5 py-2 text-xs md:text-sm font-medium rounded-xl
-            bg-[#6d5dfc] text-white
-            shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-            hover:shadow-[2px_2px_4px_#b8bcc2,-2px_-2px_4px_#ffffff]
-            active:shadow-[inset_3px_3px_6px_rgba(0,0,0,0.2),inset_-3px_-3px_6px_rgba(255,255,255,0.1)]
-            transition-all duration-300 ease-in-out">
-          立即诊断
-        </RouterLink>
-      </div>
-    </div>
+  <div class="max-w-6xl mx-auto px-6 md:px-10 py-10 md:py-14 pb-24">
 
     <!-- Hero -->
-    <section class="text-center pt-10 md:pt-16 pb-8 md:pb-12">
-      <div class="inline-flex items-center gap-2 px-4 py-2 rounded-2xl mb-8
-        bg-[#e0e5ec] shadow-[inset_4px_4px_8px_#b8bcc2,inset_-4px_-4px_8px_#ffffff]">
-        <span class="w-2 h-2 rounded-full bg-[#6d5dfc] animate-pulse" />
-        <span class="text-xs font-medium text-gray-600">{{ badgeText }}</span>
+    <section class="pb-10 md:pb-14">
+      <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md mb-7
+        bg-panel border border-line">
+        <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+        <span class="text-xs font-medium text-ink-sub font-mono">{{ badgeText }}</span>
       </div>
 
-      <h1 class="text-4xl md:text-6xl font-semibold text-gray-800 leading-tight mb-6">
+      <h1 class="text-4xl md:text-6xl font-semibold leading-tight mb-6 tracking-tight">
         简历诊断，<br />
-        <span class="text-[#6d5dfc]">对着岗位改</span>
+        <span class="text-accent">对着岗位改</span>
       </h1>
-      <p class="text-base text-gray-600 max-w-2xl mx-auto leading-relaxed mb-10">
+      <p class="text-base text-ink-sub max-w-2xl leading-relaxed mb-9">
         多智能体流水线：并行解析简历与岗位 JD，给出六维评分、差距分析与 STAR 改写建议，
         再经一轮自省精修——最后用 10 套模板导出 Word。
       </p>
 
-      <div class="flex gap-4 justify-center flex-wrap">
-        <RouterLink to="/analyze"
-          class="px-8 py-3.5 text-sm font-medium rounded-xl
-            bg-[#6d5dfc] text-white
-            shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]
-            hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-            active:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2),inset_-4px_-4px_8px_rgba(255,255,255,0.1)]
-            transition-all duration-300 ease-in-out">
+      <div class="flex gap-3 flex-wrap">
+        <RouterLink to="/app/analyze"
+          class="px-6 py-3 text-sm font-medium rounded-lg bg-accent text-white
+            hover:bg-accent-hover active:scale-[0.98] transition-all duration-150">
           开始诊断
         </RouterLink>
-        <RouterLink to="/editor"
-          class="px-8 py-3.5 text-sm font-medium rounded-xl
-            bg-[#e0e5ec] text-gray-700
-            shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]
-            hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-            active:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2),inset_-4px_-4px_8px_rgba(255,255,255,0.1)]
-            transition-all duration-300 ease-in-out">
-          ✍️ 免费创建简历
+        <RouterLink :to="{ path: '/app/analyze', query: { demo: 1 } }"
+          class="px-6 py-3 text-sm font-medium rounded-lg bg-panel border border-line
+            text-ink hover:border-accent hover:text-accent transition-colors duration-150">
+          ▶ 30 秒看示例
         </RouterLink>
-        <RouterLink to="/history"
-          class="px-8 py-3.5 text-sm font-medium rounded-xl
-            bg-[#e0e5ec] text-gray-700
-            shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]
-            hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-            active:shadow-[inset_4px_4px_8px_#b8bcc2,inset_-4px_-4px_8px_#ffffff]
-            transition-all duration-300 ease-in-out">
-          查看历史记录
+        <RouterLink to="/app/editor"
+          class="px-6 py-3 text-sm font-medium rounded-lg bg-panel border border-line
+            text-ink hover:border-accent hover:text-accent transition-colors duration-150">
+          免费创建简历
         </RouterLink>
       </div>
     </section>
 
     <!-- 功能亮点 -->
-    <section class="py-8 md:py-12">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <section class="py-8 md:py-10 border-t border-line">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
         <div v-for="f in features" :key="f.title"
-          class="bg-[#e0e5ec] rounded-2xl p-8
-            shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]
-            hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-            transition-all duration-300 ease-in-out">
-          <div class="w-14 h-14 rounded-2xl bg-[#e0e5ec]
-            shadow-[inset_4px_4px_8px_#b8bcc2,inset_-4px_-4px_8px_#ffffff]
-            flex items-center justify-center text-2xl mb-5">
-            {{ f.icon }}
-          </div>
-          <h3 class="text-lg font-semibold text-gray-800 mb-2">{{ f.title }}</h3>
-          <p class="text-sm text-gray-600 leading-relaxed">{{ f.desc }}</p>
+          class="bg-panel border border-line rounded-lg p-6
+            hover:border-accent/50 transition-colors duration-150">
+          <div class="w-9 h-9 rounded-md bg-accent/10 text-accent
+            flex items-center justify-center text-lg mb-4">{{ f.icon }}</div>
+          <h3 class="text-base font-semibold mb-2">{{ f.title }}</h3>
+          <p class="text-sm text-ink-sub leading-relaxed">{{ f.desc }}</p>
         </div>
       </div>
     </section>
 
-    <!-- 工作流程 -->
-    <section class="py-8 md:py-12">
-      <div class="bg-[#e0e5ec] rounded-2xl p-8 md:p-12
-        shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
-        <h2 class="text-xl md:text-2xl font-semibold text-gray-800 mb-2 text-center">
-          诊断流水线
-        </h2>
-        <p class="text-xs md:text-sm text-gray-600 text-center mb-10">
-          解析简历与解析岗位并行执行，省去一次串行等待
-        </p>
+    <!-- 诊断流水线 -->
+    <section class="py-8 md:py-10 border-t border-line">
+      <h2 class="text-xl md:text-2xl font-semibold mt-8 mb-1">诊断流水线</h2>
+      <p class="text-xs md:text-sm text-ink-faint mb-8 font-mono">
+        // 解析简历与解析岗位并行执行，省去一次串行等待
+      </p>
 
-        <ol class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          <li v-for="(s, i) in steps" :key="s.title"
-            class="flex gap-4 items-start rounded-xl p-4 bg-[#e0e5ec]
-              shadow-[inset_3px_3px_6px_#b8bcc2,inset_-3px_-3px_6px_#ffffff]">
-            <span class="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-xs font-semibold
-              bg-[#e0e5ec] text-[#6d5dfc]
-              shadow-[3px_3px_6px_#b8bcc2,-3px_-3px_6px_#ffffff]">
-              {{ i + 1 }}
-            </span>
-            <div class="min-w-0">
-              <div class="text-sm font-medium text-gray-800 mb-1">
-                {{ s.title }}
-                <span v-if="s.parallel"
-                  class="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-normal text-[#6d5dfc] bg-white/50">
-                  并行
-                </span>
-              </div>
-              <p class="text-xs text-gray-600 leading-relaxed">{{ s.desc }}</p>
+      <ol class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <li v-for="(s, i) in steps" :key="s.title"
+          class="flex gap-3.5 items-start rounded-lg p-4 bg-panel border border-line">
+          <span class="w-7 h-7 shrink-0 rounded-md flex items-center justify-center
+            text-xs font-semibold font-mono bg-accent/10 text-accent">
+            {{ String(i + 1).padStart(2, '0') }}
+          </span>
+          <div class="min-w-0">
+            <div class="text-sm font-medium mb-1">
+              {{ s.title }}
+              <span v-if="s.parallel"
+                class="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-normal
+                  text-accent bg-accent/10 font-mono">并行</span>
             </div>
-          </li>
-        </ol>
-      </div>
+            <p class="text-xs text-ink-sub leading-relaxed">{{ s.desc }}</p>
+          </div>
+        </li>
+      </ol>
     </section>
 
     <!-- 数据 -->
-    <section class="py-8 md:py-12">
-      <div class="bg-[#e0e5ec] rounded-2xl p-10
-        shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-          <div v-for="s in stats" :key="s.label">
-            <div class="text-4xl md:text-5xl font-semibold text-gray-800 mb-2">{{ s.num }}</div>
-            <div class="text-xs md:text-sm text-gray-600">{{ s.label }}</div>
+    <section class="py-8 md:py-10 border-t border-line">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mt-8">
+        <div v-for="s in stats" :key="s.label" class="text-center py-6 rounded-lg
+          bg-panel border border-line">
+          <div class="text-4xl md:text-5xl font-semibold font-mono text-accent mb-2">
+            {{ s.num }}
           </div>
+          <div class="text-xs md:text-sm text-ink-sub">{{ s.label }}</div>
         </div>
       </div>
     </section>
 
-    <!-- 形态说明：桌面版 / 网页版差异化 -->
-    <section class="py-8 md:py-12">
-      <div class="bg-[#e0e5ec] rounded-2xl p-8 md:p-10
-        shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
-        <h2 class="text-lg md:text-xl font-semibold text-gray-800 mb-6 text-center">
-          {{ isWeb ? '关于在线使用' : '关于本机使用' }}
-        </h2>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
-          <div v-for="n in notes" :key="n.title">
-            <div class="text-xl mb-2">{{ n.icon }}</div>
-            <div class="text-sm font-medium text-gray-800 mb-1">{{ n.title }}</div>
-            <p class="text-xs text-gray-600 leading-relaxed">{{ n.desc }}</p>
-          </div>
+    <!-- 形态说明 -->
+    <section class="py-8 md:py-10 border-t border-line">
+      <h2 class="text-lg md:text-xl font-semibold mt-8 mb-6">
+        {{ isWeb ? '关于在线使用' : '关于本机使用' }}
+      </h2>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div v-for="n in notes" :key="n.title" class="p-5 rounded-lg bg-panel border border-line">
+          <div class="text-lg mb-2">{{ n.icon }}</div>
+          <div class="text-sm font-medium mb-1">{{ n.title }}</div>
+          <p class="text-xs text-ink-sub leading-relaxed">{{ n.desc }}</p>
         </div>
       </div>
     </section>
 
     <!-- CTA -->
-    <section class="py-8 md:py-12">
-      <div class="bg-[#e0e5ec] rounded-2xl p-12 md:p-16 text-center
-        shadow-[8px_8px_16px_#b8bcc2,-8px_-8px_16px_#ffffff]">
-        <h2 class="text-2xl md:text-4xl font-semibold text-gray-800 mb-4">
-          准备好优化你的简历了吗？
-        </h2>
-        <p class="text-sm text-gray-600 mb-8">
+    <section class="py-8 md:py-10 border-t border-line">
+      <div class="mt-8 p-10 md:p-14 rounded-lg bg-panel border border-line text-center">
+        <h2 class="text-2xl md:text-4xl font-semibold mb-4">准备好优化你的简历了吗？</h2>
+        <p class="text-sm text-ink-sub mb-8">
           {{ isWeb ? '无需注册，粘贴 JD 即可开始' : '数据只存在本机，随时可查历史记录' }}
         </p>
-        <div class="flex gap-4 justify-center flex-wrap">
-          <RouterLink to="/analyze"
-            class="inline-block px-8 py-3.5 text-sm font-medium rounded-xl
-              bg-[#6d5dfc] text-white
-              shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]
-              hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-              active:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2),inset_-4px_-4px_8px_rgba(255,255,255,0.1)]
-              transition-all duration-300 ease-in-out">
+        <div class="flex gap-3 justify-center flex-wrap">
+          <RouterLink to="/app/analyze"
+            class="inline-block px-8 py-3 text-sm font-medium rounded-lg bg-accent text-white
+              hover:bg-accent-hover active:scale-[0.98] transition-all duration-150">
             立即开始
           </RouterLink>
           <RouterLink to="/changelog"
-            class="inline-block px-8 py-3.5 text-sm font-medium rounded-xl
-              bg-[#e0e5ec] text-gray-700
-              shadow-[6px_6px_12px_#b8bcc2,-6px_-6px_12px_#ffffff]
-              hover:shadow-[4px_4px_8px_#b8bcc2,-4px_-4px_8px_#ffffff]
-              active:shadow-[inset_4px_4px_8px_#b8bcc2,inset_-4px_-4px_8px_#ffffff]
-              transition-all duration-300 ease-in-out">
-            📋 查看更新日志
+            class="inline-block px-8 py-3 text-sm font-medium rounded-lg
+              bg-panel border border-line text-ink hover:border-accent hover:text-accent
+              transition-colors duration-150">
+            查看更新日志
           </RouterLink>
         </div>
       </div>

@@ -3,15 +3,29 @@ from pathlib import Path
 from loguru import logger
 
 
-def parse_pdf(path: str | Path) -> str:
-    """从 PDF 提取纯文本"""
+# 低于该长度视为「几乎无文本」（扫描版 PDF 的典型特征）
+_LOW_TEXT_THRESHOLD = 50
+
+
+def parse_pdf(path: str | Path) -> tuple[str, int, int]:
+    """从 PDF 提取纯文本。
+
+    返回 (text, image_only_pages, total_pages)：
+    image_only_pages 为「几乎无文本且含图片」的页数，用于识别扫描版/图片型 PDF（B2）。
+    """
     import pymupdf  # PyMuPDF
 
     text_parts = []
+    image_only_pages = 0
+    total_pages = 0
     with pymupdf.open(str(path)) as doc:
+        total_pages = len(doc)
         for page in doc:
-            text_parts.append(page.get_text("text"))
-    return "\n".join(text_parts).strip()
+            text = page.get_text("text")
+            text_parts.append(text)
+            if len(text.strip()) < 10 and page.get_images():
+                image_only_pages += 1
+    return "\n".join(text_parts).strip(), image_only_pages, total_pages
 
 
 def parse_docx(path: str | Path) -> str:
@@ -42,7 +56,14 @@ def parse_resume_file(path: str | Path) -> str:
 
     suffix = path.suffix.lower()
     if suffix == ".pdf":
-        text = parse_pdf(path)
+        text, image_only_pages, total_pages = parse_pdf(path)
+        # B2：整本几乎无文本且主要是图片页 → 明确提示扫描版，而非笼统「解析后为空」
+        if not text or (len(text) < _LOW_TEXT_THRESHOLD
+                        and total_pages > 0 and image_only_pages >= max(1, total_pages - 1)):
+            raise ValueError(
+                "检测到扫描版/图片型 PDF，无法提取文字。"
+                "请换文字版 PDF，或先完成 OCR（如 WPS/Adobe 的识别功能）后再上传"
+            )
     elif suffix in (".docx", ".doc"):
         text = parse_docx(path)
     elif suffix == ".txt":

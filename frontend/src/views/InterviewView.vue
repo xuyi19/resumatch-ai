@@ -1,0 +1,214 @@
+<template>
+  <div class="max-w-6xl mx-auto px-6 md:px-8 py-12 md:py-16">
+
+    <!-- ============ 面试进行中：直接渲染面试面板 ============ -->
+    <div v-if="activeTaskId">
+      <div class="flex items-center gap-3 mb-6">
+        <button @click="backToList"
+          class="text-xs text-ink-faint hover:text-accent transition-colors">
+          ← 返回会话列表
+        </button>
+      </div>
+      <InterviewPanel :task-id="activeTaskId" />
+    </div>
+
+    <!-- ============ 会话大厅：发起 + 最近面试 ============ -->
+    <div v-else>
+
+      <div class="text-center mb-10">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-lg mb-5
+          bg-accent/10 border border-line">
+          <span class="text-3xl">🎤</span>
+        </div>
+        <h1 class="text-3xl font-semibold text-ink mb-2">模拟面试</h1>
+        <p class="text-sm text-ink-sub max-w-xl mx-auto">
+          选择一份简历，粘贴意向岗位 JD，AI 面试官即刻出题开考——无需先跑诊断。
+          共 6 题（技术基础 / 项目深挖 / 岗位匹配 / 情景行为），逐题点评，答完出总评。
+        </p>
+      </div>
+
+      <!-- 发起面试 -->
+      <div class="bg-panel border border-line rounded-lg p-6 md:p-8 mb-10 max-w-3xl mx-auto">
+        <div class="space-y-5">
+          <div>
+            <label class="block text-xs font-medium text-ink-sub mb-2">选择简历</label>
+            <select v-model="form.resumeId"
+              class="w-full px-4 py-3 rounded-lg bg-inset border border-line text-sm text-ink
+                focus:border-accent focus:outline-none transition-colors">
+              <option :value="null" disabled>请选择简历…</option>
+              <option v-for="r in resumes" :key="r.id" :value="r.id">
+                {{ r.filename }}
+              </option>
+            </select>
+            <p v-if="!resumes.length && !loadingResumes" class="text-xs text-warn mt-2">
+              简历库为空，请先到
+              <RouterLink to="/app/analyze" class="text-accent hover:underline">发起诊断</RouterLink>
+              或
+              <RouterLink to="/app/editor" class="text-accent hover:underline">创建简历</RouterLink>
+            </p>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="block text-xs font-medium text-ink-sub">意向岗位 JD</label>
+              <span class="text-xs font-mono"
+                :class="jdLength >= 20 ? 'text-ink-faint' : 'text-warn'">
+                {{ jdLength }}/6000
+              </span>
+            </div>
+            <textarea v-model="form.jdText" rows="7" maxlength="6000"
+              placeholder="粘贴招聘 JD：岗位职责、任职要求、加分项等。AI 将结合简历与 JD 针对性出题"
+              class="w-full px-4 py-3 rounded-lg bg-inset border border-line text-sm text-ink
+                placeholder:text-ink-faint focus:border-accent focus:outline-none
+                transition-colors resize-y leading-relaxed"></textarea>
+          </div>
+
+          <div class="flex items-center justify-between">
+            <p class="text-xs text-ink-faint">出题约需 20-40 秒，由已配置的大模型生成</p>
+            <button @click="startInterview" :disabled="!canStart || starting"
+              class="px-8 py-3 text-sm font-medium rounded-lg bg-accent text-white
+                hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed
+                transition-colors">
+              {{ starting ? 'AI 正在出题…' : '开始面试' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 最近的面试 -->
+      <div class="max-w-3xl mx-auto">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-base font-semibold text-ink">最近的面试</h2>
+          <button @click="loadSessions" :disabled="loadingSessions"
+            class="text-xs text-ink-faint hover:text-accent transition-colors">
+            {{ loadingSessions ? '刷新中…' : '刷新' }}
+          </button>
+        </div>
+
+        <div v-if="!sessions.length && !loadingSessions"
+          class="bg-panel border border-line rounded-lg p-10 text-center">
+          <div class="text-sm text-ink-faint">还没有面试记录，从上方发起第一场吧</div>
+        </div>
+
+        <div v-else class="space-y-3">
+          <button v-for="s in sessions" :key="s.task_id" @click="resumeSession(s.task_id)"
+            class="w-full text-left bg-panel border border-line rounded-lg p-5
+              hover:border-accent transition-colors group">
+            <div class="flex items-center gap-2.5 mb-2 flex-wrap">
+              <span class="text-xs px-2 py-0.5 rounded-md"
+                :class="s.source === '独立面试' ? 'bg-accent/10 text-accent' : 'bg-inset text-ink-sub'">
+                {{ s.source }}
+              </span>
+              <span class="text-xs px-2 py-0.5 rounded-md"
+                :class="s.status === 'finished' ? 'bg-ok/10 text-ok' : 'bg-warn/10 text-warn'">
+                {{ s.status === 'finished' ? '已完成' : `进行中 ${s.answered}/${s.total}` }}
+              </span>
+              <span v-if="s.summary" class="text-xs text-ok">✓ 已出总评</span>
+              <span class="ml-auto text-xs text-ink-faint font-mono">
+                {{ (s.updated_at || '').slice(0, 16).replace('T', ' ') }}
+              </span>
+            </div>
+            <div class="text-sm text-ink leading-relaxed group-hover:text-accent transition-colors">
+              {{ s.first_question || '（题单为空）' }}
+            </div>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { computed, onMounted, reactive, ref } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { Message } from '@arco-design/web-vue'
+import api from '../api'
+import InterviewPanel from '../components/InterviewPanel.vue'
+
+const route = useRoute()
+const router = useRouter()
+
+// 当前激活会话：支持 /app/interview?task_id=xxx 直接恢复（刷新不丢）
+const activeTaskId = ref(route.query.task_id || '')
+
+const resumes = ref([])
+const loadingResumes = ref(false)
+const sessions = ref([])
+const loadingSessions = ref(false)
+const starting = ref(false)
+
+const form = reactive({
+  resumeId: null,
+  jdText: '',
+})
+
+const jdLength = computed(() => form.jdText.trim().length)
+const canStart = computed(() =>
+  form.resumeId !== null && jdLength.value >= 20 && jdLength.value <= 6000)
+
+async function loadResumes() {
+  loadingResumes.value = true
+  try {
+    const res = await api.listResumes()
+    resumes.value = res.data.items || []
+  } catch (e) { /* 列表失败静默，空态有引导 */ }
+  loadingResumes.value = false
+}
+
+async function loadSessions() {
+  loadingSessions.value = true
+  try {
+    const res = await api.interviewSessions()
+    sessions.value = res.data.items || []
+  } catch (e) { /* 忽略，列表展示为空 */ }
+  loadingSessions.value = false
+}
+
+async function startInterview() {
+  if (!canStart.value || starting.value) return
+  starting.value = true
+  try {
+    const cfg = _llmCfg()
+    const res = await api.interviewStartFree({
+      resume_id: form.resumeId,
+      jd_text: form.jdText.trim(),
+      llm_config: cfg,
+    })
+    Message.success('题单已生成，面试开始')
+    enterSession(res.data.task_id)
+  } catch (e) {
+    Message.error(e.response?.data?.detail || '发起面试失败')
+  } finally {
+    starting.value = false
+  }
+}
+
+function resumeSession(taskId) {
+  enterSession(taskId)
+}
+
+function enterSession(taskId) {
+  activeTaskId.value = taskId
+  // 写入 query，刷新/回退不丢会话
+  router.replace({ query: { task_id: taskId } })
+}
+
+function backToList() {
+  activeTaskId.value = ''
+  router.replace({ query: {} })
+  loadSessions()
+}
+
+function _llmCfg() {
+  try {
+    const c = JSON.parse(localStorage.getItem('llm_config') || '{}')
+    return c.api_key ? c : null
+  } catch (e) { return null }
+}
+
+onMounted(() => {
+  loadResumes()
+  loadSessions()
+})
+</script>
