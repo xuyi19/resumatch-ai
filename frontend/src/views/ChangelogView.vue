@@ -65,10 +65,24 @@ const { meta } = useAppMode()
 
 const logs = [
   {
+    version: 'v0.11.0',
+    date: '2026-09-24',
+    title: '简历多版本对比 + 投递追踪 + 建议采纳',
+    current: true,
+    items: [
+      { type: '新增', text: 'M48 发布流程自动化——build_release 七步链路' },
+      { type: '新增', text: 'M50 改写建议一键采纳——诊断报告直达编辑器' },
+      { type: '新增', text: 'M49 投递状态追踪——岗位库升级轻量求职管理' },
+      { type: '新增', text: 'M47 简历模板扩充至14套 + 预览美化 + 岗位库紧凑化' },
+      { type: '新增', text: 'M46 简历多版本对比——版本链 + 行级 LCS 双栏 diff' },
+    ],
+  },
+
+  {
     version: 'v0.10.0',
     date: '2026-09-24',
     title: 'AI 面试官实战 + 工作台总览',
-    current: true,
+    current: false,
     items: [
       { type: '新增', text: '模拟面试多轮自由对话：可追问、可补充、可跳过，AI 面试官按真实面试节奏回应' },
       { type: '新增', text: '面试评分量化：总分 + 每题得分 + 四维能力雷达图，会话列表直接比较各场成绩' },
