@@ -5,17 +5,20 @@
     <aside class="hidden md:flex fixed inset-y-0 left-0 z-40 w-56 flex-col
       bg-panel border-r border-line">
 
-      <!-- Logo + 形态标识 -->
+      <!-- Logo + 形态标识（知岗：靶心+命中之矢，「知」字从矢） -->
       <div class="h-16 px-5 flex items-center gap-2.5 shrink-0">
-        <div class="w-8 h-8 rounded-lg text-white font-bold
-          flex items-center justify-center text-sm shrink-0
-          bg-gradient-to-br from-accent to-accent-hover shadow-md shadow-accent/30">R</div>
-        <span class="font-semibold text-sm">ResuMatch</span>
-        <span v-if="meta.app_mode"
-          class="ml-auto px-1.5 py-0.5 rounded text-[10px] font-medium
-            bg-inset text-ink-faint border border-line">
-          {{ isWeb ? 'Web' : '桌面' }}
-        </span>
+        <div class="w-8 h-8 rounded-lg shrink-0
+          flex items-center justify-center
+          bg-gradient-to-br from-accent to-accent-hover
+          border-2 border-ink/80 shadow-[2.5px_2.5px_0_0] shadow-ink/60">
+          <svg viewBox="0 0 24 24" fill="none" class="w-[18px] h-[18px]">
+            <circle cx="10.5" cy="13.5" r="6" stroke="white" stroke-width="2" />
+            <circle cx="10.5" cy="13.5" r="1.7" fill="white" />
+            <path d="M10.5 13.5L19 5" stroke="white" stroke-width="2" stroke-linecap="round" />
+            <path d="M19 9V5h-4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <span class="font-semibold text-sm">知岗 ResuMatch</span>
       </div>
 
       <!-- 主导航 -->
@@ -23,7 +26,7 @@
         <template v-for="item in navItems" :key="item.label">
           <span v-if="item.disabled" class="side-item disabled" :title="'即将上线'">
             <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round"
               stroke-linejoin="round" v-html="item.icon" />
             <span class="truncate">{{ item.label }}</span>
             <span class="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-inset text-ink-faint">
@@ -32,7 +35,7 @@
           </span>
           <RouterLink v-else :to="item.to" class="side-item" :class="sideItemCls(item)">
             <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round"
               stroke-linejoin="round" v-html="item.icon" />
             <span class="truncate">{{ item.label }}</span>
           </RouterLink>
@@ -40,10 +43,17 @@
 
         <div class="my-3 border-t border-line" />
 
-        <!-- 设置（未配 Key 常驻小红点） -->
+        <!-- 使用说明 / 设置（未配 Key 常驻小红点）/ 更新日志 -->
+        <RouterLink to="/guide" :class="sideItemCls(guideItem)" class="side-item">
+          <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" v-html="guideItem.icon" />
+          <span class="truncate">使用说明</span>
+        </RouterLink>
+
         <RouterLink to="/settings" :class="sideItemCls(settingsItem)" class="side-item">
           <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round"
             stroke-linejoin="round" v-html="settingsItem.icon" />
           <span class="truncate">设置</span>
           <span v-if="guide.state.needGuide"
@@ -53,7 +63,7 @@
 
         <RouterLink to="/changelog" :class="sideItemCls(changelogItem)" class="side-item">
           <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round"
             stroke-linejoin="round" v-html="changelogItem.icon" />
           <span class="truncate">更新日志</span>
         </RouterLink>
@@ -83,26 +93,33 @@
           <button @click="toggle" :title="themeTitle" class="icon-btn">
             <!-- 太阳（当前亮色，点击切暗） -->
             <svg v-if="resolved === 'light'" class="w-4 h-4" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <circle cx="12" cy="12" r="4" />
               <path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4l1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
             </svg>
             <!-- 月亮（当前暗色，点击切亮） -->
             <svg v-else class="w-4 h-4" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round"
               stroke-linejoin="round">
               <path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" />
             </svg>
           </button>
         </div>
-        <!-- M42 品牌徽章卡 -->
+        <!-- M43 品牌徽章卡（Soft Brutalism 统一风格） -->
         <div class="mx-1 rounded-lg px-3 py-2 bg-gradient-to-br from-accent/10 to-accent/[0.04]
-          border border-accent/20 flex items-center gap-2">
+          border-2 border-ink/70 shadow-[3px_3px_0_0] shadow-ink/25 flex items-center gap-2">
           <div class="w-6 h-6 rounded-md bg-gradient-to-br from-accent to-accent-hover
-            text-white text-[11px] font-bold flex items-center justify-center shrink-0
-            shadow-sm shadow-accent/30">R</div>
+            flex items-center justify-center shrink-0
+            border border-ink/80 shadow-[1.5px_1.5px_0_0] shadow-ink/50">
+            <svg viewBox="0 0 24 24" fill="none" class="w-3.5 h-3.5">
+              <circle cx="10.5" cy="13.5" r="6" stroke="white" stroke-width="2" />
+              <circle cx="10.5" cy="13.5" r="1.7" fill="white" />
+              <path d="M10.5 13.5L19 5" stroke="white" stroke-width="2" stroke-linecap="round" />
+              <path d="M19 9V5h-4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </div>
           <div class="min-w-0">
-            <div class="text-[11px] font-medium text-accent leading-tight">ResuMatch AI</div>
+            <div class="text-[11px] font-medium text-accent leading-tight">知岗 ResuMatch-AI</div>
             <div class="text-[10px] font-mono text-ink-faint leading-tight">{{ meta.version || 'v?' }} · 本地运行</div>
           </div>
         </div>
@@ -113,24 +130,30 @@
     <header class="md:hidden fixed top-0 inset-x-0 z-40 h-14 flex items-center gap-1 px-3
       bg-panel border-b border-line">
       <RouterLink to="/" class="flex items-center gap-2 mr-2">
-        <div class="w-7 h-7 rounded-md bg-accent text-white font-bold
-          flex items-center justify-center text-xs">R</div>
-        <span class="font-semibold text-sm">ResuMatch</span>
+        <div class="w-7 h-7 rounded-md bg-accent flex items-center justify-center shrink-0">
+          <svg viewBox="0 0 24 24" fill="none" class="w-4 h-4">
+            <circle cx="10.5" cy="13.5" r="6" stroke="white" stroke-width="2" />
+            <circle cx="10.5" cy="13.5" r="1.7" fill="white" />
+            <path d="M10.5 13.5L19 5" stroke="white" stroke-width="2" stroke-linecap="round" />
+            <path d="M19 9V5h-4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <span class="font-semibold text-sm">知岗 ResuMatch</span>
       </RouterLink>
       <span class="flex-1" />
       <RouterLink v-for="m in mobileNav" :key="m.label" :to="m.to" class="icon-btn"
-        :class="m.active() ? 'text-accent bg-accent/10' : 'text-ink-sub'">
+        :class="m.active() ? 'text-accent bg-accent/10' : 'text-ink/80'">
         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" v-html="m.icon" />
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" v-html="m.icon" />
       </RouterLink>
-      <button @click="toggle" class="icon-btn text-ink-sub">
+      <button @click="toggle" class="icon-btn text-ink/80">
         <svg v-if="resolved === 'light'" class="w-5 h-5" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <circle cx="12" cy="12" r="4" />
           <path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4l1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
         </svg>
         <svg v-else class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" />
         </svg>
       </button>
@@ -150,7 +173,7 @@
             <div class="w-10 h-10 rounded-lg bg-accent/10 text-accent
               flex items-center justify-center">
               <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M15 7a2 2 0 012 2m3-2a5 5 0 01-7.5 4.3L7 16.7V19H4v-3l7.7-7.7A5 5 0 0115 7z" />
               </svg>
             </div>
@@ -217,7 +240,7 @@ const REPO = {
 
 const route = useRoute()
 const router = useRouter()
-const { meta, isWeb, quotaEnabled } = useAppMode()
+const { meta, quotaEnabled } = useAppMode()
 const { resolved, toggle } = useTheme()
 const guide = useKeyGuide()
 
@@ -229,10 +252,13 @@ const ICONS = {
   edit: '<path d="M4 20h16"/><path d="M6 16l10.5-10.5a2.12 2.12 0 013 3L9 19l-4 1 1-4z"/>',
   folder:
     '<path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>',
+  briefcase:
+    '<rect x="3" y="8" width="18" height="12" rx="2"/><path d="M9 8V6a2 2 0 012-2h2a2 2 0 012 2v2"/><path d="M3 13h18"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
   sliders:
     '<path d="M4 7h7"/><circle cx="14" cy="7" r="2.5"/><path d="M19.5 7H20"/><path d="M4 17h4.5"/><circle cx="11" cy="17" r="2.5"/><path d="M16.5 17H20"/>',
   doc: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h6M10 17h4"/>',
+  book: '<path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0"/><path d="M12 18v3"/>',
   dashboard:
     '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/>',
@@ -268,6 +294,12 @@ const navItems = computed(() => [
     active: route.path.startsWith('/app/resumes'),
   },
   {
+    label: '岗位库',
+    to: '/app/jobs',
+    icon: ICONS.briefcase,
+    active: route.path.startsWith('/app/jobs'),
+  },
+  {
     label: '模拟面试',
     to: '/app/interview',
     icon: ICONS.mic,
@@ -281,6 +313,7 @@ const navItems = computed(() => [
   },
 ])
 const settingsItem = { label: '设置', icon: ICONS.sliders, active: route.path === '/settings' }
+const guideItem = { label: '使用说明', icon: ICONS.book, active: route.path === '/guide' }
 const changelogItem = { label: '更新日志', icon: ICONS.doc, active: route.path === '/changelog' }
 
 /* ---- 窄屏顶栏（诊断/创建/历史/设置） ---- */
@@ -294,7 +327,7 @@ const mobileNav = computed(() => [
 function sideItemCls(item) {
   return item.active
     ? 'side-item-active text-accent'
-    : 'text-ink-sub hover:bg-inset hover:text-ink'
+    : 'text-ink/80 hover:bg-inset hover:text-ink'
 }
 
 const themeTitle = computed(() =>
@@ -355,7 +388,7 @@ function goSettings() {
   width: 2rem;
   height: 2rem;
   border-radius: 0.5rem;
-  color: rgb(var(--c-ink-sub));
+  color: rgb(var(--c-ink) / 0.78);
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 .icon-btn:hover {

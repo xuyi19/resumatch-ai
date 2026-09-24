@@ -95,6 +95,16 @@ export default {
   // M30 手动导入公司比对推荐（用户录入目标公司，与简历匹配排序）
   importMatchJobs: (data) => api.post('/jobs/import-match', data),
   testJobProvider: (config) => api.post('/settings/test-job', config),
+  // M45 岗位库：自管理岗位 CRUD + 库×简历批量匹配推荐
+  listLibraryJobs: () => api.get('/jobs/library'),
+  addLibraryJobs: (items, source = 'manual', skipDuplicates = false) =>
+    api.post('/jobs/library', { items, source, skip_duplicates: skipDuplicates }),
+  parseBatchImport: (data) => api.post('/jobs/library/parse-batch', data),
+  updateLibraryJob: (id, data) => api.put(`/jobs/library/${id}`, data),
+  deleteLibraryJob: (id) => api.delete(`/jobs/library/${id}`),
+  batchDeleteLibraryJobs: (ids) => api.post('/jobs/library/batch-delete', { ids }),
+  matchLibraryJobs: (data) => api.post('/jobs/library-match', data),
+  generateLibraryJobs: (data) => api.post('/jobs/library-generate', data),
 
   // M22 数据与隐私：一键清空本用户全部数据
   clearAllData: () => api.delete('/data'),

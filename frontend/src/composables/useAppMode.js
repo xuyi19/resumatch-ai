@@ -9,7 +9,7 @@ import api from '../api'
  */
 const meta = ref({
   app_mode: 'local',
-  app_name: 'ResuMatch AI',
+  app_name: '知岗 ResuMatch-AI',
   version: '',
   build_tag: '',
   daily_limit: 10,

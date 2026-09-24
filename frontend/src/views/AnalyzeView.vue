@@ -242,6 +242,11 @@
                 <button @click="useJob(j)" class="text-xs text-accent hover:underline">
                   用此岗位诊断 →
                 </button>
+                <button @click="addToLibrary(j)" :disabled="inLibrary.has(j.id)"
+                  class="text-xs transition-colors"
+                  :class="inLibrary.has(j.id) ? 'text-ink-faint cursor-default' : 'text-accent hover:underline'">
+                  {{ inLibrary.has(j.id) ? '✓ 已入库' : '＋ 入库' }}
+                </button>
                 <a v-if="j.url" :href="j.url" target="_blank" rel="noopener"
                   class="text-xs text-ink-faint hover:text-accent">原文 ↗</a>
                 <span class="text-[11px] text-ink-faint ml-auto shrink-0">{{ j.source }}</span>
@@ -301,7 +306,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import api from '../api'
@@ -459,13 +464,6 @@ async function startAnalyze() {
     loading.value = false
   }
 }
-
-onMounted(() => {
-  // 首页「30 秒看示例」直达：自动填入示例
-  if (route.query.demo) {
-    fillExample()
-  }
-})
 
 /* ================================ M19：一键获取岗位 ================================ */
 
@@ -652,4 +650,36 @@ function useJob(j) {
   saveRecentJd(jdText.value)
   Message.success('已填入岗位 JD，可继续编辑后开始诊断')
 }
+
+/* ---- M45 岗位面板一键入库（saved_jobs 落库，侧栏「岗位库」统一管理） ---- */
+const inLibrary = reactive(new Set())
+
+async function addToLibrary(j) {
+  try {
+    await api.addLibraryJobs([{
+      title: j.title,
+      company: j.company || '',
+      city: j.city || '',
+      salary: j.salary || '',
+      jd: j.jd_text || '',
+      url: j.url || '',
+    }], 'ai')
+    inLibrary.add(j.id)
+    Message.success('已加入岗位库（侧栏「岗位库」可管理与匹配）')
+  } catch (e) {
+    Message.error(e.response?.data?.detail || '入库失败')
+  }
+}
+
+/* 岗位库「用此岗位诊断」带 JD 跳入：预填表单 */
+function applyQueryJd() {
+  const jd = String(route.query.jd || '').trim()
+  if (jd.length >= 20) {
+    jdText.value = jd
+    saveRecentJd(jd)
+    Message.success('已填入岗位 JD，可继续编辑后开始诊断')
+  }
+}
+
+onMounted(applyQueryJd)
 </script>

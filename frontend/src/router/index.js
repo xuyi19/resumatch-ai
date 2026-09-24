@@ -19,6 +19,7 @@ export default createRouter({
         { path: 'editor', name: 'app-editor-new', component: () => import('../views/EditorView.vue') },
         { path: 'editor/:taskId', name: 'app-editor', component: () => import('../views/EditorView.vue') },
         { path: 'resumes', name: 'app-resumes', component: () => import('../views/ResumeListView.vue') },
+        { path: 'jobs', name: 'app-jobs', component: () => import('../views/JobLibraryView.vue') },
         { path: 'interview', name: 'app-interview', component: () => import('../views/InterviewView.vue') },
         { path: 'result/:taskId', name: 'app-result', component: () => import('../views/ResultView.vue') },
         { path: 'chat/:taskId', name: 'app-chat', component: () => import('../views/ChatView.vue') },
@@ -27,6 +28,7 @@ export default createRouter({
     },
 
     { path: '/settings', name: 'settings', component: () => import('../views/SettingsView.vue') },
+    { path: '/guide', name: 'guide', component: () => import('../views/GuideView.vue') },
     { path: '/changelog', name: 'changelog', component: () => import('../views/ChangelogView.vue') },
 
     // ---- 旧路径重定向（兼容历史书签 / 旧版本 exe） ----

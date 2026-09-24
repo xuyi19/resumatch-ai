@@ -80,3 +80,26 @@ class Conversation(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
+
+
+class SavedJob(Base):
+    """M45 岗位库：用户统一管理的心仪岗位（手动录入 / 岗位面板一键入库）。
+
+    与 localStorage 收藏的区别：落库持久化、跨会话可批量与简历匹配推荐。
+    """
+    __tablename__ = "saved_jobs"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    owner_id: Mapped[str] = mapped_column(String(64), default="local", index=True)
+    title: Mapped[str] = mapped_column(String(80))
+    company: Mapped[str] = mapped_column(String(60), default="")
+    city: Mapped[str] = mapped_column(String(20), default="")
+    salary: Mapped[str] = mapped_column(String(40), default="")
+    jd_text: Mapped[str] = mapped_column(Text, default="")
+    # manual 手动添加 / ai 岗位面板入库
+    source: Mapped[str] = mapped_column(String(16), default="manual")
+    url: Mapped[str] = mapped_column(String(300), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )

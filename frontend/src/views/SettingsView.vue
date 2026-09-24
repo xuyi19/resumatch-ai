@@ -2,7 +2,10 @@
   <div class="max-w-4xl mx-auto px-6 md:px-10 py-8 md:py-10">
 
     <div class="mb-8">
-      <h1 class="text-2xl font-semibold tracking-tight mb-1.5">设置</h1>
+      <h1 class="text-2xl font-semibold tracking-tight mb-1.5">
+        <span class="bg-gradient-to-r from-ink to-accent bg-clip-text text-transparent">设置</span>
+      </h1>
+      <div class="h-0.5 w-14 rounded-full bg-gradient-to-r from-accent to-accent-hover/0"></div>
       <p class="text-sm text-ink-sub">配置大模型 API，Key 仅保存在本机，不上传服务器</p>
     </div>
 

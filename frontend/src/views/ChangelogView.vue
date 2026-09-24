@@ -8,7 +8,7 @@
           <span v-if="meta.version" class="px-2.5 py-1 rounded-lg text-xs font-mono
             bg-accent/10 text-accent border border-accent/20">当前 v{{ meta.version }}</span>
         </div>
-        <p class="text-sm text-ink-sub">ResuMatch AI 的版本历史与发布说明</p>
+        <p class="text-sm text-ink-sub">知岗 ResuMatch-AI 的版本历史与发布说明</p>
       </div>
 
       <div class="relative pl-8">

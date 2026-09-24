@@ -154,7 +154,10 @@
       <template v-else>
         <!-- 标题 -->
         <div class="mb-6">
-          <h1 class="text-3xl font-semibold text-ink mb-2">历史记录</h1>
+          <h1 class="text-3xl font-semibold mb-2 tracking-tight">
+            <span class="bg-gradient-to-r from-ink to-accent bg-clip-text text-transparent">历史记录</span>
+          </h1>
+          <div class="h-0.5 w-14 rounded-full bg-gradient-to-r from-accent to-accent-hover/0"></div>
           <p class="text-sm text-ink-sub">查看过往的诊断任务，点击查看可恢复完整结果</p>
         </div>
 

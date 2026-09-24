@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent          # 项目根
 BACKEND = ROOT / "backend"
 FRONTEND_DIST = ROOT / "frontend" / "dist"
 RELEASE = ROOT / "release"
-APP_NAME = "ResuMatch AI 桌面版"
+APP_NAME = "知岗 ResuMatch-AI 桌面版"
 
 # 桌面版必须排除的重依赖（匹配链路已移除，模型/爬虫不再需要）
 EXCLUDES = [
@@ -75,20 +75,35 @@ def _detect_hidden():
 
 
 # ---------------- 图标生成（Chrome 无头渲染 SVG → PNG → ICO） ----------------
+# 「知岗」图标：靶心 + 命中之矢——知字从矢，瞄准岗位所求（克莱因蓝品牌渐变）
 ICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#2563eb"/>
-      <stop offset="1" stop-color="#7c3aed"/>
+      <stop offset="0" stop-color="#0A47E0"/>
+      <stop offset="1" stop-color="#002FA7"/>
     </linearGradient>
   </defs>
-  <rect x="16" y="16" width="224" height="224" rx="48" fill="url(#g)"/>
-  <rect x="64" y="56" width="128" height="150" rx="14" fill="#ffffff"/>
-  <rect x="84" y="84" width="88" height="12" rx="6" fill="#cbd5e1"/>
-  <rect x="84" y="112" width="88" height="12" rx="6" fill="#e2e8f0"/>
-  <rect x="84" y="140" width="60" height="12" rx="6" fill="#e2e8f0"/>
-  <circle cx="150" cy="160" r="34" fill="none" stroke="#ffffff" stroke-width="12"/>
-  <line x1="174" y1="184" x2="198" y2="208" stroke="#ffffff" stroke-width="14" stroke-linecap="round"/>
+  <rect x="16" y="16" width="224" height="224" rx="52" fill="url(#g)"/>
+  <circle cx="112" cy="144" r="60" fill="none" stroke="#ffffff" stroke-width="18"/>
+  <circle cx="112" cy="144" r="16" fill="#ffffff"/>
+  <line x1="112" y1="144" x2="196" y2="60" stroke="#ffffff" stroke-width="18" stroke-linecap="round"/>
+  <path d="M196 104V60h-44" fill="none" stroke="#ffffff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"""
+
+# 暗色备用变体：底色提亮为暗色品牌阶（--c-accent 暗色 #5A82FF），深色任务栏/标签栏上更醒目；
+# 打包加 --dark-icon 启用（默认亮色版）
+ICON_SVG_DARK = """<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5A82FF"/>
+      <stop offset="1" stop-color="#2B50D0"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="224" height="224" rx="52" fill="url(#g)"/>
+  <circle cx="112" cy="144" r="60" fill="none" stroke="#ffffff" stroke-width="18"/>
+  <circle cx="112" cy="144" r="16" fill="#ffffff"/>
+  <line x1="112" y1="144" x2="196" y2="60" stroke="#ffffff" stroke-width="18" stroke-linecap="round"/>
+  <path d="M196 104V60h-44" fill="none" stroke="#ffffff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>"""
 
 
@@ -107,7 +122,7 @@ def _build_ico(pngs: dict[int, bytes], out: Path):
     out.write_bytes(header + b"".join(entries) + body)
 
 
-def _gen_icon(out_ico: Path) -> bool:
+def _gen_icon(out_ico: Path, svg: str = ICON_SVG) -> bool:
     chrome = (r"C:\Program Files\Google\Chrome\Application\chrome.exe",
               r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe")
     exe = next((c for c in chrome if Path(c).exists()), None)
@@ -115,7 +130,7 @@ def _gen_icon(out_ico: Path) -> bool:
         return False
     tmp = Path(tempfile.gettempdir()) / f"rm-icon-{int(time.time())}"
     tmp.mkdir(parents=True, exist_ok=True)
-    (tmp / "icon.svg").write_text(ICON_SVG, encoding="utf-8")
+    (tmp / "icon.svg").write_text(svg, encoding="utf-8")
     (tmp / "wrap.html").write_text(
         '<!doctype html><html><head><style>html,body{margin:0;overflow:hidden}'
         'img{display:block}</style></head><body>'
@@ -185,12 +200,12 @@ def _assemble(dist_exe_dir: Path):
     return target
 
 
-_USAGE = """ResuMatch AI 桌面版 · 使用说明
+_USAGE = """知岗 ResuMatch-AI 桌面版 · 使用说明
 ================================
 
 【怎么用】
-1. 把整个文件夹（ResuMatch AI 桌面版）解压到任意位置，例如桌面。
-2. 双击「ResuMatch AI 桌面版.exe」启动，会打开独立应用窗口（不是浏览器标签页）。
+1. 把整个文件夹（知岗 ResuMatch-AI 桌面版）解压到任意位置，例如桌面。
+2. 双击「知岗 ResuMatch-AI 桌面版.exe」启动，会打开独立应用窗口（不是浏览器标签页）。
 3. 在「设置」页填入你自己的大模型 API Key（DeepSeek / 兼容 OpenAI 协议均可），
    也可在 exe 同级放一个 config.json 预置（见下文）。
 4. 上传简历（PDF / DOCX），粘贴岗位 JD 文本，开始诊断。
@@ -246,8 +261,9 @@ def main():
     print(f"[build] 构建中间目录: {stage}")
 
     icon = stage / "app.ico"
-    if _gen_icon(icon):
-        print(f"[build] 图标已生成: {icon}")
+    dark_icon = "--dark-icon" in sys.argv  # 备用：暗色任务栏/深色环境分发时用
+    if _gen_icon(icon, ICON_SVG_DARK if dark_icon else ICON_SVG):
+        print(f"[build] 图标已生成（{'暗色' if dark_icon else '亮色'}版）: {icon}")
     else:
         print("[build] 未生成图标（不影响功能）")
         icon = None

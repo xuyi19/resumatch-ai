@@ -1,4 +1,4 @@
-"""ResuMatch AI 桌面版启动器（PyInstaller one-folder 入口）。
+"""知岗 ResuMatch-AI 桌面版启动器（PyInstaller one-folder 入口）。
 
 - 端口探测用 SO_EXCLUSIVEADDRUSE（Windows 下 SO_REUSEADDR 会误判被占端口为空闲，
   导致浏览器打开别人应用的端口——如 8765 被蓝笔申论占用时的串台）
@@ -79,7 +79,7 @@ def _health_is_resumatch(port: int) -> bool:
 
         r = httpx.get(f"http://127.0.0.1:{port}/api/v1/health", timeout=1.5,
                       trust_env=False)  # 不走系统代理，避免 localhost 请求被代理拖慢
-        return r.status_code == 200 and "ResuMatch AI" in r.text
+        return r.status_code == 200 and "ResuMatch" in r.text
     except Exception:
         return False
 
@@ -156,7 +156,7 @@ def _open_window(port: int) -> None:
         import webview
 
         webview.create_window(
-            "ResuMatch AI · 智能简历诊断",
+            "知岗 ResuMatch-AI · 简历岗位智能匹配诊断",
             url,
             width=1280,
             height=860,
@@ -178,7 +178,7 @@ def main() -> None:
 
     existing = _find_running_port()
     if existing is not None:
-        _log(f"ResuMatch AI 已在运行（端口 {existing}），直接为已有实例打开窗口。")
+        _log(f"知岗 ResuMatch-AI 已在运行（端口 {existing}），直接为已有实例打开窗口。")
         if not no_browser:
             _open_window(existing)  # 主线程阻塞，窗口关闭即退出
         return
@@ -254,7 +254,7 @@ def _notify_update(current: str, latest: str):
             "发现新版本",
             html=(
                 f"<body style='font-family:sans-serif;padding:24px;text-align:center'>"
-                f"<h2>ResuMatch AI 有新版本</h2>"
+                f"<h2>知岗 ResuMatch-AI 有新版本</h2>"
                 f"<p>当前 {current} → 最新 {latest}</p>"
                 f"<p style='color:#888'>请到发布页下载新版本（本次不自动更新）</p>"
                 f"</body>"

@@ -2,7 +2,10 @@
   <div class="max-w-6xl mx-auto px-6 md:px-10 py-8 md:py-10">
     <div class="mb-8 flex items-end justify-between flex-wrap gap-3">
       <div>
-        <h1 class="text-2xl font-semibold tracking-tight mb-1.5">简历库</h1>
+        <h1 class="text-2xl font-semibold tracking-tight mb-1.5">
+          <span class="bg-gradient-to-r from-ink to-accent bg-clip-text text-transparent">简历库</span>
+        </h1>
+        <div class="h-0.5 w-14 rounded-full bg-gradient-to-r from-accent to-accent-hover/0"></div>
         <p class="text-sm text-ink-sub">统一管理多份简历（不同方向投不同岗位），一键发起诊断</p>
       </div>
       <div class="flex items-center gap-2">
@@ -42,7 +45,7 @@
         <div class="flex items-start gap-3 mb-3">
           <input type="checkbox" :checked="selected.has(r.id)"
             @change="toggleSelect(r.id)" title="选择"
-            class="mt-1 w-4 h-4 accent-[#6d5dfc] cursor-pointer shrink-0" />
+            class="mt-1 w-4 h-4 accent-accent cursor-pointer shrink-0" />
           <div class="w-9 h-9 rounded-lg bg-inset border border-line flex items-center
             justify-center shrink-0">
             <span class="text-sm">📄</span>

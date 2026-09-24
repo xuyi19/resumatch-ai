@@ -1,10 +1,13 @@
 <template>
-  <div>
+  <div class="max-w-6xl mx-auto px-6 md:px-10 py-8 md:py-10">
     <!-- 页头 -->
-    <div class="flex items-end justify-between mb-6">
+    <div class="flex items-end justify-between mb-8">
       <div>
-        <h1 class="text-xl font-semibold text-ink">求职总览</h1>
-        <p class="text-xs text-ink-faint mt-1">
+        <h1 class="text-xl font-semibold tracking-tight">
+          <span class="bg-gradient-to-r from-ink to-accent bg-clip-text text-transparent">求职总览</span>
+        </h1>
+        <div class="h-0.5 w-14 rounded-full bg-gradient-to-r from-accent to-accent-hover/0 mt-1.5"></div>
+        <p class="text-xs text-ink-faint mt-1.5">
           {{ today }} · 简历、诊断与模拟面试进展一屏掌握
         </p>
       </div>
@@ -23,7 +26,7 @@
 
     <template v-else>
       <!-- M41 Bento 网格总览：Hero 大卡 + 统计小卡（大小不一的便当盒布局） -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
 
         <!-- Hero：问候 + 最近成绩 + 快捷入口 -->
         <div class="col-span-2 row-span-2 rounded-2xl p-6 md:p-7 relative overflow-hidden
@@ -73,7 +76,7 @@
 
       <!-- 空态引导 -->
       <div v-if="!stats.diagnosis_total && !stats.resume_count"
-        class="bg-panel border border-line rounded-2xl p-12 text-center mb-6">
+        class="bg-panel border border-line rounded-2xl p-12 text-center mb-8">
         <div class="text-4xl mb-4">🧭</div>
         <div class="text-lg font-semibold text-ink mb-2">从一份简历开始</div>
         <p class="text-sm text-ink-sub max-w-md mx-auto">
@@ -83,12 +86,13 @@
       </div>
 
       <!-- 继续进行 -->
-      <div v-if="stats.ongoing_diagnoses.length || stats.ongoing_interviews.length" class="mb-6">
+      <div v-if="stats.ongoing_diagnoses.length || stats.ongoing_interviews.length" class="mb-8">
         <h2 class="text-sm font-semibold text-ink mb-3">⏳ 继续进行</h2>
         <div class="grid md:grid-cols-2 gap-3">
           <button v-for="d in stats.ongoing_diagnoses" :key="d.task_id"
             @click="$router.push(`/app/result/${d.task_id}`)"
-            class="flex items-center gap-3 bg-panel border border-warn/40 rounded-2xl px-4 py-3
+            :class="stats.ongoing_diagnoses.length + stats.ongoing_interviews.length === 1 ? 'md:col-span-2' : ''"
+            class="flex items-center gap-3 bg-panel border border-warn/40 rounded-2xl px-5 py-3.5
               text-left hover:border-warn transition-colors">
             <span class="text-lg">🩺</span>
             <span class="flex-1 min-w-0">
@@ -101,7 +105,8 @@
           </button>
           <button v-for="iv in stats.ongoing_interviews" :key="iv.task_id"
             @click="$router.push({ path: '/app/interview', query: { task_id: iv.task_id } })"
-            class="flex items-center gap-3 bg-panel border border-accent/40 rounded-2xl px-4 py-3
+            :class="stats.ongoing_diagnoses.length + stats.ongoing_interviews.length === 1 ? 'md:col-span-2' : ''"
+            class="flex items-center gap-3 bg-panel border border-accent/40 rounded-2xl px-5 py-3.5
               text-left hover:border-accent transition-colors">
             <span class="text-lg">🎤</span>
             <span class="flex-1 min-w-0">
@@ -117,23 +122,23 @@
 
       <!-- M38 分数趋势双列 -->
       <div v-if="diagTrendPoints.length || ivTrendPoints.length"
-        class="grid md:grid-cols-2 gap-4 mb-6">
+        class="grid md:grid-cols-2 gap-5 mb-8">
         <div class="bg-panel border border-line rounded-2xl p-5">
-          <h2 class="text-sm font-semibold text-ink mb-3">📈 诊断分数趋势</h2>
-          <div class="h-44">
+          <h2 class="text-sm font-semibold text-ink mb-4">📈 诊断分数趋势</h2>
+          <div class="h-48">
             <LineChart :points="diagTrendPoints" :max="100" />
           </div>
         </div>
         <div class="bg-panel border border-line rounded-2xl p-5">
-          <h2 class="text-sm font-semibold text-ink mb-3">🎤 面试分数趋势</h2>
-          <div class="h-44">
+          <h2 class="text-sm font-semibold text-ink mb-4">🎤 面试分数趋势</h2>
+          <div class="h-48">
             <LineChart :points="ivTrendPoints" :max="10" />
           </div>
         </div>
       </div>
 
       <!-- 最近记录双列 -->
-      <div class="grid md:grid-cols-2 gap-4">
+      <div class="grid md:grid-cols-2 gap-5">
         <!-- 最近诊断 -->
         <div class="bg-panel border border-line rounded-2xl p-5">
           <div class="flex items-center justify-between mb-4">

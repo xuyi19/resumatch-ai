@@ -184,7 +184,10 @@
       </div>
 
       <div class="text-center mb-8">
-        <h1 class="text-3xl md:text-4xl font-semibold text-ink mb-2">诊断报告</h1>
+        <h1 class="text-3xl md:text-4xl font-semibold mb-2 tracking-tight">
+          <span class="bg-gradient-to-r from-ink to-accent bg-clip-text text-transparent">诊断报告</span>
+        </h1>
+        <div class="h-0.5 w-16 rounded-full bg-gradient-to-r from-accent to-accent-hover/0"></div>
         <p v-if="result.diagnosis_target" class="text-sm text-ink-sub">
           {{ result.diagnosis_target.title }} · {{ result.diagnosis_target.company }}
         </p>

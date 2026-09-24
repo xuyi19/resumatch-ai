@@ -58,7 +58,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    APP_NAME: str = "ResuMatch AI"
+    APP_NAME: str = "知岗 ResuMatch-AI"
     APP_VERSION: str = _APP_VERSION
     DEBUG: bool = False
 

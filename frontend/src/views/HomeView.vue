@@ -9,6 +9,7 @@
         <span class="text-xs font-medium text-ink-sub font-mono">{{ badgeText }}</span>
       </div>
 
+      <p class="text-sm text-ink-faint font-mono mb-3 tracking-wide">知岗 ResuMatch-AI</p>
       <h1 class="text-4xl md:text-6xl font-semibold leading-tight mb-6 tracking-tight">
         <span class="bg-gradient-to-br from-ink via-ink to-accent bg-clip-text text-transparent">
         简历诊断，<br />
@@ -16,8 +17,10 @@
         </span>
       </h1>
       <p class="text-base text-ink-sub max-w-2xl leading-relaxed mb-9">
-        多智能体流水线：并行解析简历与岗位 JD，给出六维评分、差距分析与 STAR 改写建议，
-        再经一轮自省精修——最后用 10 套模板导出 Word。
+        知岗，意在<strong class="text-ink font-semibold">读懂岗位所求，认清自身所长</strong>。
+        它是求职者的岗位需求分析师——以岗位 JD 为标尺，多智能体并行解析简历与岗位，
+        量化六维适配度、定位能力短板、挖掘被忽略的亮点，让简历不再是经历的堆砌，
+        而是对岗位需求的有效回应。
       </p>
 
       <div class="flex gap-3 flex-wrap">
@@ -26,10 +29,10 @@
             hover:bg-accent-hover active:scale-[0.98] transition-all duration-150">
           开始诊断
         </RouterLink>
-        <RouterLink :to="{ path: '/app/analyze', query: { demo: 1 } }"
+        <RouterLink to="/guide"
           class="px-6 py-3 text-sm font-medium rounded-lg bg-panel border border-line
             text-ink hover:border-accent hover:text-accent transition-colors duration-150">
-          ▶ 30 秒看示例
+          📖 使用说明
         </RouterLink>
         <RouterLink to="/app/editor"
           class="px-6 py-3 text-sm font-medium rounded-lg bg-panel border border-line
@@ -175,7 +178,7 @@ const stats = [
 ]
 
 const badgeText = computed(() =>
-  isWeb ? '多智能体引擎已就绪 · 无需注册' : '多智能体引擎已就绪 · 本机运行',
+  isWeb ? '知岗 ResuMatch-AI · 引擎就绪 · 无需注册' : '知岗 ResuMatch-AI · 引擎就绪 · 本机运行',
 )
 
 const notes = computed(() => isWeb

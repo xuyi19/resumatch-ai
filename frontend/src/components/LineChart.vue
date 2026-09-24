@@ -37,7 +37,14 @@ function render() {
   }
   chart.setOption({
     grid: { left: 34, right: 12, top: 14, bottom: 24 },
-    tooltip: { trigger: 'axis' },
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: colorOf('--c-panel'),
+      borderColor: colorOf('--c-line-strong'),
+      textStyle: { color: colorOf('--c-ink'), fontSize: 12 },
+      // 单点时 ECharts 默认会把白底 tooltip 顶到图表中间，限制样式避免突兀
+      valueFormatter: v => `${v} 分`,
+    },
     xAxis: {
       type: 'category', data: props.points.map(p => p.x),
       axisLine: { lineStyle: { color: colorOf('--c-line') } },

@@ -20,7 +20,10 @@
           bg-accent/10 border border-line">
           <span class="text-3xl">🎤</span>
         </div>
-        <h1 class="text-3xl font-semibold text-ink mb-2">模拟面试</h1>
+        <h1 class="text-3xl font-semibold mb-2 tracking-tight">
+          <span class="bg-gradient-to-r from-ink to-accent bg-clip-text text-transparent">模拟面试</span>
+        </h1>
+        <div class="h-0.5 w-14 rounded-full bg-gradient-to-r from-accent to-accent-hover/0"></div>
         <p class="text-sm text-ink-sub max-w-xl mx-auto">
           选择一份简历，粘贴意向岗位 JD，AI 面试官即刻出题开考——无需先跑诊断。
           共 6 题（技术基础 / 项目深挖 / 岗位匹配 / 情景行为），逐题点评，答完出总评。
@@ -49,12 +52,27 @@
           </div>
 
           <div>
-            <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center justify-between mb-2 gap-2 flex-wrap">
               <label class="block text-xs font-medium text-ink-sub">意向岗位 JD</label>
-              <span class="text-xs font-mono"
-                :class="jdLength >= 20 ? 'text-ink-faint' : 'text-warn'">
-                {{ jdLength }}/6000
-              </span>
+              <div class="flex items-center gap-2">
+                <!-- M45 岗位库选取：一键带入库内岗位 JD（空库时引导去添加） -->
+                <select v-if="libJobs.length" v-model="libJobId" @change="applyLibraryJob"
+                  class="px-2.5 py-1.5 rounded-lg bg-inset border border-line text-xs text-ink-sub
+                    focus:border-accent focus:outline-none transition-colors max-w-[220px]">
+                  <option value="">从岗位库选取…</option>
+                  <option v-for="j in libJobs" :key="j.id" :value="String(j.id)">
+                    {{ j.company || '公司待定' }} · {{ j.title }}
+                  </option>
+                </select>
+                <RouterLink v-else to="/app/jobs"
+                  class="text-xs text-accent hover:underline whitespace-nowrap">
+                  从岗位库选取（先去添加岗位）→
+                </RouterLink>
+                <span class="text-xs font-mono"
+                  :class="jdLength >= 20 ? 'text-ink-faint' : 'text-warn'">
+                  {{ jdLength }}/6000
+                </span>
+              </div>
             </div>
             <textarea v-model="form.jdText" rows="7" maxlength="6000"
               placeholder="粘贴招聘 JD：岗位职责、任职要求、加分项等。AI 将结合简历与 JD 针对性出题"
@@ -240,6 +258,7 @@ function _llmCfg() {
 onMounted(() => {
   loadResumes()
   loadSessions()
+  loadLibraryJobs()
   // M40 收藏岗位一键开面试：AnalyzeView 跳转携带 ?jd=
   const jd = (route.query.jd || '').toString()
   if (jd) {
@@ -247,4 +266,28 @@ onMounted(() => {
     Message.info('已带入收藏岗位的 JD，选择简历后即可开始面试')
   }
 })
+
+/* ---- M45 岗位库选取：一键带入库内岗位 JD ---- */
+const libJobs = ref([])
+const libJobId = ref('')
+
+async function loadLibraryJobs() {
+  try {
+    const res = await api.listLibraryJobs()
+    libJobs.value = res.data.items || []
+  } catch (e) { /* 岗位库不可用时不显示下拉，静默 */ }
+}
+
+function applyLibraryJob() {
+  if (!libJobId.value) return
+  const j = libJobs.value.find((x) => String(x.id) === libJobId.value)
+  if (!j) return
+  if (!j.jd || j.jd.trim().length < 20) {
+    Message.warning('该岗位缺少完整 JD，请先到岗位库编辑补全')
+    libJobId.value = ''
+    return
+  }
+  form.jdText = j.jd.slice(0, 6000)
+  Message.success(`已带入「${j.company || ''} ${j.title}」的 JD，选择简历后即可开始面试`)
+}
 </script>
