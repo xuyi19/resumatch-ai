@@ -328,7 +328,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
-import { Message } from '@arco-design/web-vue'
+import { Message, Modal } from '@arco-design/web-vue'
 import { renderAsync } from 'docx-preview'
 import api from '../api'
 import { checkResume } from '../utils/checker'
@@ -891,7 +891,70 @@ onMounted(() => {
   }).catch(() => { /* 用内置兜底列表 */ })
   // 首次预览渲染（数据加载后 watch 会再触发刷新）
   renderDocxPreview()
+  // M50：诊断报告「应用」来的改写建议待应用清单
+  checkApplyQueue()
 })
+
+/* ---- M50 改写建议一键采纳：从诊断报告跳转过来时应用待应用清单 ---- */
+const APPLY_QUEUE_KEY = 'editor_apply_queue'
+
+function readApplyQueue() {
+  try { return JSON.parse(localStorage.getItem(APPLY_QUEUE_KEY) || '[]') } catch (e) { return [] }
+}
+
+function checkApplyQueue() {
+  const queue = readApplyQueue()
+  if (!queue.length) return
+  Modal.confirm({
+    title: '应用诊断改写建议？',
+    content: `有 ${queue.length} 条来自诊断报告的改写建议待应用。将按内容类型追加到对应分区（工作/项目/技能/简介），追加后请人工核对位置并补全时间、主体等信息。`,
+    okText: `应用 ${queue.length} 条`,
+    cancelText: '暂不应用',
+    onOk: () => applyQueue(queue),
+  })
+}
+
+function applyQueue(queue) {
+  let nExp = 0; let nPrj = 0; let nSkill = 0; let nCert = 0; let nSum = 0
+  for (const q of queue) {
+    const t = (q.target || '')
+    const text = (q.rewritten || '').trim()
+    if (!text) continue
+    if (t.includes('技能')) {
+      // 改写后的技能串按常见分隔符拆词追加，去重
+      const words = text.split(/[、,，;；·|\s/]+/).map((w) => w.trim()).filter(Boolean)
+      for (const w of words) {
+        if (!data.value.skills.includes(w)) data.value.skills.push(w)
+      }
+      nSkill++
+    } else if (t.includes('证书')) {
+      for (const line of text.split(/[;；\n]+/).map((s) => s.trim()).filter(Boolean)) {
+        if (!data.value.certificates.includes(line)) data.value.certificates.push(line)
+      }
+      nCert++
+    } else if (t.includes('项目')) {
+      data.value.projects.push({ time: '', name: '', role: '', desc: text })
+      nPrj++
+    } else if (t.includes('工作') || (t.includes('经历') && !t.includes('教育'))) {
+      data.value.experience.push({ time: '', company: '', position: '', desc: text })
+      nExp++
+    } else {
+      // 简介 / 教育 / 其他自由文本 → 追加到个人简介（教育为结构化字段，改写句不适合直接塞）
+      data.value.summary = data.value.summary
+        ? `${data.value.summary}\n${text}`
+        : text
+      nSum++
+    }
+  }
+  try { localStorage.removeItem(APPLY_QUEUE_KEY) } catch (e) { /* 忽略 */ }
+  const parts = []
+  if (nExp) parts.push(`工作经历 ${nExp} 条`)
+  if (nPrj) parts.push(`项目经历 ${nPrj} 条`)
+  if (nSkill) parts.push(`技能 ${nSkill} 条`)
+  if (nCert) parts.push(`证书 ${nCert} 条`)
+  if (nSum) parts.push(`个人简介 ${nSum} 条`)
+  Message.success(`已应用：${parts.join('、')}——请核对内容并补全时间、主体信息`)
+}
 </script>
 
 <!-- 打印样式（全局） -->

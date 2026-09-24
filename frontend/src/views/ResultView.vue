@@ -313,11 +313,26 @@
         </div>
 
         <div id="sec-suggestions" class="bg-panel border border-line rounded-lg p-6">
-          <h2 class="text-base font-semibold text-ink mb-4">改写建议</h2>
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-semibold text-ink">改写建议</h2>
+            <!-- M50 一键采纳：队列非空时显示入口 -->
+            <button v-if="applyQueueCount" @click="$router.push('/app/editor')"
+              class="px-3 py-1.5 text-xs font-medium rounded-lg bg-accent text-white
+                hover:bg-accent-hover transition-colors shadow-sm">
+              去编辑器应用（{{ applyQueueCount }}）→
+            </button>
+          </div>
           <div class="space-y-4">
             <div v-for="(s, i) in suggestions" :key="i"
                  class="p-5 rounded-lg bg-inset border border-line">
-              <div class="text-xs text-ink-sub mb-2">{{ s.target }}</div>
+              <div class="flex items-center justify-between gap-3 mb-2">
+                <div class="text-xs text-ink-sub">{{ s.target }}</div>
+                <!-- M50 应用到编辑器：入待应用队列 -->
+                <button v-if="!isQueued(s)" @click="queueApply(s)" title="加入编辑器待应用清单"
+                  class="shrink-0 px-2.5 py-1 text-[11px] font-medium rounded-md border border-accent/50
+                    text-accent hover:bg-accent/10 transition-colors">✚ 应用</button>
+                <span v-else class="shrink-0 text-[11px] text-ok">✓ 已加入清单</span>
+              </div>
               <div class="text-sm text-ink-faint line-through mb-2">{{ s.original || '（新增内容）' }}</div>
               <div class="text-sm text-ink px-3 py-2 rounded-lg bg-accent/10 border-l-2 border-accent">
                 {{ s.rewritten }}
@@ -917,6 +932,29 @@ function toggleGapDone(g) {
 const gapSummary = computed(() => result.value.diagnosis?.gap_summary || '')
 const suggestions = computed(() => result.value.diagnosis?.suggestions || [])
 const overallAdvice = computed(() => result.value.diagnosis?.overall_advice || '')
+
+/* ---- M50 改写建议一键采纳：待应用队列（localStorage 中转给编辑器） ---- */
+const APPLY_QUEUE_KEY = 'editor_apply_queue'
+const applyQueue = ref([])
+
+function loadApplyQueue() {
+  try { applyQueue.value = JSON.parse(localStorage.getItem(APPLY_QUEUE_KEY) || '[]') } catch (e) { applyQueue.value = [] }
+}
+const applyQueueCount = computed(() => applyQueue.value.length)
+
+function isQueued(s) {
+  return applyQueue.value.some((q) => q.rewritten === s.rewritten && q.target === s.target)
+}
+
+function queueApply(s) {
+  loadApplyQueue()
+  if (isQueued(s)) return
+  applyQueue.value.push({ target: s.target || '', original: s.original || '', rewritten: s.rewritten || '' })
+  try { localStorage.setItem(APPLY_QUEUE_KEY, JSON.stringify(applyQueue.value)) } catch (e) { /* 存储不可用静默 */ }
+  Message.success('已加入待应用清单，去编辑器粘贴到简历中')
+}
+
+onMounted(loadApplyQueue)
 
 function severityColor(sev) {
   if (sev === 'high') return 'text-bad'
