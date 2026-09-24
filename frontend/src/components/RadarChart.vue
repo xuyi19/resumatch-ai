@@ -7,11 +7,14 @@ import { ref, onMounted, onUnmounted, watch } from 'vue'
 import * as echarts from 'echarts'
 
 /**
- * 六维雷达图（M20 抽取复用：结果页单系列 / 历史对比双系列）
+ * 雷达图（M20 抽取复用：结果页单系列 / 历史对比双系列；M34 支持自定义维度与量程）
  * series: [{ name, values, color? }]  color 传 CSS 变量名（如 --c-accent）或 rgb 串
+ * dims: 维度名列表（默认简历诊断六维）；max: 单维度量程上限
  */
 const props = defineProps({
   series: { type: Array, required: true },
+  dims: { type: Array, default: null },
+  max: { type: Number, default: 100 },
 })
 
 const DIMS = [
@@ -39,7 +42,7 @@ function render() {
   chart = chart || echarts.init(chartRef.value)
   chart.setOption({
     radar: {
-      indicator: DIMS.map(name => ({ name, max: 100 })),
+      indicator: (props.dims?.length ? props.dims : DIMS).map(name => ({ name, max: props.max })),
       splitNumber: 5,
       axisName: { color: colorOf('--c-ink-sub'), fontSize: 12, fontWeight: 500 },
       splitLine: { lineStyle: { color: colorOf('--c-line') } },

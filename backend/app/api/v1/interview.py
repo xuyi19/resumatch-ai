@@ -81,6 +81,9 @@ class ChatTurn(BaseModel):
 
 class InterviewSummary(BaseModel):
     overall: str = Field(description="整体表现总评（3-4 句）")
+    # M34 评分量化：旧会话无这两个字段（前端/导出均需容错缺省）
+    overall_score: float | None = Field(default=None, description="总分 0-10，可一位小数")
+    scores: dict[str, float] = Field(default_factory=dict, description="每题得分 {qid: 0-10}")
     strengths: list[str] = Field(default_factory=list, description="亮点")
     weaknesses: list[str] = Field(default_factory=list, description="待改进")
     suggestions: list[str] = Field(default_factory=list, description="针对性建议")
@@ -161,11 +164,14 @@ SUMMARY_PROMPT = """你是一位资深技术面试官，模拟面试结束，请
 
 ## 要求
 - overall：3-4 句整体评价（含与岗位匹配度的判断）
+- scores：每题 0-10 分（可一位小数），评分依据：要点覆盖度、与 JD 相关性、表达结构；
+  如 {{"q1": 7.5, "q2": 6}}，必须覆盖全部题目，禁止漏题
+- overall_score：总分 0-10（各题加权平均即可，整体印象可微调）
 - strengths/weaknesses：各 2-3 条，具体到回答内容
 - suggestions：2-3 条可执行的面试准备建议
 
 ## 输出 JSON
-{{"overall": "...", "strengths": ["..."], "weaknesses": ["..."], "suggestions": ["..."]}}
+{{"overall": "...", "overall_score": 7.2, "scores": {{"q1": 7.5, "q2": 6}}, "strengths": ["..."], "weaknesses": ["..."], "suggestions": ["..."]}}
 """
 
 
@@ -340,6 +346,8 @@ async def list_sessions(
                 "answered": len(c.answers or {}),
                 "current_index": c.current_index,
                 "summary": bool(c.optimized_resume),
+                # M34 会话列表带总分（旧会话/未完成为 None）
+                "overall_score": (c.optimized_resume or {}).get("overall_score"),
                 "source": "独立面试" if c.context else "诊断面试",
                 "first_question": (c.questions or [{}])[0].get("question", "")[:60],
                 "updated_at": c.updated_at.isoformat() if c.updated_at else None,

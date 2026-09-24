@@ -179,6 +179,8 @@ def generate_interview_docx(payload: dict) -> bytes:
     questions = payload.get("questions") or []
     answers = payload.get("answers") or {}
     summary = payload.get("summary") or {}
+    scores = summary.get("scores") or {}
+    overall_score = summary.get("overall_score")
 
     doc = Document()
     _style(doc)
@@ -189,11 +191,15 @@ def generate_interview_docx(payload: dict) -> bytes:
           f"共 {len(questions)} 题 · 生成于 {datetime.now().strftime('%Y-%m-%d %H:%M')}",
           color=_SUB, size=9, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=14)
 
-    # ---- 一、问答记录 ----
+    # ---- 一、问答记录（M34：题号后带每题得分） ----
     doc.add_heading("一、面试问答记录", level=1)
     answered = 0
     for i, q in enumerate(questions, 1):
-        doc.add_heading(f"第 {i} 题 · {q.get('category', '')}", level=2)
+        score = scores.get(q.get("id"))
+        title = f"第 {i} 题 · {q.get('category', '')}"
+        if score is not None:
+            title += f"（得分 {score}/10）"
+        doc.add_heading(title, level=2)
         _para(doc, str(q.get("question", "")), bold=True, space_after=6)
         item = answers.get(q.get("id")) or {}
         ans = str(item.get("answer") or "").strip()
@@ -212,6 +218,8 @@ def generate_interview_docx(payload: dict) -> bytes:
 
     # ---- 二、总评 ----
     doc.add_heading("二、整体总评", level=1)
+    if overall_score is not None:
+        _para(doc, f"总分：{overall_score} / 10", bold=True, color=_ACCENT, space_after=6)
     overall = str(summary.get("overall") or "").strip()
     if overall:
         _para(doc, overall, space_after=8)

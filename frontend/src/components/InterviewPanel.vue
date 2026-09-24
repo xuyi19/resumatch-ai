@@ -66,6 +66,11 @@
             <span class="w-6 h-6 rounded-md bg-inset border border-line flex items-center
               justify-center text-xs text-accent font-mono shrink-0">{{ i + 1 }}</span>
             <span class="text-xs px-2 py-0.5 rounded-md bg-accent/10 text-accent">{{ q.category }}</span>
+            <!-- M34 每题得分（完成面试后复盘用） -->
+            <span v-if="scoreOf(q.id) != null" class="text-xs px-2 py-0.5 rounded-md
+              bg-inset border border-line font-mono text-ink-sub">
+              {{ scoreOf(q.id) }} 分
+            </span>
             <span v-if="q.focus" class="text-xs text-ink-faint ml-auto">考察点：{{ q.focus }}</span>
           </div>
           <div class="text-sm text-ink leading-relaxed">{{ q.question }}</div>
@@ -121,15 +126,29 @@
             <span class="text-base font-semibold text-ink">🏁 模拟面试总评</span>
             <span class="text-xs px-2 py-0.5 rounded-md bg-ok/10 text-ok">
               已完成 {{ interview.plan.length }}/{{ interview.plan.length }}</span>
-            <button @click="exportReport" :disabled="exporting"
-              class="ml-auto text-xs px-3 py-1.5 rounded-md border border-line
-                text-ink-sub hover:text-accent hover:border-accent/50
-                disabled:opacity-50 transition-colors">
-              {{ exporting ? '导出中…' : '📄 导出面试报告' }}
-            </button>
+            <div class="ml-auto flex items-center gap-4">
+              <!-- M34 总分（旧会话无 overall_score 不显示） -->
+              <div v-if="interview.summary.overall_score != null"
+                class="flex items-baseline gap-1">
+                <span class="text-2xl font-bold font-mono" :class="overallScoreColor">
+                  {{ interview.summary.overall_score }}
+                </span>
+                <span class="text-xs text-ink-faint">/ 10</span>
+              </div>
+              <button @click="exportReport" :disabled="exporting"
+                class="text-xs px-3 py-1.5 rounded-md border border-line
+                  text-ink-sub hover:text-accent hover:border-accent/50
+                  disabled:opacity-50 transition-colors">
+                {{ exporting ? '导出中…' : '📄 导出面试报告' }}
+              </button>
+            </div>
           </div>
           <div class="bg-inset border border-line rounded-lg p-5 space-y-4">
             <p class="text-sm text-ink leading-relaxed">{{ interview.summary.overall }}</p>
+            <!-- M34 四类维度雷达（有每题得分才渲染） -->
+            <div v-if="radarSeries.length" class="h-[210px] -my-1">
+              <RadarChart :series="radarSeries" :dims="radarDims" :max="10" />
+            </div>
             <div class="grid md:grid-cols-3 gap-4">
               <div>
                 <div class="text-xs text-ok font-medium mb-1.5">✓ 亮点</div>
@@ -161,9 +180,14 @@
               <span class="w-7 h-7 rounded-md bg-accent/15 text-accent flex items-center
                 justify-center text-sm shrink-0">🧑‍💼</span>
               <div class="min-w-0 max-w-[85%]">
-                <div class="text-xs text-ink-faint mb-1">
-                  面试官<template v-if="qInfo(m.qid)">
-                    · 第 {{ qInfo(m.qid).no }} 题 · {{ qInfo(m.qid).category }}</template>
+                <div class="text-xs text-ink-faint mb-1 flex items-center gap-2">
+                  <span>面试官<template v-if="qInfo(m.qid)">
+                    · 第 {{ qInfo(m.qid).no }} 题 · {{ qInfo(m.qid).category }}</template></span>
+                  <!-- M34 题干消息上带该题得分 -->
+                  <span v-if="isQuestionMsg(m) && scoreOf(m.qid) != null"
+                    class="px-1.5 py-0.5 rounded bg-accent/10 text-accent font-mono">
+                    {{ scoreOf(m.qid) }} 分
+                  </span>
                 </div>
                 <div class="inline-block rounded-lg rounded-tl-none border px-4 py-2.5"
                   :class="isQuestionMsg(m) ? 'bg-accent/5 border-accent/30' : 'bg-inset border-line'">
@@ -229,6 +253,7 @@
 import { reactive, ref, computed, watch, nextTick, onMounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import api from '../api'
+import RadarChart from './RadarChart.vue'
 
 const props = defineProps({
   taskId: { type: String, required: true },
@@ -248,7 +273,7 @@ const interview = reactive({
   plan: [],          // [{id, category, question, focus, hint}]
   currentIndex: 0,
   chatLog: [],       // M32 完整对话流 [{role: interviewer|candidate, qid, content}]
-  summary: null,     // 总评 {overall, strengths, weaknesses, suggestions}
+  summary: null,     // 总评 {overall, overall_score?, scores?, strengths, weaknesses, suggestions}
   answer: '',        // 当前输入
   submitting: false,
   loaded: false,     // 已从后端恢复过（避免重复请求）
@@ -269,6 +294,32 @@ function isQuestionMsg(m) {
   const q = interview.plan.find(x => x.id === m.qid)
   return !!q && q.question === m.content
 }
+
+// ===== M34 评分量化：总分 / 每题得分 / 四类维度雷达（旧会话无 scores 自动隐藏） =====
+const radarDims = ['技术基础', '项目深挖', '岗位匹配', '情景行为']
+
+function scoreOf(qid) {
+  const s = interview.summary?.scores
+  return s && s[qid] != null ? s[qid] : null
+}
+
+const overallScoreColor = computed(() => {
+  const v = interview.summary?.overall_score
+  if (v == null) return ''
+  return v >= 8 ? 'text-ok' : v >= 6 ? 'text-accent' : 'text-warn'
+})
+
+const radarSeries = computed(() => {
+  const s = interview.summary?.scores
+  if (!s || !Object.keys(s).length || !interview.plan.length) return []
+  const values = radarDims.map(cat => {
+    const list = interview.plan.filter(q => q.category === cat && s[q.id] != null)
+    return list.length
+      ? +(list.reduce((acc, q) => acc + s[q.id], 0) / list.length).toFixed(1)
+      : 0
+  })
+  return [{ name: '各类均分', values, color: '--c-accent' }]
+})
 
 function _llmCfg() {
   try {

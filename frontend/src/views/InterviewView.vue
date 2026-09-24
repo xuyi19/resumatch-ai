@@ -103,7 +103,12 @@
                 :class="s.status === 'finished' ? 'bg-ok/10 text-ok' : 'bg-warn/10 text-warn'">
                 {{ s.status === 'finished' ? '已完成' : `进行中 ${s.answered}/${s.total}` }}
               </span>
-              <span v-if="s.summary" class="text-xs text-ok">✓ 已出总评</span>
+              <!-- M34 列表带总分，可直接横向比较各场成绩 -->
+              <span v-if="s.overall_score != null" class="text-xs font-mono font-medium"
+                :class="s.overall_score >= 8 ? 'text-ok' : s.overall_score >= 6 ? 'text-accent' : 'text-warn'">
+                {{ s.overall_score }} 分
+              </span>
+              <span v-else-if="s.summary" class="text-xs text-ok">✓ 已出总评</span>
               <span class="ml-auto text-xs text-ink-faint font-mono">
                 {{ (s.updated_at || '').slice(0, 16).replace('T', ' ') }}
               </span>

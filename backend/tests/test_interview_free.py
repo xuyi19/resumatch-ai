@@ -47,6 +47,9 @@ async def _fake_call_llm(prompt, model_cls, **kwargs):
     if model_cls is InterviewSummary:
         return InterviewSummary(
             overall="整体表现良好，与岗位匹配度较高",
+            # M34 评分量化：fake 与真实 LLM 输出结构保持一致
+            overall_score=7.5,
+            scores={q["id"]: 7.5 for q in _fake_plan()["questions"]},
             strengths=["基础扎实"], weaknesses=["量化不足"], suggestions=["多用数字"],
         )
     raise AssertionError(f"未预期的模型类型 {model_cls}")
@@ -185,6 +188,9 @@ async def test_chat_multi_round_full_flow(client):
     body = res.json()
     assert body["status"] == "finished"
     assert body["summary"]["overall"]
+    # M34 评分量化：总分与每题得分随总评返回
+    assert body["summary"]["overall_score"] == 7.5
+    assert body["summary"]["scores"]["q1"] == 7.5
     assert len(body["chat_log"]) == 14
     assert all("本题回答完毕" not in m["content"] for m in body["chat_log"])
 
