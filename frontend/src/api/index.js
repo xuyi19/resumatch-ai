@@ -105,6 +105,9 @@ export default {
     api.post('/jobs/library', { items, source, skip_duplicates: skipDuplicates }),
   parseBatchImport: (data) => api.post('/jobs/library/parse-batch', data),
   updateLibraryJob: (id, data) => api.put(`/jobs/library/${id}`, data),
+  // M49 投递状态
+  updateJobStatus: (id, status) => api.put(`/jobs/library/${id}/status`, { status }),
+  batchUpdateJobStatus: (ids, status) => api.put('/jobs/library/status-batch', { ids, status }),
   deleteLibraryJob: (id) => api.delete(`/jobs/library/${id}`),
   batchDeleteLibraryJobs: (ids) => api.post('/jobs/library/batch-delete', { ids }),
   matchLibraryJobs: (data) => api.post('/jobs/library-match', data),

@@ -116,6 +116,8 @@ class SavedJob(Base):
     jd_text: Mapped[str] = mapped_column(Text, default="")
     # manual 手动添加 / ai 岗位面板入库
     source: Mapped[str] = mapped_column(String(16), default="manual")
+    # M49 投递状态：wish 想投 / applied 已投递 / interviewing 面试中 / offer / closed
+    status: Mapped[str] = mapped_column(String(16), default="wish")
     url: Mapped[str] = mapped_column(String(300), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

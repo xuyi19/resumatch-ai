@@ -86,6 +86,9 @@ _SCHEMA_NEW_COLUMNS: dict[str, list[tuple[str, str]]] = {
         ("context", "TEXT"),
         ("chat_log", "TEXT"),
     ],
+    "saved_jobs": [
+        ("status", "VARCHAR(16) DEFAULT 'wish'"),
+    ],
 }
 
 

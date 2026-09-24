@@ -373,3 +373,75 @@ async def test_library_add_skip_duplicates(client):
     body = resp.json()
     assert body["skipped"] == 1
     assert len(body["items"]) == 1 and body["items"][0]["company"] == "F 信息"
+
+
+# ---------------------------------------------------------------- 投递状态（M49）
+
+
+async def test_job_status_flow(client):
+    """新建默认 wish → 单条改状态 → 列表带 status → 非法值 400 → 不存在 404。"""
+    hd = _sid()
+    added = (await _add(client, hd, [{"title": "测试岗", "company": "G 测", "jd": "投递状态全链路验证用岗位描述。"}])).json()["items"][0]
+    jid = added["id"]
+    assert added["status"] == "wish"
+
+    # 单条更新
+    resp = await client.put(
+        f"/api/v1/jobs/library/{jid}/status", json={"status": "interviewing"}, headers=hd
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "interviewing"
+
+    # 列表返回状态
+    lst = (await client.get("/api/v1/jobs/library", headers=hd)).json()["items"]
+    assert lst[0]["status"] == "interviewing"
+
+    # 非法值 400
+    bad = await client.put(
+        f"/api/v1/jobs/library/{jid}/status", json={"status": "hired???"}, headers=hd
+    )
+    assert bad.status_code == 400
+
+    # 不存在 404
+    missing = await client.put(
+        "/api/v1/jobs/library/999999/status", json={"status": "offer"}, headers=hd
+    )
+    assert missing.status_code == 404
+
+
+async def test_job_status_batch(client):
+    """批量设置状态：只影响本会话岗位，空列表幂等。"""
+    hd = _sid()
+    items = (await _add(client, hd, [
+        {"title": "批量岗 A", "company": "H 批", "jd": "批量状态测试岗位 A 的描述内容。"},
+        {"title": "批量岗 B", "company": "I 批", "jd": "批量状态测试岗位 B 的描述内容。"},
+    ])).json()["items"]
+    ids = [j["id"] for j in items]
+
+    resp = await client.put(
+        "/api/v1/jobs/library/status-batch", json={"ids": ids, "status": "offer"}, headers=hd
+    )
+    assert resp.status_code == 200
+    assert resp.json()["updated"] == 2
+    lst = (await client.get("/api/v1/jobs/library", headers=hd)).json()["items"]
+    assert all(j["status"] == "offer" for j in lst)
+
+    # 非法值 400 / 空列表幂等
+    assert (await client.put(
+        "/api/v1/jobs/library/status-batch", json={"ids": ids, "status": "x"}, headers=hd
+    )).status_code == 400
+    assert (await client.put(
+        "/api/v1/jobs/library/status-batch", json={"ids": [], "status": "offer"}, headers=hd
+    )).json()["updated"] == 0
+
+
+async def test_job_status_owner_isolation(client):
+    """他人会话不能改我的岗位状态。"""
+    hd = _sid()
+    added = (await _add(client, hd, [{"title": "隔离岗", "company": "J 隔", "jd": "状态隔离验证岗位描述。"}])).json()["items"][0]
+    other = await client.put(
+        f"/api/v1/jobs/library/{added['id']}/status", json={"status": "offer"}, headers=_sid()
+    )
+    assert other.status_code == 404
+    mine = (await client.get("/api/v1/jobs/library", headers=hd)).json()["items"]
+    assert mine[0]["status"] == "wish"  # 未被他人改动

@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 from pydantic import BaseModel, Field
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import select
+from sqlalchemy import select, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.llm import get_llm
@@ -198,6 +198,18 @@ async def import_match_jobs(req: JobImportMatchRequest):
 
 _LIBRARY_JD_MAX = 20000
 _LIBRARY_SOURCES = ("manual", "ai", "ai_gen", "sample")
+# M49 投递状态机
+_LIBRARY_STATUSES = ("wish", "applied", "interviewing", "offer", "closed")
+
+
+class LibraryStatusIn(BaseModel):
+    # 容忍显式 null（Pydantic 严格类型会把前端 null 422 的既有教训）
+    status: str | None = None
+
+
+class LibraryStatusBatchIn(BaseModel):
+    ids: list[int]
+    status: str | None = None
 
 
 def _job_dict(r: SavedJob) -> dict:
@@ -209,6 +221,7 @@ def _job_dict(r: SavedJob) -> dict:
         "salary": r.salary,
         "jd": r.jd_text,
         "source": r.source,
+        "status": getattr(r, "status", None) or "wish",  # M49 老行缺列时兜底
         "url": r.url,
         "created_at": r.created_at.isoformat() if r.created_at else None,
     }
@@ -335,6 +348,51 @@ async def delete_library_jobs_batch(
     )
     await db.commit()
     return {"deleted": res.rowcount}
+
+
+@router.put("/library/status-batch")
+async def update_library_status_batch(
+    req: LibraryStatusBatchIn,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """M49 管理模式批量设置投递状态（owner 隔离）。
+
+    字面路径 /library/status-batch 必须注册在参数路由 /library/{job_id} 之前，
+    否则会被 {job_id} 吞掉导致 422（M36 既有教训）。
+    """
+    status = (req.status or "").strip()
+    if status not in _LIBRARY_STATUSES:
+        raise HTTPException(status_code=400, detail="无效的投递状态")
+    if not req.ids:
+        return {"updated": 0}
+    res = await db.execute(
+        sa_update(SavedJob)
+        .where(SavedJob.id.in_(req.ids), SavedJob.owner_id == owner_id)
+        .values(status=status)
+    )
+    await db.commit()
+    return {"updated": res.rowcount}
+
+
+@router.put("/library/{job_id}/status")
+async def update_library_job_status(
+    job_id: int,
+    req: LibraryStatusIn,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """M49 单条投递状态更新（岗位卡徽标切换）。"""
+    status = (req.status or "").strip()
+    if status not in _LIBRARY_STATUSES:
+        raise HTTPException(status_code=400, detail="无效的投递状态")
+    job = await db.get(SavedJob, job_id)
+    if not job or job.owner_id != owner_id:
+        raise HTTPException(status_code=404, detail="岗位不存在")
+    job.status = status
+    await db.commit()
+    await db.refresh(job)
+    return _job_dict(job)
 
 
 async def _resolve_resume_text(req_resume_id: int | None, req_resume_text: str | None,

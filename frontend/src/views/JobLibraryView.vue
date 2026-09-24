@@ -179,6 +179,12 @@
         <option value="">全部城市</option>
         <option v-for="c in cityOptions" :key="c" :value="c">{{ c }}</option>
       </select>
+      <select v-model="statusFilter"
+        class="px-3 py-2 text-xs bg-inset rounded-lg border border-line text-ink-sub
+          focus:outline-none focus:border-accent transition-colors">
+        <option value="">全部状态</option>
+        <option v-for="(s, key) in STATUS" :key="key" :value="key">{{ s.label }}</option>
+      </select>
       <button v-if="hasFilters" @click="clearFilters"
         class="px-3 py-2 text-xs text-ink-faint hover:text-ink transition-colors">清除筛选</button>
       <span class="text-[11px] font-mono text-ink-faint ml-auto shrink-0">
@@ -205,6 +211,14 @@
           class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4
             bg-float rounded-xl px-5 py-3 border border-line-strong shadow-lg">
           <span class="text-sm text-ink-sub">已选 <b class="text-ink">{{ selCount }}</b> 个岗位</span>
+          <span class="w-px h-5 bg-line" />
+          <!-- M49 批量设置投递状态 -->
+          <select @change="batchSetStatus($event.target.value); $event.target.value = ''"
+            class="px-3 py-2 text-xs bg-inset rounded-lg border border-line text-ink-sub
+              focus:outline-none focus:border-accent transition-colors cursor-pointer">
+            <option value="" disabled selected>设为状态…</option>
+            <option v-for="(s, key) in STATUS" :key="key" :value="key">{{ s.label }}</option>
+          </select>
           <span class="w-px h-5 bg-line" />
           <button @click="batchRemove" :disabled="batchRemoving"
             class="px-4 py-2 text-xs font-medium rounded-lg bg-bad text-white
@@ -278,6 +292,14 @@
               <span v-if="j.city" class="px-1.5 py-0.5 rounded text-[11px] bg-inset text-ink-sub shrink-0">{{ j.city }}</span>
               <span v-if="j.salary" class="px-1.5 py-0.5 rounded text-[11px] bg-ok/10 text-ok font-mono shrink-0">{{ j.salary }}</span>
               <span class="px-1.5 py-0.5 rounded text-[11px] bg-inset text-ink-faint shrink-0">{{ sourceLabel(j.source) }}</span>
+              <!-- M49 投递状态徽标：点击直接切换 -->
+              <select :value="j.status || 'wish'" @change="setStatus(j, $event.target.value)" @click.stop
+                :title="'投递状态：' + (STATUS[j.status || 'wish']?.label || '') + '，点击切换'"
+                class="px-1.5 py-0.5 rounded text-[11px] font-medium shrink-0 border-0 cursor-pointer
+                  appearance-none focus:outline-none focus:ring-1 focus:ring-accent -mr-1"
+                :class="STATUS[j.status || 'wish']?.cls">
+                <option v-for="(s, key) in STATUS" :key="key" :value="key">{{ s.label }}</option>
+              </select>
             </div>
             <!-- 匹配分徽标 -->
             <div v-if="matchMap[j.id]" class="flex items-center gap-2 shrink-0">
@@ -341,6 +363,41 @@ const matchDegraded = ref(false)
 const matchMap = reactive({})   // id -> {score, reason}
 const expandedId = ref(null)
 
+/* ---- M49 投递状态 ---- */
+const STATUS = {
+  wish: { label: '💧 想投', cls: 'bg-inset text-ink-sub' },
+  applied: { label: '📨 已投递', cls: 'bg-accent/10 text-accent' },
+  interviewing: { label: '🎯 面试中', cls: 'bg-warn/10 text-warn' },
+  offer: { label: '🎉 Offer', cls: 'bg-ok/10 text-ok' },
+  closed: { label: '🏁 已结束', cls: 'bg-bad/10 text-bad' },
+}
+const statusFilter = ref('')
+
+async function setStatus(j, status) {
+  const prev = j.status || 'wish'
+  if (status === prev) return
+  try {
+    await api.updateJobStatus(j.id, status)
+    j.status = status
+  } catch (e) {
+    Message.error(e.response?.data?.detail || '状态更新失败')
+    j.status = prev
+  }
+}
+
+async function batchSetStatus(status) {
+  if (!status || !selIds.value.size) return
+  try {
+    await api.batchUpdateJobStatus([...selIds.value], status)
+    jobs.value.forEach((j) => {
+      if (selIds.value.has(j.id)) j.status = status
+    })
+    Message.success(`已将 ${selIds.value.size} 个岗位设为「${STATUS[status].label}」`)
+  } catch (e) {
+    Message.error(e.response?.data?.detail || '批量更新失败')
+  }
+}
+
 /* ---- 搜索与筛选（本地过滤，匹配分排序作用于筛选后的子集） ---- */
 const keyword = ref('')
 const sourceFilter = ref('')
@@ -353,6 +410,7 @@ const filteredJobs = computed(() => {
       return false
     if (sourceFilter.value && (j.source || 'manual') !== sourceFilter.value) return false
     if (cityFilter.value && (j.city || '') !== cityFilter.value) return false
+    if (statusFilter.value && (j.status || 'wish') !== statusFilter.value) return false
     return true
   })
 })
@@ -361,12 +419,13 @@ const cityOptions = computed(() =>
   [...new Set(jobs.value.map((j) => (j.city || '').trim()).filter(Boolean))].sort(),
 )
 
-const hasFilters = computed(() => !!(keyword.value.trim() || sourceFilter.value || cityFilter.value))
+const hasFilters = computed(() => !!(keyword.value.trim() || sourceFilter.value || cityFilter.value || statusFilter.value))
 
 function clearFilters() {
   keyword.value = ''
   sourceFilter.value = ''
   cityFilter.value = ''
+  statusFilter.value = ''
 }
 
 const displayJobs = computed(() => {
