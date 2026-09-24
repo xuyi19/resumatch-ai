@@ -277,11 +277,17 @@
               <ul v-show="!collapsedGapGroups.has(grp.dimension)"
                   class="space-y-3 text-sm text-ink-sub px-3 pt-1">
                 <li v-for="(g, i) in grp.items" :key="i" class="flex gap-3 items-start">
-                  <span :class="severityColor(g.severity)" class="shrink-0 mt-0.5">△</span>
-                  <span class="flex-1">
-                    <span :class="severityColor(g.severity)" class="text-xs font-semibold">[{{
-                        g.severity || '-'
-                      }}]</span>
+                  <!-- F4：点击标记已解决（localStorage 持久化，重诊对比视图联动高亮） -->
+                  <button @click="toggleGapDone(g)" :title="isGapDone(g) ? '撤销标记' : '标记为已解决'"
+                    class="shrink-0 mt-0.5 w-5 h-5 rounded flex items-center justify-center text-xs
+                      transition-colors"
+                    :class="isGapDone(g) ? 'bg-ok/15 text-ok' : 'hover:bg-line/40 ' + severityColor(g.severity)">
+                    {{ isGapDone(g) ? '✓' : '△' }}
+                  </button>
+                  <span class="flex-1" :class="isGapDone(g) ? 'text-ink-faint line-through' : ''">
+                    <span v-if="!isGapDone(g)" :class="severityColor(g.severity)"
+                          class="text-xs font-semibold">[{{ g.severity || '-' }}]</span>
+                    <span v-else class="text-xs text-ok font-semibold">[已解决]</span>
                     {{ g.description }}
                     <span v-if="g.is_inferred"
                           class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-inset text-ink-sub align-middle">推断</span>
@@ -888,6 +894,23 @@ const strengths = computed(() => {
 })
 
 const gaps = computed(() => result.value.diagnosis?.gaps || [])
+
+// ---- F4：差距条目标记「已解决」（localStorage 按任务持久化，重诊对比视图联动高亮） ----
+const gapDoneSet = ref((() => {
+  try { return new Set(JSON.parse(localStorage.getItem(`gap_done_${taskId}`) || '[]')) }
+  catch (e) { return new Set() }
+})())
+
+function gapKey(g) {
+  return `${g.dimension || ''}|${g.description || ''}`
+}
+function isGapDone(g) { return gapDoneSet.value.has(gapKey(g)) }
+function toggleGapDone(g) {
+  const next = new Set(gapDoneSet.value)
+  next.has(gapKey(g)) ? next.delete(gapKey(g)) : next.add(gapKey(g))
+  gapDoneSet.value = next
+  try { localStorage.setItem(`gap_done_${taskId}`, JSON.stringify([...next])) } catch (e) { /* 存储不可用静默 */ }
+}
 const gapSummary = computed(() => result.value.diagnosis?.gap_summary || '')
 const suggestions = computed(() => result.value.diagnosis?.suggestions || [])
 const overallAdvice = computed(() => result.value.diagnosis?.overall_advice || '')

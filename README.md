@@ -1,6 +1,6 @@
 # ResuMatch AI
 
-> 上传简历 + 粘贴岗位 JD → LangGraph 多节点 LLM 诊断（解析 ∥ 岗位分析 → 评分 → 差距 → 改写）→ 差距分析 / 对答式优化 → 10 套模板导出 Word（支持嵌入证件照）
+> 简历诊断 → 对答式优化 → 岗位匹配 → AI 模拟面试的全流程求职助手：上传简历 + 粘贴岗位 JD → LangGraph 多节点 LLM 诊断（RAG 证据接地 + 动态追问）→ 10 套模板导出 Word → 岗位市场按简历推荐 → AI 面试官多轮模拟面试并评分出报告
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?style=flat-square&logo=fastapi)
@@ -27,22 +27,26 @@
 
 ## 项目简介
 
-ResuMatch AI 是一个**简历诊断工具**：你上传一份简历，再粘贴目标岗位的 JD 文本，AI 会从六个维度给简历打分、指出与岗位的差距、给出可落地的改写建议，并生成一份可以导出 Word 的优化简历。
+ResuMatch AI 是一个**全流程求职助手**：上传简历并粘贴目标岗位 JD，AI 从六个维度给简历打分、指出与岗位的差距（每条引用简历原文佐证）、给出改写建议并生成可导出 Word 的优化简历；再通过岗位市场锁定目标岗位、用 AI 面试官进行多轮模拟面试并拿到量化评分报告。
 
-不做岗位爬取、不依赖预置岗位库 —— JD 完全由用户提供，诊断结果更聚焦、更真实。
+不做岗位爬取 —— 岗位数据来自 AI 生成与示例数据（可手动导入公司比对），JD 完全由用户掌控，诊断结果更聚焦、更真实。
 
 ## 核心特性
 
 - **多格式简历解析**：支持 PDF / DOCX / TXT，DOCX 会一并提取表格内容，避免表格式简历丢信息
-- **JD 粘贴即用**：无爬虫、无岗位库依赖，从 BOSS / 智联 / 拉勾复制 JD 直接粘贴
+- **JD 粘贴即用**：无爬虫依赖，从 BOSS / 智联 / 拉勾复制 JD 直接粘贴；最近使用的 JD 自动记忆，二次诊断免重贴
 - **LangGraph 诊断链**：解析简历 ∥ 解析岗位 → 六维评分 → 差距分析 → 改写建议，实时进度可视化
 - **RAG 证据接地**：简历/JD 条目级分块检索，差距与建议必须引用简历原文（`[R3]`），无据自动标「推断」——消融实验证明贡献 +8 分且消除无据推断（见 [`docs/ResuMatch-AI-技术说明文档.md`](docs/ResuMatch-AI-技术说明文档.md) 第 13 章）
-- **动态多轮追问（人在回路）**：AI 基于信息缺口动态生成 0-3 个追问（LangGraph interrupt 暂停 → 前端问题卡片 → 回答后恢复续跑），信息充分不打断，解决固定轮次机械感
+- **动态多轮追问（人在回路）**：AI 基于信息缺口动态生成 0-3 个追问（LangGraph interrupt 暂停 → 前端问题卡片 → 回答后恢复续跑），失败可断点重试，跨重启可恢复
 - **对答式深度优化**：AI 追问补充经历细节后生成定制优化简历，支持一键优化 / 逐题问答两种模式
-- **10 套简历模板**：经典居中 / 侧栏双栏 / 商务蓝 / 典雅衬线 / 现代竖标 / 极简黑白 / 学术衬线 / 活力橙 / 单行页眉 / 紧凑单页
-- **证件照嵌入**：上传 JPG/PNG 证件照，导出 Word 时自动排入一寸照位（侧栏双栏等模板）
-- **编辑器实时预览 + PDF 打印**：改完即看，支持浏览器打印为 PDF
-- **双形态交付**：桌面 exe（免安装双击即用）+ 网站（匿名会话隔离、无需注册）；界面按运行形态自适应——桌面版走紧凑 App 风格、隐藏外链并强调「数据只在本机」，网页版保留开源引流与每日配额提示
+- **10 套简历模板 + 证件照**：经典居中 / 侧栏双栏 / 商务蓝等 10 套，导出 Word 自动排入证件照；编辑器实时预览（与导出版式一致）+ 纯前端简历快速体检（零 LLM 秒级反馈）
+- **我的简历库**：多份简历统一管理——重命名 / 批量删除 / PDF 原文件在线预览 / 最近诊断分速览，一键对任一简历发起诊断
+- **岗位市场**：按简历意向一键获取岗位（AI 生成 / 示例数据）→ LLM 匹配度排序推荐（附推荐理由）→ 点选即填入 JD 直接诊断；支持手动导入公司比对
+- **AI 模拟面试**：基于简历 + JD 生成 6 题题单（技术基础/项目深挖/岗位匹配/情景行为），与 AI 面试官**多轮自由对话**（可被追问、可补充、可提前收尾），答完出总评——总分 + 每题得分 + 四类维度雷达，支持独立发起（无需先诊断）、会话恢复、Word 报告导出
+- **重诊对比 + 差距清单**：改完简历重诊，分数/雷达/差距三重对比；差距条目可标记「已解决」，对比视图联动高亮
+- **诊断报告 / 面试报告导出 Word**：报告可存档、可打印、可发给导师
+- **数据与隐私**：全部数据本机 SQLite 按会话隔离，设置页一键清空
+- **双形态交付**：桌面 exe（免安装双击即用）+ 网站（匿名会话、无需注册）；亮 / 暗双主题；界面按运行形态自适应
 
 ## 界面演示
 
@@ -99,9 +103,11 @@ flowchart TD
 
 **RAG 证据接地**：诊断开始时把简历/JD 切成条目级证据块（`R1/J1…` 稳定 id），评分/差距/改写节点按需检索 Top-K 证据块注入 prompt；LLM 输出的证据引用经 `filter_valid_ids` 校验（防幻觉 id），无据差距自动标「推断」。embedding 服务不可用时自动降级 IDF 加权关键词检索（BM25-lite）。
 
-**动态追问（人在回路）**：差距分析后 `clarify_plan` 节点按信息缺口生成 0-3 个问题，经 LangGraph `interrupt()` 暂停图执行并推送前端；用户答题后 `POST /live/clarify/{task_id}` 携 `Command(resume)` 恢复续跑改写与精修，全程状态由 MemorySaver checkpointer 保管（任务终态自动释放）。
+**动态追问（人在回路）**：差距分析后 `clarify_plan` 节点按信息缺口生成 0-3 个问题，经 LangGraph `interrupt()` 暂停图执行并推送前端；用户答题后 `POST /live/clarify/{task_id}` 携 `Command(resume)` 恢复续跑改写与精修，全程状态由 checkpointer 保管（任务终态自动释放）。
 
-**任务进度**通过内存任务表实时推送（前端轮询 `/live/status`），诊断结果落库 SQLite `diagnosis_records`；服务重启时启动补偿会把残留的 running 记录标记为失败，前端自动回落历史接口恢复结果。
+**AI 模拟面试（LangGraph 之外的第二条对话链）**：`/interview/start` 按简历+JD+诊断差距生成 6 题题单；`/interview/chat/{task_id}` 多轮自由对话——候选人随时发言，面试官 LLM 以 `{reply, advance}` 结构化回应（可追问/点评，判断回答充分则收尾进下一题），末题自动汇总总评（总分 + 每题得分）；完整对话流存 `Conversation.chat_log`，会话跨重启可恢复，支持独立发起（`/app/interview`，无需先跑诊断）。
+
+**任务进度**通过内存任务表实时推送（前端轮询 `/live/status`），诊断结果落库 SQLite `diagnosis_records`；服务重启时启动补偿会把残留的 running 记录标记为失败，前端自动回落历史接口恢复结果。桌面版由 `run.py` 看门狗守护：浏览器进程退出 **且** 页面心跳（每 20s `/meta/heartbeat`）消失超时后才收尾服务，防误杀。
 
 **数据隔离**：所有业务表带 `owner_id` 列。本机/桌面形态固定 `local`；网站形态通过 HttpOnly 匿名会话 cookie 区分用户，老库由 `ensure_schema_columns()` 启动时自动补列迁移。
 
@@ -137,17 +143,18 @@ cd backend
 pip install -r requirements.txt
 ```
 
-### 3. 启动后端
+### 3. 一键启动（推荐）
 
 ```bash
-python run.py          # 推荐：自带依赖预检，默认 8765 端口
-# 或
-uvicorn app.main:app --reload --port 8765
+python run.py           # 项目根目录：自动拉起后端(8000) + 前端(5173)并弹浏览器
+                        # 看门狗守护：浏览器关闭且心跳超时后自动收尾服务
+# 或仅手动启动后端
+uvicorn app.main:app --reload --port 8000
 ```
 
-启动后访问 `http://127.0.0.1:8765/docs` 查看交互式 API 文档。
+启动后访问 `http://127.0.0.1:8000/docs` 查看交互式 API 文档。
 
-### 4. 启动前端
+### 4. 启动前端（手动方式，run.py 已拉起则跳过）
 
 ```bash
 cd frontend
@@ -206,25 +213,29 @@ resumatch-ai/
 │   │   │   ├── config.py           # pydantic-settings（APP_MODE / 会话 / 配额）
 │   │   │   ├── deps.py             # get_owner_id 会话隔离依赖
 │   │   │   └── db.py               # 异步引擎、ensure_schema_columns 老库补列
-│   │   ├── models/entities.py      # Resume / DiagnosisRecord / Conversation
+│   │   ├── models/entities.py      # Resume / DiagnosisRecord / Conversation（含面试题单/对话流）
 │   │   ├── api/v1/                 # resume / live / history / chat / optimize / settings / health
-│   │   ├── services/               # resume_service / live_pipeline_service / diagnosis_service
+│   │   │                           # + interview（题单/多轮对话/评分/导出）+ jobs（岗位市场）+ data（清空）
+│   │   ├── services/               # resume_service / live_pipeline_service / diagnosis_service / job_market
 │   │   ├── agents/                 # LangGraph 诊断工作流
 │   │   │   └── nodes/              # parser / job_analyze / scorer / gap / rewriter
 │   │   │                           # + refine（自省精修）/ optimizer / interactive_opt
-│   │   └── utils/                  # file_parser、docx_generator（10 模板 + 证件照）
+│   │   └── utils/                  # file_parser、docx_generator（10 模板 + 证件照）、report_docx（诊断/面试报告导出）
 │   ├── scripts/evaluate.py         # 质量评估脚本（标注集 × 多次运行，产出评估报告）
 │   ├── desktop.py                  # pywebview 桌面启动器
 │   ├── build_desktop.py            # PyInstaller 打包脚本（one-folder）
-│   ├── run.py                      # 开发启动脚本（sys.executable -m uvicorn）
-│   ├── tests/                      # pytest 用例（API / 诊断图 / docx 生成）
+│   ├── run.py                      # 一键启动（前后端 + 看门狗心跳守护）
+│   ├── tests/                      # pytest 用例（63 例：API / 诊断图 / 面试 / 岗位 / docx 生成）
 │   └── requirements.txt
 ├── frontend/
 │   └── src/
 │       ├── api/index.js            # Axios 封装
-│       ├── composables/            # useAppMode（桌面版/网页版界面切换）
-│       ├── components/ResumePreview.vue
-│       └── views/                  # Home / Analyze / Result / Editor / Chat / History / Settings / Changelog
+│       ├── composables/            # useAppMode / useTheme（形态与主题切换）
+│       ├── components/             # InterviewPanel（面试面板，结果页与独立页复用）
+│       │                           # RadarChart（参数化雷达）/ ResumePreview / EmptyState / LoadingBlock
+│       ├── utils/checker.js        # 纯前端简历快速体检规则
+│       └── views/                  # Home / Analyze / Result / Editor / Chat / History / Settings
+│                                   # + Interview（独立面试）/ ResumeList（简历库）/ Changelog
 └── docs/                           # 四件套：改造计划（迭代史）/ 技术说明文档（实现+踩坑+评估）/ 论文准备（知识点+答辩）/ 修改日志
 ```
 
@@ -252,23 +263,38 @@ resumatch-ai/
 | POST | `/api/v1/optimize/{task_id}` | 一键优化 |
 | POST | `/api/v1/chat/start|reply|finish/{task_id}` | 对答式优化 |
 | GET | `/api/v1/chat/history/{task_id}` | 对话历史 |
+| GET | `/api/v1/resumes/list` | 简历库列表（含最近诊断分） |
+| GET | `/api/v1/resumes/{id}/file` | 简历原文件（inline，供 PDF 预览） |
+| POST | `/api/v1/resumes/delete-batch` | 简历库批量删除 |
+| POST | `/api/v1/jobs/search` | 岗位市场：获取岗位（AI 生成 / 示例数据） |
+| POST | `/api/v1/jobs/recommend` | 按简历 LLM 匹配推荐（附推荐理由） |
+| POST | `/api/v1/jobs/import-match` | 手动导入公司比对 |
+| POST | `/api/v1/interview/start/{task_id}` | 生成面试题单（regenerate 重出） |
+| POST | `/api/v1/interview/start-free` | 独立发起面试（简历 + JD，无需先诊断） |
+| GET | `/api/v1/interview/{task_id}` | 恢复面试会话（题单/对话流/总评） |
+| POST | `/api/v1/interview/chat/{task_id}` | 多轮自由对话（`{reply, advance}` 收尾推进） |
+| GET | `/api/v1/interview/sessions` | 面试会话列表（含总分） |
+| POST | `/api/v1/interview/export/{task_id}` | 面试报告导出 Word |
+| POST | `/api/v1/history/{task_id}/export-report` | 诊断报告导出 Word |
+| DELETE | `/api/v1/data` | 一键清空本会话全部数据 |
+| POST | `/api/v1/meta/heartbeat` | 页面心跳（看门狗防误杀） |
 
 **完整流程调用示例**
 
 ```bash
 # 1. 上传简历
-curl -X POST http://127.0.0.1:8765/api/v1/resumes/upload \
+curl -X POST http://127.0.0.1:8000/api/v1/resumes/upload \
   -F "file=@我的简历.pdf"
 # → {"id": 1, "filename": "我的简历.pdf", "text_length": 2143}
 
 # 2. 启动诊断（粘贴 JD 文本）
-curl -X POST http://127.0.0.1:8765/api/v1/live/analyze \
+curl -X POST http://127.0.0.1:8000/api/v1/live/analyze \
   -H "Content-Type: application/json" \
   -d '{"resume_id": 1, "jd_text": "岗位职责：负责后端服务开发……任职要求：3 年以上 Python 经验……", "resume_name": "我的简历.pdf"}'
 # → {"task_id": "a1b2c3d4e5f6", "status": "pending"}
 
 # 3. 轮询结果
-curl http://127.0.0.1:8765/api/v1/live/status/a1b2c3d4e5f6
+curl http://127.0.0.1:8000/api/v1/live/status/a1b2c3d4e5f6
 ```
 
 ---
@@ -276,9 +302,9 @@ curl http://127.0.0.1:8765/api/v1/live/status/a1b2c3d4e5f6
 ## 常见问题
 
 <details>
-<summary>8765 端口被占用</summary>
+<summary>8000 端口被占用</summary>
 
-启动脚本会自动顺延到 8766+。控制台会打印实际端口，浏览器访问对应地址即可。
+启动脚本会自动顺延到 8001+。控制台会打印实际端口，浏览器访问对应地址即可。
 </details>
 
 <details>
@@ -317,6 +343,13 @@ curl http://127.0.0.1:8765/api/v1/live/status/a1b2c3d4e5f6
 - [x] M10 编辑器预览保真：docx-preview 直渲真实 Word 文件，预览与导出版式一致
 - [x] M11 RAG 证据接地 + 动态多轮追问（interrupt 人在回路）+ 消融/稳定性评估
 - [x] M12 检索 IDF 加权（BM25-lite）+ 空池防幻觉指令
+- [x] M13~M16 健壮性收敛、导出体验升级、编辑器独立创建简历、任务跨重启恢复
+- [x] M17~M22 产品化一期：统一壳 + 亮暗双主题、岗位市场（AI 生成岗位 + LLM 推荐 + 手动导入比对）、报告导出 + 重诊对比、简历库 + 快速体检、失败重试 + 扫描件引导、数据与隐私 + 更新检查
+- [x] M23 面试功能落地：AI 出题单 + 模拟面试逐轮点评
+- [x] M24~M27 体验深化：多简历管理页、编辑器入库、重复诊断去重、PDF 原文件预览
+- [x] M28~M30 版本号单一事实源、岗位数据源精简 + 手动导入公司比对
+- [x] M31~M33 独立面试页 + 多轮自由对话（可追问可收尾）+ 面试报告导出 Word
+- [x] M34~M35 面试评分量化（总分/每题得分/四类雷达）+ 差距条目标记「已解决」与重诊对比联动
 
 ---
 

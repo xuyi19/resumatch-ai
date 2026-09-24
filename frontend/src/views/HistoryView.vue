@@ -72,6 +72,48 @@
             </div>
           </div>
 
+          <!-- F4 差距对照：Before 中用户标记「已解决」的条目（报告页打勾，localStorage）绿色高亮 -->
+          <div class="bg-panel border border-line rounded-lg p-6 mb-6">
+            <div class="flex items-center gap-2 mb-4">
+              <h2 class="text-base font-semibold text-ink">差距对照</h2>
+              <span v-if="beforeDoneCount" class="text-xs px-2 py-0.5 rounded-md bg-ok/10 text-ok">
+                Before 已解决 {{ beforeDoneCount }}/{{ beforeGaps.length }}
+              </span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <div class="text-xs font-medium text-ink-sub uppercase tracking-wider mb-3">
+                  Before（{{ beforeGaps.length }} 条）
+                </div>
+                <ul class="space-y-2.5">
+                  <li v-for="(g, i) in beforeGaps" :key="'bg' + i"
+                      class="text-sm p-3 rounded-lg border"
+                      :class="isBeforeGapDone(g)
+                        ? 'bg-ok/5 border-ok/40 text-ink-faint'
+                        : 'bg-inset border-line text-ink-sub'">
+                    <span v-if="isBeforeGapDone(g)"
+                      class="inline-flex items-center gap-1 text-xs text-ok font-semibold mr-1.5">
+                      ✓ 已解决</span>
+                    <span :class="isBeforeGapDone(g) ? 'line-through' : ''">{{ g.description }}</span>
+                  </li>
+                  <li v-if="!beforeGaps.length" class="text-sm text-ink-faint">无差距</li>
+                </ul>
+              </div>
+              <div>
+                <div class="text-xs font-medium text-accent uppercase tracking-wider mb-3">
+                  After（{{ afterGaps.length }} 条）
+                </div>
+                <ul class="space-y-2.5">
+                  <li v-for="(g, i) in afterGaps" :key="'ag' + i"
+                      class="text-sm text-ink-sub p-3 rounded-lg bg-inset border border-line">
+                    <span class="text-xs font-semibold text-warn mr-1.5">{{ g.severity || '△' }}</span>{{ g.description }}
+                  </li>
+                  <li v-if="!afterGaps.length" class="text-sm text-ink-faint">无差距（清零 🎉）</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
           <!-- 建议对照 -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="bg-panel border border-line rounded-lg p-5">
@@ -353,6 +395,19 @@ const scoreDelta = computed(() =>
 
 const beforeGaps = computed(() => beforeRec.value?.result?.diagnosis?.gaps || [])
 const afterGaps = computed(() => afterRec.value?.result?.diagnosis?.gaps || [])
+
+// ---- F4：对比视图联动报告页的差距标记（gap_done_{task_id}，key 与 ResultView 一致） ----
+function gapKey(g) {
+  return `${g.dimension || ''}|${g.description || ''}`
+}
+const beforeDoneKeys = computed(() => {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(`gap_done_${beforeRec.value?.task_id}`) || '[]'))
+  } catch (e) { return new Set() }
+})
+const beforeDoneCount = computed(() =>
+  beforeGaps.value.filter(g => beforeDoneKeys.value.has(gapKey(g))).length)
+function isBeforeGapDone(g) { return beforeDoneKeys.value.has(gapKey(g)) }
 const gapDelta = computed(() => afterGaps.value.length - beforeGaps.value.length)
 
 const beforeSuggestions = computed(() =>
