@@ -147,3 +147,27 @@ class SavedJob(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
+
+
+class StarCard(Base):
+    """M65 项目素材库（STAR 卡片）：项目/成就统一建档（情境-任务-行动-结果）。
+
+    一站式素材中枢，后续简历优化 / 面试答题 / 求职信生成将复用引用；本版仅档案本体。
+    新表由 Base.metadata.create_all 建全，无需登记 ensure_schema_columns。
+    """
+    __tablename__ = "star_cards"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    owner_id: Mapped[str] = mapped_column(String(64), default="local", index=True)
+    title: Mapped[str] = mapped_column(String(60))
+    role: Mapped[str] = mapped_column(String(40), default="")
+    # 逗号分隔的技术栈/能力标签
+    tags: Mapped[str] = mapped_column(String(200), default="")
+    situation: Mapped[str] = mapped_column(Text, default="")
+    task: Mapped[str] = mapped_column(Text, default="")
+    action: Mapped[str] = mapped_column(Text, default="")
+    result: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )

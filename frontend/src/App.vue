@@ -282,6 +282,8 @@ const ICONS = {
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0"/><path d="M12 18v3"/>',
   quiz:
     '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9.5l1.5 1.5L11 8.5"/><path d="M13.5 10H17"/><path d="M7 15l1.5 1.5L11 14"/><path d="M13.5 15.5H17"/>',
+  star:
+    '<path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>',
   dashboard:
     '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/>',
 }
@@ -320,6 +322,12 @@ const navItems = computed(() => [
     to: '/app/jobs',
     icon: ICONS.briefcase,
     active: route.path.startsWith('/app/jobs'),
+  },
+  {
+    label: '素材库',
+    to: '/app/star',
+    icon: ICONS.star,
+    active: route.path.startsWith('/app/star'),
   },
   {
     label: '模拟面试',

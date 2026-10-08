@@ -167,6 +167,13 @@ export default {
   quizDeleteSession: (taskId) => api.delete(`/quiz/sessions/${taskId}`),
   quizWrongbook: () => api.get('/quiz/wrongbook'),
 
+  // M65 项目素材库：STAR 卡片 CRUD + AI 生成草稿
+  listStarCards: () => api.get('/star/cards'),
+  createStarCard: (data) => api.post('/star/cards', data),
+  updateStarCard: (id, data) => api.put(`/star/cards/${id}`, data),
+  deleteStarCard: (id) => api.delete(`/star/cards/${id}`),
+  generateStarDraft: (data) => api.post('/star/generate', data),
+
   // F1 简历库：列表（含最近诊断分）/ 详情（预览原文）/ 重命名 / 删除
   listResumes: () => api.get('/resumes/list'),
   getResume: (id) => api.get(`/resumes/${id}`),
