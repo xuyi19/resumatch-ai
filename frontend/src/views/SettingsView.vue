@@ -302,6 +302,46 @@
         </div>
       </div>
 
+      <!-- M59 数据备份与恢复 -->
+      <div class="bg-panel border border-line rounded-lg p-5 md:p-7">
+        <h2 class="text-base font-semibold mb-2">💾 数据备份</h2>
+        <p class="text-sm text-ink-sub leading-relaxed mb-4">
+          一键导出全部本地数据的 JSON 快照，用于备份或换机迁移；导入以新增方式合并，
+          不覆盖、不删除现有数据。
+        </p>
+
+        <!-- 各表条数统计 -->
+        <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-5">
+          <div v-for="it in backupStatItems" :key="it.key"
+            class="bg-inset border border-line rounded-md px-2 py-2.5 text-center">
+            <div class="text-lg font-semibold leading-none mb-1 font-mono">{{ it.count }}</div>
+            <div class="text-[11px] text-ink-faint">{{ it.label }}</div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2.5 flex-wrap">
+          <button @click="exportBackup" :disabled="exportingBackup"
+            class="px-4 py-2.5 text-sm font-medium rounded-md
+              bg-accent text-white hover:bg-accent-hover
+              disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            {{ exportingBackup ? '导出中…' : '⬇ 导出备份' }}
+          </button>
+          <button @click="pickImportFile" :disabled="importingBackup"
+            class="px-4 py-2.5 text-sm font-medium rounded-md text-ink
+              border border-line-strong hover:border-accent hover:text-accent
+              disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            {{ importingBackup ? '导入中…' : '⬆ 导入恢复' }}
+          </button>
+          <input ref="backupFileInput" type="file" accept=".json,application/json"
+            class="hidden" @change="onImportFilePicked" />
+        </div>
+
+        <p class="text-xs text-ink-faint mt-4 leading-relaxed">
+          备份包含：简历 / 简历版本 / 岗位库 / 诊断历史 / 面试与刷题会话 / 导出记录；
+          不含 LLM 配置（API Key 仅存本机，不落备份文件）
+        </p>
+      </div>
+
     </div>
   </div>
 </template>
@@ -496,6 +536,7 @@ onMounted(() => {
   loadConfig()
   checkServerDefault()
   loadJobSourceCfg()
+  loadBackupStats()
 })
 
 /* ================================ M19：招聘数据源 ================================ */
@@ -595,6 +636,105 @@ async function testJob() {
     }
   } finally {
     jobTesting.value = false
+  }
+}
+
+/* ================================ M59：数据备份与恢复 ================================ */
+
+const backupStats = ref(null)
+const exportingBackup = ref(false)
+const importingBackup = ref(false)
+const backupFileInput = ref(null)
+
+const BACKUP_STAT_LABELS = [
+  { key: 'resumes', label: '简历' },
+  { key: 'resume_versions', label: '简历版本' },
+  { key: 'saved_jobs', label: '岗位库' },
+  { key: 'diagnoses', label: '诊断历史' },
+  { key: 'conversations', label: '面试/刷题' },
+  { key: 'export_history', label: '导出记录' },
+]
+
+const backupStatItems = computed(() =>
+  BACKUP_STAT_LABELS.map((it) => ({
+    ...it,
+    count: backupStats.value ? (backupStats.value[it.key] ?? '—') : '—',
+  })),
+)
+
+async function loadBackupStats() {
+  try {
+    const res = await api.backupStats()
+    backupStats.value = res.data || null
+  } catch (e) {
+    backupStats.value = null // 静默失败，展示「—」
+  }
+}
+
+function backupFilename() {
+  const p = (n) => String(n).padStart(2, '0')
+  const d = new Date()
+  return `知岗备份_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.json`
+}
+
+async function exportBackup() {
+  exportingBackup.value = true
+  try {
+    const res = await api.exportBackup()
+    const url = URL.createObjectURL(new Blob([res.data], { type: 'application/json' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = backupFilename()
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    Message.success('备份已导出')
+  } catch (e) {
+    Message.error('导出失败：' + (e.response?.data?.detail || e.message))
+  } finally {
+    exportingBackup.value = false
+  }
+}
+
+function pickImportFile() {
+  backupFileInput.value?.click()
+}
+
+function onImportFilePicked(e) {
+  const file = e.target.files?.[0]
+  e.target.value = '' // 清空以便可重复选择同一文件
+  if (!file) return
+  Modal.confirm({
+    title: '确认导入备份？',
+    content: '导入会以新增方式合并，不覆盖、不删除现有数据；同一份备份重复导入会产生重复记录。',
+    okText: '开始导入',
+    cancelText: '取消',
+    hideCancel: false,
+    onOk: () => doImportBackup(file),
+  })
+}
+
+async function doImportBackup(file) {
+  importingBackup.value = true
+  try {
+    let payload
+    try {
+      payload = JSON.parse(await file.text())
+    } catch (err) {
+      throw new Error('文件不是有效的 JSON')
+    }
+    const res = await api.importBackup(payload)
+    const n = res.data?.imported || {}
+    Message.success(
+      `导入完成：简历 ${n.resumes ?? 0} · 版本 ${n.resume_versions ?? 0} · 岗位 ${n.saved_jobs ?? 0} · ` +
+      `诊断 ${n.diagnoses ?? 0} · 会话 ${n.conversations ?? 0} · 导出记录 ${n.export_history ?? 0}`,
+    )
+    await loadBackupStats()
+  } catch (e) {
+    Message.error(e.response?.data?.detail || e.message || '导入失败')
+  } finally {
+    importingBackup.value = false
   }
 }
 </script>

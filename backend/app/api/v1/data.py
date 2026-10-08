@@ -10,7 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.deps import get_owner_id
-from app.models.entities import Conversation, DiagnosisRecord, ExportHistory, Resume
+from app.models.entities import (
+    Conversation,
+    DiagnosisRecord,
+    ExportHistory,
+    Resume,
+    ResumeVersion,
+    SavedJob,
+)
 
 router = APIRouter(prefix="/data", tags=["data"])
 
@@ -29,28 +36,27 @@ async def clear_all_data(
     二次确认由前端完成；仅 local 模式（owner_id=local）清理共享 photos 目录，
     web 多用户时不删公共目录，避免误删他人文件。
     """
-    # 1) 先收集本用户简历原文件路径（删除记录前），DB 记录按 owner 隔离删除
+    # 1) 先收集本用户简历原文件路径与诊断任务 id（必须在删除前查，同事务删后查不到），
+    #    DB 记录按 owner 隔离删除；ResumeVersion 随简历删（M59 复核补漏），岗位库一并清
     file_res = await db.execute(
         select(Resume.file_path).where(
             Resume.owner_id == owner_id, Resume.file_path.isnot(None)
         )
     )
     original_files = [fp for (fp,) in file_res.all()]
+    task_res = await db.execute(
+        select(DiagnosisRecord.task_id).where(DiagnosisRecord.owner_id == owner_id)
+    )
+    thread_ids = [tid for (tid,) in task_res.all()]
 
     counts = {}
-    for model in (DiagnosisRecord, Resume, ExportHistory, Conversation):
+    for model in (ResumeVersion, DiagnosisRecord, Resume, SavedJob, ExportHistory, Conversation):
         res = await db.execute(
             delete(model).where(model.owner_id == owner_id)
         )
         counts[model.__tablename__] = res.rowcount
 
     # 2) graph 快照：按本用户任务 thread_id 清空 checkpoints
-    task_res = await db.execute(
-        select(DiagnosisRecord.task_id).where(
-            DiagnosisRecord.owner_id == owner_id
-        )
-    )
-    thread_ids = [tid for (tid,) in task_res.all()]
     if thread_ids:
         for table in _CHECKPOINT_TABLES:
             try:

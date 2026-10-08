@@ -124,6 +124,11 @@ export default {
   // M22 数据与隐私：一键清空本用户全部数据
   clearAllData: () => api.delete('/data'),
 
+  // M59 数据备份与恢复：条数统计 / 导出 JSON 快照（blob 下载）/ 合并式导入
+  backupStats: () => api.get('/backup/stats'),
+  exportBackup: () => api.get('/backup/export', { responseType: 'blob' }),
+  importBackup: (payload) => api.post('/backup/import', payload),
+
   // M23 面试：题单生成 / 恢复会话；M32 多轮自由对话（聊天式模拟面试）
   interviewStart: (taskId, llmConfig, regenerate = false) =>
     api.post(`/interview/start/${taskId}`, { llm_config: llmConfig || null, regenerate }),
