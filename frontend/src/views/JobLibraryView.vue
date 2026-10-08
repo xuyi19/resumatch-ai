@@ -26,11 +26,6 @@
       </div>
     </div>
 
-    <!-- 共享城市候选项（弹窗城市输入 + AI 生成期望城市输入共用，可自由输入非列表城市） -->
-    <datalist id="city-options">
-      <option v-for="c in CITY_OPTIONS" :key="c" :value="c" />
-    </datalist>
-
     <!-- 批量导入：粘贴混排文本 → AI 解析 → 勾选入库 -->
     <div v-if="importOpen" class="bg-panel rounded-2xl p-5 md:p-6 mb-6">
       <div class="text-sm font-semibold mb-1">批量导入岗位</div>
@@ -111,9 +106,7 @@
             <input v-model="form.company" maxlength="60" placeholder="公司（可留空）"
               class="px-3 py-2 text-sm bg-inset rounded-lg border border-line focus:outline-none
                 focus:border-accent transition-colors" />
-            <input v-model="form.city" maxlength="20" list="city-options" placeholder="城市"
-              class="px-3 py-2 text-sm bg-inset rounded-lg border border-line focus:outline-none
-                focus:border-accent transition-colors" />
+            <CityInput v-model="form.city" maxlength="20" placeholder="城市" />
             <input v-model="form.salary" maxlength="40" placeholder="薪资（如 25-40K）"
               class="px-3 py-2 text-sm bg-inset rounded-lg border border-line focus:outline-none
                 focus:border-accent transition-colors" />
@@ -155,9 +148,8 @@
       <button @click="clearMatch"
         class="px-3 py-2 text-xs text-ink-faint hover:text-ink transition-colors">清除结果</button>
       <span class="w-px h-4 bg-line shrink-0 mx-1" />
-      <input v-model="generateCity" maxlength="20" list="city-options" placeholder="期望城市（可选）"
-        class="px-3 py-2 text-sm bg-inset rounded-lg border border-line focus:outline-none
-          focus:border-accent transition-colors w-36 shrink-0" />
+      <CityInput v-model="generateCity" maxlength="20" placeholder="期望城市（可选）"
+        class="w-40 shrink-0" />
       <button @click="runGenerate" :disabled="generating || !selectedResumeId"
         :title="selectedResumeId ? 'AI 根据选中简历生成适合的岗位并入库（不编造公司，投递时再补充）' : '先选择一份简历'"
         class="px-4 py-2 text-xs font-medium rounded-lg border border-accent/50 text-accent
@@ -520,6 +512,7 @@ import { useRouter } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import api from '../api'
 import LoadingBlock from '../components/LoadingBlock.vue'
+import CityInput from '../components/CityInput.vue'
 import { loadFavorites, clearFavorites } from '../utils/favorites'
 
 const router = useRouter()
@@ -534,16 +527,6 @@ const formOpen = ref(false)
 const editingId = ref(null)
 const formSaving = ref(false)
 const form = reactive({ title: '', company: '', city: '', salary: '', jd: '' })
-
-/* 常用城市快捷选择（datalist：可点选也可自由输入；与后端深链码表覆盖一致） */
-const CITY_OPTIONS = [
-  '北京', '上海', '广州', '深圳', '天津', '重庆',
-  '杭州', '成都', '武汉', '西安', '南京', '苏州', '长沙', '郑州', '合肥',
-  '福州', '厦门', '济南', '青岛', '沈阳', '大连', '哈尔滨', '长春',
-  '石家庄', '太原', '南昌', '南宁', '海口', '贵阳', '昆明', '兰州',
-  '宁波', '无锡', '佛山', '东莞', '珠海', '烟台', '潍坊', '呼和浩特',
-  '乌鲁木齐', '西宁', '银川', '拉萨', '唐山', '保定', '洛阳', '中山', '惠州',
-]
 
 const matching = ref(false)
 const matchDone = ref(false)
