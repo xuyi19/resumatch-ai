@@ -632,3 +632,58 @@ async def test_export_apply_kit_validations(client):
         json={"cover_letter": "正文内容足够。"}, headers=hd
     )
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------- 投递台账（M56.4）
+
+
+async def test_apply_ledger_channel_and_time(client):
+    """M56.4 标记已投递落渠道+首次时间；转走状态不抹历史；无效渠道 400。"""
+    hd = _sid()
+    jid = (await _add(client, hd, [{"title": "台账岗", "company": "E 台", "jd": "投递台账验证岗位描述。"}])).json()["items"][0]["id"]
+
+    resp = await client.put(
+        f"/api/v1/jobs/library/{jid}/status",
+        json={"status": "applied", "apply_channel": "boss"}, headers=hd,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "applied"
+    assert body["apply_channel"] == "boss"
+    assert body["apply_at"]
+
+    # 转走状态：apply_at/apply_channel 历史保留
+    back = (await client.put(
+        f"/api/v1/jobs/library/{jid}/status", json={"status": "wish"}, headers=hd
+    )).json()
+    assert back["status"] == "wish"
+    assert back["apply_at"] == body["apply_at"]
+    assert back["apply_channel"] == "boss"
+
+    # 无效渠道 400
+    assert (await client.put(
+        f"/api/v1/jobs/library/{jid}/status",
+        json={"status": "applied", "apply_channel": "liepinx"}, headers=hd,
+    )).status_code == 400
+
+
+async def test_apply_funnel_in_stats(client):
+    """M56.4 工作台投递漏斗：五档齐全，状态变更后计数联动。"""
+    hd = _sid()
+    ids = (await _add(client, hd, [
+        {"title": "漏斗A", "company": "F 漏", "jd": "投递漏斗验证岗位A。"},
+        {"title": "漏斗B", "company": "F 漏", "jd": "投递漏斗验证岗位B。"},
+    ])).json()["items"]
+    jid = ids[0]["id"]
+
+    async def _funnel():
+        return (await client.get("/api/v1/history/stats", headers=hd)).json()["apply_funnel"]
+
+    before = await _funnel()
+    assert set(before) == {"wish", "applied", "interviewing", "offer", "closed"}
+
+    await client.put(f"/api/v1/jobs/library/{jid}/status",
+                     json={"status": "applied", "apply_channel": "zhilian"}, headers=hd)
+    after = await _funnel()
+    assert after["applied"] == before["applied"] + 1
+    assert after["wish"] == before["wish"] - 1

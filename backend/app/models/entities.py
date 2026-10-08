@@ -118,6 +118,9 @@ class SavedJob(Base):
     source: Mapped[str] = mapped_column(String(16), default="manual")
     # M49 投递状态：wish 想投 / applied 已投递 / interviewing 面试中 / offer / closed
     status: Mapped[str] = mapped_column(String(16), default="wish")
+    # M56.4 投递台账：投递渠道 boss/zhilian/liepin/nowcoder/email/other + 首次投递时间
+    apply_channel: Mapped[str | None] = mapped_column(String(16), default=None)
+    apply_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     url: Mapped[str] = mapped_column(String(300), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

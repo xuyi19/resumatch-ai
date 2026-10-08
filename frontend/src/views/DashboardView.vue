@@ -148,6 +148,25 @@
         </div>
       </div>
 
+      <!-- M56.4 投递漏斗 -->
+      <div v-if="stats.saved_jobs_count" class="bg-panel border border-line rounded-2xl p-5 mb-8">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-semibold text-ink">📮 投递漏斗</h2>
+          <button @click="$router.push('/app/jobs')"
+            class="text-xs text-ink-faint hover:text-accent transition-colors">管理岗位 →</button>
+        </div>
+        <div class="grid grid-cols-5 gap-2">
+          <div v-for="step in funnelSteps" :key="step.key" class="text-center">
+            <div class="text-2xl font-semibold font-mono" :class="step.color">{{ step.count }}</div>
+            <div class="text-xs text-ink-faint mt-1">{{ step.label }}</div>
+            <div class="h-1.5 rounded-full bg-inset mt-2 overflow-hidden">
+              <div class="h-full rounded-full transition-all duration-500"
+                :class="step.bar" :style="{ width: funnelPct(step.count) }" />
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 最近记录双列 -->
       <div class="grid md:grid-cols-2 gap-5">
         <!-- 最近诊断 -->
@@ -236,6 +255,7 @@ const stats = ref({
   interview_total: 0, interview_finished: 0, interview_avg_score: null,
   latest_interview_score: null, ongoing_interviews: [],
   saved_jobs_count: 0,
+  apply_funnel: {},  // M56.4 投递漏斗（stats 缺字段时回退空对象）
 })
 const recentDiags = ref([])
 const recentInterviews = ref([])
@@ -267,6 +287,21 @@ const diagTrendPoints = computed(() =>
   (stats.value.diagnosis_trend || []).map(t => ({ x: t.date, y: t.score })))
 const ivTrendPoints = computed(() =>
   (stats.value.interview_trend || []).map(t => ({ x: t.date, y: t.score })))
+
+// M56.4 投递漏斗五档（数量 + 进度条配色）
+const FUNNEL_STEPS = [
+  { key: 'wish', label: '想投', color: 'text-ink-sub', bar: 'bg-ink-faint/50' },
+  { key: 'applied', label: '已投递', color: 'text-accent', bar: 'bg-accent' },
+  { key: 'interviewing', label: '面试中', color: 'text-warn', bar: 'bg-warn' },
+  { key: 'offer', label: 'Offer', color: 'text-ok', bar: 'bg-ok' },
+  { key: 'closed', label: '已结束', color: 'text-ink-faint', bar: 'bg-ink-faint/40' },
+]
+const funnelSteps = computed(() =>
+  FUNNEL_STEPS.map((f) => ({ ...f, count: stats.value.apply_funnel?.[f.key] ?? 0 })))
+function funnelPct(n) {
+  const max = Math.max(...funnelSteps.value.map((s) => s.count), 1)
+  return `${Math.max(Math.round((n / max) * 100), n ? 8 : 0)}%`
+}
 
 const cards = computed(() => [
   { label: '简历库', icon: '📄', value: stats.value.resume_count, unit: '份', to: '/app/resumes' },

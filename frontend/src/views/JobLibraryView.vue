@@ -348,10 +348,20 @@
           <!-- 底部操作 -->
           <div class="flex items-center justify-between gap-3 mt-5 pt-4 border-t border-line">
             <button @click="closeApply" class="px-4 py-2 text-xs text-ink-sub hover:text-ink transition-colors">关闭</button>
-            <button v-if="(applyJob.status || 'wish') !== 'applied'" @click="markApplied"
-              class="px-4 py-2 text-xs font-medium rounded-lg border border-accent/50 text-accent
-                hover:bg-accent/10 transition-colors">📨 投出了，标记「已投递」</button>
-            <span v-else class="text-xs text-ok">✓ 已标记「已投递」</span>
+            <div v-if="(applyJob.status || 'wish') !== 'applied'" class="flex items-center gap-2">
+              <select v-model="applyChannel"
+                class="px-2.5 py-2 text-xs bg-inset rounded-lg border border-line
+                  focus:outline-none focus:border-accent transition-colors">
+                <option value="">投递渠道（可选）</option>
+                <option v-for="c in CHANNEL_OPTIONS" :key="c.value" :value="c.value">{{ c.label }}</option>
+              </select>
+              <button @click="markApplied"
+                class="px-4 py-2 text-xs font-medium rounded-lg border border-accent/50 text-accent
+                  hover:bg-accent/10 transition-colors">📨 投出了，标记「已投递」</button>
+            </div>
+            <span v-else class="text-xs text-ok">
+              ✓ 已投递{{ applyJob.apply_at ? `（${applyJob.apply_at.slice(5, 10).replace('-', '/')}）` : '' }}{{ applyJob.apply_channel ? ` · ${CHANNEL_LABELS[applyJob.apply_channel] || applyJob.apply_channel}` : '' }}
+            </span>
           </div>
         </div>
       </div>
@@ -522,12 +532,14 @@ const STATUS = {
 }
 const statusFilter = ref('')
 
-async function setStatus(j, status) {
+async function setStatus(j, status, channel = null) {
   const prev = j.status || 'wish'
-  if (status === prev) return
+  if (status === prev && !channel) return
   try {
-    await api.updateJobStatus(j.id, status)
-    j.status = status
+    const res = await api.updateJobStatus(j.id, status, channel)
+    j.status = res.data.status
+    j.apply_channel = res.data.apply_channel
+    j.apply_at = res.data.apply_at
   } catch (e) {
     Message.error(e.response?.data?.detail || '状态更新失败')
     j.status = prev
@@ -550,12 +562,23 @@ async function batchSetStatus(status) {
 /* ---- M56 投递直达：平台深链 + AI 材料包 ---- */
 const PLATFORM_LABELS = { boss: 'BOSS 直聘', zhilian: '智联招聘', liepin: '猎聘', nowcoder: '牛客' }
 const APPLY_PROFILE_KEY = 'apply_profile'
+// M56.4 投递台账渠道
+const CHANNEL_OPTIONS = [
+  { value: 'boss', label: 'BOSS 直聘' },
+  { value: 'zhilian', label: '智联招聘' },
+  { value: 'liepin', label: '猎聘' },
+  { value: 'nowcoder', label: '牛客' },
+  { value: 'email', label: '邮件' },
+  { value: 'other', label: '其他' },
+]
+const CHANNEL_LABELS = Object.fromEntries(CHANNEL_OPTIONS.map((c) => [c.value, c.label]))
 
 const applyJob = ref(null)
 const applyLinks = ref({})
 const linksLoading = ref(false)
 const applyResumeId = ref('')
 const applyProfile = ref('')
+const applyChannel = ref('')
 const kitLoading = ref(false)
 const kit = reactive({ greeting: '', cover_letter: '', intro_points: [] })
 
@@ -566,6 +589,7 @@ async function openApply(j) {
   kit.cover_letter = ''
   kit.intro_points = []
   applyResumeId.value = selectedResumeId.value || ''
+  applyChannel.value = ''
   try { applyProfile.value = localStorage.getItem(APPLY_PROFILE_KEY) || '' } catch { /* 损坏值兜底 */ }
   linksLoading.value = true
   try {
@@ -615,7 +639,7 @@ async function copyText(text, tip) {
 }
 
 async function markApplied() {
-  await setStatus(applyJob.value, 'applied')
+  await setStatus(applyJob.value, 'applied', applyChannel.value || null)
   closeApply()
 }
 

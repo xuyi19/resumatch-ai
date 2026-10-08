@@ -39,6 +39,19 @@ async def history_stats(
     # M51 收藏并入岗位库：工作台「岗位库」统计卡数据源
     saved_jobs_count = await db.scalar(
         select(func.count(SavedJob.id)).where(SavedJob.owner_id == owner_id))
+    # M56.4 投递漏斗：岗位库五档状态分布（wish→applied→interviewing→offer→closed）
+    funnel_rows = (
+        await db.execute(
+            select(SavedJob.status, func.count(SavedJob.id))
+            .where(SavedJob.owner_id == owner_id)
+            .group_by(SavedJob.status)
+        )
+    ).all()
+    status_counts = {s: c for s, c in funnel_rows}
+    apply_funnel = {
+        k: status_counts.get(k, 0)
+        for k in ("wish", "applied", "interviewing", "offer", "closed")
+    }
 
     diag_rows = (
         await db.execute(
@@ -88,6 +101,7 @@ async def history_stats(
     return {
         "resume_count": resume_count or 0,
         "saved_jobs_count": saved_jobs_count or 0,
+        "apply_funnel": apply_funnel,  # M56.4 投递漏斗
         "diagnosis_total": len(diag_rows),
         "diagnosis_avg_score": round(sum(diag_scores) / len(diag_scores), 1) if diag_scores else None,
         # M38 趋势：最近 10 次有分数的记录，时间正序（折线图数据源）

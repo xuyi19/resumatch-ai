@@ -205,11 +205,14 @@ _LIBRARY_JD_MAX = 20000
 _LIBRARY_SOURCES = ("manual", "ai", "ai_gen", "sample", "favorite")  # M51 favorite=收藏迁移/♡入库
 # M49 投递状态机
 _LIBRARY_STATUSES = ("wish", "applied", "interviewing", "offer", "closed")
+# M56.4 投递台账渠道
+_LIBRARY_CHANNELS = ("boss", "zhilian", "liepin", "nowcoder", "email", "other")
 
 
 class LibraryStatusIn(BaseModel):
     # 容忍显式 null（Pydantic 严格类型会把前端 null 422 的既有教训）
     status: str | None = None
+    apply_channel: str | None = None  # M56.4 标记已投递时可附渠道
 
 
 class LibraryStatusBatchIn(BaseModel):
@@ -227,6 +230,9 @@ def _job_dict(r: SavedJob) -> dict:
         "jd": r.jd_text,
         "source": r.source,
         "status": getattr(r, "status", None) or "wish",  # M49 老行缺列时兜底
+        # M56.4 投递台账
+        "apply_channel": getattr(r, "apply_channel", None),
+        "apply_at": r.apply_at.isoformat() if getattr(r, "apply_at", None) else None,
         "url": r.url,
         "created_at": r.created_at.isoformat() if r.created_at else None,
     }
@@ -376,6 +382,17 @@ async def update_library_status_batch(
         .where(SavedJob.id.in_(req.ids), SavedJob.owner_id == owner_id)
         .values(status=status)
     )
+    if status == "applied":
+        # M56.4 批量标记已投递：只为从未投过的岗位落首次投递时间（历史事实不覆盖）
+        await db.execute(
+            sa_update(SavedJob)
+            .where(
+                SavedJob.id.in_(req.ids),
+                SavedJob.owner_id == owner_id,
+                SavedJob.apply_at.is_(None),
+            )
+            .values(apply_at=datetime.now())
+        )
     await db.commit()
     return {"updated": res.rowcount}
 
@@ -387,14 +404,22 @@ async def update_library_job_status(
     db: AsyncSession = Depends(get_db),
     owner_id: str = Depends(get_owner_id),
 ):
-    """M49 单条投递状态更新（岗位卡徽标切换）。"""
+    """M49 单条投递状态更新（岗位卡徽标切换）。M56.4 支持附投递渠道。"""
     status = (req.status or "").strip()
     if status not in _LIBRARY_STATUSES:
         raise HTTPException(status_code=400, detail="无效的投递状态")
+    channel = (req.apply_channel or "").strip().lower() or None
+    if channel and channel not in _LIBRARY_CHANNELS:
+        raise HTTPException(status_code=400, detail="无效的投递渠道")
     job = await db.get(SavedJob, job_id)
     if not job or job.owner_id != owner_id:
         raise HTTPException(status_code=404, detail="岗位不存在")
     job.status = status
+    if channel:
+        job.apply_channel = channel
+    # M56.4 首次标记已投递落时间；转走状态不抹历史，重复标记不覆盖
+    if status == "applied" and not job.apply_at:
+        job.apply_at = datetime.now()
     await db.commit()
     await db.refresh(job)
     return _job_dict(job)
