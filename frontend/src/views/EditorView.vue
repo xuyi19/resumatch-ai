@@ -118,7 +118,7 @@
                 <div v-if="photoUploading" class="text-xs text-ink-faint">上传中…</div>
               </div>
             </div>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label class="text-xs text-ink-sub block mb-1">姓名</label>
                 <input v-model="data.name" class="w-full px-3 py-2 text-sm rounded-lg bg-inset border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent transition-colors" />

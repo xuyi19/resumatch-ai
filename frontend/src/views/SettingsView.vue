@@ -184,7 +184,7 @@
 
         <div>
           <label class="text-xs font-medium text-ink-sub block mb-2.5">数据源预设</label>
-          <div class="grid grid-cols-3 gap-2">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <button v-for="s in JOB_SOURCES" :key="s.id" @click="applyJobSource(s)"
               class="px-2 py-2 text-xs font-medium rounded-md border transition-colors"
               :class="jobProvider === s.id

@@ -141,10 +141,15 @@
         <span class="font-semibold text-sm">知岗 ResuMatch</span>
       </RouterLink>
       <span class="flex-1" />
-      <RouterLink v-for="m in mobileNav" :key="m.label" :to="m.to" class="icon-btn"
-        :class="m.active() ? 'text-accent bg-accent/10' : 'text-ink/80'">
+      <RouterLink to="/guide" class="icon-btn" :class="route.path === '/guide' ? 'text-accent bg-accent/10' : 'text-ink/80'"
+        title="使用说明">
         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" v-html="m.icon" />
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" v-html="ICONS.book" />
+      </RouterLink>
+      <RouterLink to="/changelog" class="icon-btn" :class="route.path === '/changelog' ? 'text-accent bg-accent/10' : 'text-ink/80'"
+        title="更新日志">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" v-html="ICONS.doc" />
       </RouterLink>
       <button @click="toggle" class="icon-btn text-ink/80">
         <svg v-if="resolved === 'light'" class="w-5 h-5" viewBox="0 0 24 24" fill="none"
@@ -159,8 +164,23 @@
       </button>
     </header>
 
+    <!-- ============ M52 窄屏底部 Tab 栏（拇指可达核心五入口） ============ -->
+    <nav class="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-stretch
+      bg-panel border-t border-line pb-[env(safe-area-inset-bottom)]">
+      <RouterLink v-for="t in mobileTabs" :key="t.label" :to="t.to"
+        class="relative flex-1 flex flex-col items-center justify-center gap-0.5 py-2 transition-colors"
+        :class="t.active() ? 'text-accent' : 'text-ink/60'">
+        <span class="relative">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" v-html="t.icon" />
+          <span v-if="t.badge" class="absolute -top-0.5 -right-1 w-2 h-2 rounded-full bg-bad animate-pulse" />
+        </span>
+        <span class="text-[10px] leading-none">{{ t.label }}</span>
+      </RouterLink>
+    </nav>
+
     <!-- ============ 主工作区 ============ -->
-    <main class="md:pl-56 pt-14 md:pt-0 min-h-screen">
+    <main class="md:pl-56 pt-14 pb-16 md:pb-0 md:pt-0 min-h-screen">
       <RouterView />
     </main>
 
@@ -316,12 +336,30 @@ const settingsItem = { label: '设置', icon: ICONS.sliders, active: route.path 
 const guideItem = { label: '使用说明', icon: ICONS.book, active: route.path === '/guide' }
 const changelogItem = { label: '更新日志', icon: ICONS.doc, active: route.path === '/changelog' }
 
-/* ---- 窄屏顶栏（诊断/创建/历史/设置） ---- */
-const mobileNav = computed(() => [
-  { label: '诊断', to: '/app/analyze', icon: ICONS.target, active: () => route.path.startsWith('/app/analyze') || route.path.startsWith('/app/result') },
-  { label: '创建', to: '/app/editor', icon: ICONS.edit, active: () => route.path.startsWith('/app/editor') },
-  { label: '历史', to: '/app/history', icon: ICONS.clock, active: () => route.path.startsWith('/app/history') },
-  { label: '设置', to: '/settings', icon: ICONS.sliders, active: () => route.path === '/settings' },
+/* ---- M52 窄屏底部 Tab 栏（拇指可达核心五入口；badge=未配 Key 红点） ---- */
+const mobileTabs = computed(() => [
+  {
+    label: '总览', to: '/app/dashboard', icon: ICONS.dashboard,
+    active: () => route.path.startsWith('/app/dashboard'),
+  },
+  {
+    label: '诊断', to: '/app/analyze', icon: ICONS.target,
+    active: () => route.path.startsWith('/app/analyze') ||
+      route.path.startsWith('/app/result') || route.path.startsWith('/app/chat'),
+  },
+  {
+    label: '面试', to: '/app/interview', icon: ICONS.mic,
+    active: () => route.path.startsWith('/app/interview'),
+  },
+  {
+    label: '岗位', to: '/app/jobs', icon: ICONS.briefcase,
+    active: () => route.path.startsWith('/app/jobs'),
+  },
+  {
+    label: '设置', to: '/settings', icon: ICONS.sliders,
+    active: () => route.path === '/settings',
+    badge: guide.state.needGuide,
+  },
 ])
 
 function sideItemCls(item) {

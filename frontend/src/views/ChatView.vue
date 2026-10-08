@@ -121,7 +121,7 @@
         <div v-for="(field, key) in diff" :key="key"
              class="bg-panel border border-line rounded-lg p-5">
           <div class="text-sm font-semibold text-ink-sub mb-3">{{ fieldLabel(key) }}</div>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <div class="text-xs text-ink-faint mb-2">原文</div>
               <div class="text-xs text-ink-sub bg-bad/10 border border-bad/30 p-3 rounded-lg leading-relaxed whitespace-pre-wrap">
