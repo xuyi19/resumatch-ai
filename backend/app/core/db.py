@@ -120,3 +120,17 @@ async def ensure_schema_columns() -> None:
                         f"WHERE owner_id IS NULL OR owner_id = ''"
                     )
                 )
+        # 清理示例岗位编造的公司名（MockProvider._SAMPLES 已全清空）
+        _FAKE_COMPANIES = [
+            "云帆科技", "智启智能", "星河网络", "慧点未来", "数澜咨询", "恒信软件",
+            "蚂蚁集团", "字节跳动", "美团", "腾讯", "华为", "小红书",
+        ]
+        _ph = ",".join(f":c{i}" for i in range(len(_FAKE_COMPANIES)))
+        _params = {f"c{i}": v for i, v in enumerate(_FAKE_COMPANIES)}
+        await conn.execute(
+            text(
+                f"UPDATE saved_jobs SET company = '' "
+                f"WHERE company IN ({_ph}) AND source IN ('sample', 'ai', 'ai_gen')"
+            ),
+            _params,
+        )

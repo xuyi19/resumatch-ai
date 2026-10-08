@@ -54,7 +54,7 @@ class MockProvider:
     _SAMPLES = [
         {
             "title": "Python 后端开发工程师",
-            "company": "云帆科技",
+            "company": "",
             "salary": "15-25K·14薪",
             "city": "杭州",
             "jd_text": (
@@ -67,7 +67,7 @@ class MockProvider:
         },
         {
             "title": "AI 应用开发工程师（LLM 方向）",
-            "company": "智启智能",
+            "company": "",
             "salary": "20-35K·15薪",
             "city": "北京",
             "jd_text": (
@@ -80,7 +80,7 @@ class MockProvider:
         },
         {
             "title": "前端开发工程师（Vue3）",
-            "company": "星河网络",
+            "company": "",
             "salary": "13-22K",
             "city": "上海",
             "jd_text": (
@@ -91,7 +91,7 @@ class MockProvider:
         },
         {
             "title": "产品经理（AI 产品）",
-            "company": "慧点未来",
+            "company": "",
             "salary": "18-30K",
             "city": "深圳",
             "jd_text": (
@@ -103,7 +103,7 @@ class MockProvider:
         },
         {
             "title": "数据分析师",
-            "company": "数澜咨询",
+            "company": "",
             "salary": "12-20K",
             "city": "成都",
             "jd_text": (
@@ -115,7 +115,7 @@ class MockProvider:
         },
         {
             "title": "Java 开发工程师",
-            "company": "恒信软件",
+            "company": "",
             "salary": "14-24K·14薪",
             "city": "南京",
             "jd_text": (
