@@ -75,7 +75,7 @@
                 <span v-if="j.company" class="font-normal text-ink-faint ml-1.5">{{ j.company }}</span>
                 <span v-if="j.city || j.salary" class="font-normal text-ink-faint ml-1.5">{{ [j.city, j.salary].filter(Boolean).join(' · ') }}</span>
               </div>
-              <div class="text-[11px] text-ink-faint mt-0.5 line-clamp-2">{{ j.jd || '（无 JD）' }}</div>
+              <div class="text-[11px] text-ink-faint mt-0.5 line-clamp-2 whitespace-pre-line">{{ j.jd || '（无 JD）' }}</div>
             </div>
           </label>
         </div>
@@ -118,9 +118,9 @@
               class="px-3 py-2 text-sm bg-inset rounded-lg border border-line focus:outline-none
                 focus:border-accent transition-colors" />
           </div>
-          <textarea v-model="form.jd" rows="8" maxlength="20000"
-            placeholder="粘贴岗位 JD 全文（可从 BOSS / 智联 / 拉勾等平台复制岗位描述）&#10;JD 越完整，匹配推荐与面试出题越准"
-            class="w-full px-3.5 py-3 text-sm bg-inset rounded-lg border border-line resize-y
+          <textarea v-model="form.jd" rows="12" maxlength="20000"
+            placeholder="粘贴岗位 JD 全文（可从 BOSS / 智联 / 拉勾等平台复制岗位描述）&#10;支持多行输入，换行会原样保留并在岗位卡上显示&#10;JD 越完整，匹配推荐与面试出题越准"
+            class="w-full px-3.5 py-3 text-sm bg-inset rounded-lg border border-line resize-y leading-relaxed
               focus:outline-none focus:border-accent placeholder:text-ink-faint transition-colors"></textarea>
           <div class="flex items-center gap-3 mt-3">
             <button @click="saveForm" :disabled="formSaving"
@@ -490,7 +490,7 @@
 
           <!-- JD 摘要（默认两行截断，点击展开；无 JD 显示占位） -->
           <p v-if="j.jd" class="text-xs text-ink-faint mb-4 leading-relaxed cursor-pointer flex-1"
-            :class="expandedId === j.id ? 'whitespace-pre-wrap text-ink-sub' : 'line-clamp-2'"
+            :class="expandedId === j.id ? 'whitespace-pre-wrap text-ink-sub' : 'line-clamp-2 whitespace-pre-line'"
             :title="expandedId === j.id ? '点击收起' : '点击展开'"
             @click="expandedId = expandedId === j.id ? null : j.id">{{ j.jd }}</p>
           <p v-else class="text-xs text-ink-faint/60 italic mb-4 flex-1">暂无 JD 描述 · 编辑补充后可用于诊断/面试</p>
