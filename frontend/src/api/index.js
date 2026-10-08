@@ -130,6 +130,8 @@ export default {
   exportApplyKitToPath: (id, data) => api.post(`/jobs/library/${id}/export-kit`, data),
   // M60 求职跟进：工作台提醒聚合（逾期 applied + 面试日程）
   getFollowups: () => api.get('/jobs/followups'),
+  // M61 投递前体检：JD 关键词覆盖检查（纯本地词库比对，零 AI 调用）
+  checkKeywordCoverage: (data) => api.post('/jobs/keyword-check', data),
 
   // M22 数据与隐私：一键清空本用户全部数据
   clearAllData: () => api.delete('/data'),

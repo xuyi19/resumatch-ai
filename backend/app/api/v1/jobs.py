@@ -34,6 +34,7 @@ from app.services.job_market import (
     parse_llm_ranking,
 )
 from app.utils.job_links import build_apply_links
+from app.utils.keywords import check_coverage, extract_jd_keywords
 from app.utils.report_docx import generate_apply_docx
 
 
@@ -995,3 +996,33 @@ async def export_apply_kit(
             "Content-Disposition": f"attachment; filename*=UTF-8''{quoted}",
         },
     )
+
+
+# ============================ M61 关键词覆盖体检 ============================
+
+
+class KeywordCheckRequest(BaseModel):
+    """M61 投递前体检请求：JD + 简历（resume_id/resume_text 二选一）。
+
+    纯本地词库计算、零 LLM 调用；jd 长度口径与库内 JD 一致（30~20000）。
+    """
+
+    jd: str = Field(min_length=30, max_length=20000)
+    resume_id: int | None = None
+    resume_text: str | None = Field(default=None, min_length=30, max_length=8000)
+
+
+@router.post("/keyword-check")
+async def keyword_check(
+    req: KeywordCheckRequest,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """M61 投递前轻量体检：提取 JD 高频技能词，比对简历命中/缺失（纯本地，无 LLM）。
+
+    /jobs 顶层字面路径，无参数路由冲突（参数路由都在 /library/ 下）。
+    """
+    keywords = extract_jd_keywords(req.jd)
+    resume_text = await _resolve_resume_text(req.resume_id, req.resume_text, db, owner_id)
+    result = check_coverage(keywords, resume_text)
+    return {**result, "total": len(keywords)}

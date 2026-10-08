@@ -411,6 +411,73 @@
             </p>
           </div>
 
+          <!-- M61 投递前体检：JD 关键词覆盖（纯本地词库比对，复用上方所选简历） -->
+          <div class="border-t border-line pt-4 mt-4">
+            <details>
+              <summary class="text-xs font-semibold cursor-pointer select-none">
+                🔍 投递前体检 · 关键词覆盖
+              </summary>
+
+              <div class="flex items-center gap-2 flex-wrap mt-2.5">
+                <span class="text-[11px] shrink-0"
+                  :class="applyResumeId ? 'text-ink-faint' : 'text-warn'">
+                  {{ applyResumeId ? `使用简历：${kcResumeName}` : '⚠️ 未选择简历（在上方材料包处选择）' }}
+                </span>
+                <button @click="runKeywordCheck"
+                  :disabled="kcLoading || !applyResumeId || !kcJdReady"
+                  class="px-3.5 py-1.5 text-xs font-medium rounded-lg bg-accent text-white
+                    hover:bg-accent-hover active:scale-[0.98] transition-all disabled:opacity-40">
+                  {{ kcLoading ? '体检中…' : (kcResult ? '重新体检' : '开始体检') }}
+                </button>
+              </div>
+              <p v-if="!kcJdReady" class="text-[11px] text-ink-faint mt-1.5">
+                该岗位暂无有效 JD 描述，先编辑补充 JD 才能体检。
+              </p>
+
+              <div v-if="kcLoading" class="text-xs text-ink-faint mt-3">
+                正在本地提取 JD 高频技能词并与简历比对…
+              </div>
+              <template v-else-if="kcResult">
+                <div class="flex items-center gap-3 mt-3">
+                  <div class="text-2xl font-semibold font-mono shrink-0"
+                    :class="kcResult.coverage >= 70 ? 'text-ok'
+                      : kcResult.coverage >= 40 ? 'text-warn' : 'text-bad'">
+                    {{ kcResult.coverage }}%
+                  </div>
+                  <div class="flex-1 h-3 rounded-full border-2 border-ink/70 bg-inset overflow-hidden">
+                    <div class="h-full bg-accent transition-all duration-500"
+                      :style="{ width: kcResult.coverage + '%' }"></div>
+                  </div>
+                </div>
+                <div class="text-[11px] text-ink-faint mt-1">
+                  命中 {{ kcResult.hits.length }} / {{ kcResult.total }} 个关键词
+                </div>
+
+                <div v-if="kcResult.hits.length" class="mt-2.5">
+                  <div class="text-[11px] font-medium text-ok mb-1">✓ 已命中 {{ kcResult.hits.length }}</div>
+                  <div class="flex flex-wrap gap-1.5">
+                    <span v-for="w in kcResult.hits" :key="'kc-h-' + w"
+                      class="px-1.5 py-0.5 rounded text-[11px] text-ok bg-ok/10 border border-ok/30">{{ w }}</span>
+                  </div>
+                </div>
+                <div v-if="kcResult.missing.length" class="mt-2.5">
+                  <div class="text-[11px] font-medium text-warn mb-1">✗ 缺失 {{ kcResult.missing.length }}</div>
+                  <div class="flex flex-wrap gap-1.5">
+                    <span v-for="w in kcResult.missing" :key="'kc-m-' + w"
+                      class="px-1.5 py-0.5 rounded text-[11px] text-warn bg-warn/10 border border-warn/30">{{ w }}</span>
+                  </div>
+                </div>
+                <p class="text-[11px] text-ink-faint mt-2.5">
+                  缺失词可考虑补充到简历或面试前突击——纯本地词库比对，不上传任何内容。
+                </p>
+              </template>
+              <p v-else-if="kcError" class="text-xs text-warn mt-3">{{ kcError }}</p>
+              <p v-else class="text-[11px] text-ink-faint mt-3">
+                点击「开始体检」，本地词库提取 JD 高频技能词并比对简历命中情况，秒级完成、零 AI 调用。
+              </p>
+            </details>
+          </div>
+
           <!-- 底部操作 -->
           <div class="flex items-center justify-between gap-3 mt-5 pt-4 border-t border-line">
             <button @click="closeApply" class="px-4 py-2 text-xs text-ink-sub hover:text-ink transition-colors">关闭</button>
@@ -576,7 +643,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import api from '../api'
@@ -688,6 +755,8 @@ async function openApply(j) {
   kit.greeting = ''
   kit.cover_letter = ''
   kit.intro_points = []
+  kcResult.value = null
+  kcError.value = ''
   applyResumeId.value = selectedResumeId.value || ''
   // M69 岗位链接能推断渠道时自动预选（每次打开均为新会话，用户尚未手动选择，可改选）
   applyChannel.value = urlChannel(j.url)
@@ -793,6 +862,50 @@ async function exportKit() {
     Message.error(e.response?.data?.detail || '导出失败')
   } finally {
     exporting.value = false
+  }
+}
+
+/* ---- M61 投递前体检：JD 关键词覆盖（纯本地词库比对，复用材料包的简历选择） ---- */
+const kcLoading = ref(false)
+const kcResult = ref(null)
+const kcError = ref('')
+
+// JD 有效即可体检（与后端 min_length=30 同口径）；空 JD/占位 JD 禁用
+const kcJdReady = computed(() => ((applyJob.value?.jd || '').trim().length) >= 30)
+
+const kcResumeName = computed(() => {
+  const r = resumes.value.find((x) => String(x.id) === String(applyResumeId.value))
+  return r?.filename || ''
+})
+
+// 换简历后旧结果失效，清掉避免误读
+watch(applyResumeId, () => {
+  kcResult.value = null
+  kcError.value = ''
+})
+
+async function runKeywordCheck() {
+  const jd = (applyJob.value?.jd || '').trim()
+  if (!applyResumeId.value) {
+    Message.warning('先在上方选择一份简历')
+    return
+  }
+  if (jd.length < 30) {
+    Message.warning('该岗位暂无有效 JD，无法体检')
+    return
+  }
+  kcLoading.value = true
+  kcError.value = ''
+  try {
+    const res = await api.checkKeywordCoverage({
+      jd,
+      resume_id: Number(applyResumeId.value),
+    })
+    kcResult.value = res.data
+  } catch (e) {
+    kcError.value = e.response?.data?.detail || '体检失败，请重试'
+  } finally {
+    kcLoading.value = false
   }
 }
 
