@@ -99,6 +99,22 @@ async def test_library_validates_title(client):
     assert resp.json()["items"][0]["city"] == ""
 
 
+async def test_library_tolerates_overlong_fields(client):
+    """回归：超长 url/字段不再 422 整批拒绝——Boss 链接带 securityId 动辄超 300 字符，
+    模型层不设 max_length，由 handler 统一截断。"""
+    hd = _sid()
+    resp = await _add(client, hd, [{
+        "title": "产品经理（整机）",
+        "company": "某" * 80,          # >60 → 截断
+        "salary": "20-40k·15薪" + "长" * 50,  # >40 → 截断
+        "url": "https://www.zhipin.com/job_detail/abc.html?" + "securityId=xyz&" * 30,  # >300 → 截断
+    }])
+    assert resp.status_code == 200, resp.text
+    job = resp.json()["items"][0]
+    assert len(job["url"]) == 300 and job["url"].startswith("https://www.zhipin.com")
+    assert len(job["company"]) == 60 and len(job["salary"]) == 40
+
+
 async def test_library_owner_isolation(client):
     """会话 A 添加的岗位，会话 B 看不见也删不掉。"""
     hd_a, hd_b = _sid(), _sid()

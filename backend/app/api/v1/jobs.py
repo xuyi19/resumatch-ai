@@ -239,13 +239,15 @@ def _job_dict(r: SavedJob) -> dict:
 
 
 class LibraryJobIn(BaseModel):
-    # 全部容忍显式 null（前端表单空字段可能传 null），handler 统一 (x or "") 兜底
-    title: str | None = Field(default=None, min_length=1, max_length=80)
-    company: str | None = Field(default=None, max_length=60)
-    city: str | None = Field(default=None, max_length=20)
-    salary: str | None = Field(default=None, max_length=40)
-    jd: str | None = Field(default=None, max_length=_LIBRARY_JD_MAX)
-    url: str | None = Field(default=None, max_length=300)
+    # 全部容忍显式 null（前端表单空字段可能传 null），handler 统一 (x or "") 兜底；
+    # 不设 max_length——Boss 等平台链接带 securityId 等参数动辄超 300 字符，
+    # 模型层约束会 422 掉整批导入，长度截断由 handler 统一做
+    title: str | None = Field(default=None, min_length=1)
+    company: str | None = None
+    city: str | None = None
+    salary: str | None = None
+    jd: str | None = None
+    url: str | None = None
 
 
 class LibraryAddRequest(BaseModel):
@@ -256,13 +258,14 @@ class LibraryAddRequest(BaseModel):
 
 
 class LibraryUpdateRequest(BaseModel):
-    # 全部可选且容忍显式 null（前端编辑框可能传 null），仅更新显式提供的字段
-    title: str | None = Field(default=None, min_length=1, max_length=80)
-    company: str | None = Field(default=None, max_length=60)
-    city: str | None = Field(default=None, max_length=20)
-    salary: str | None = Field(default=None, max_length=40)
-    jd: str | None = Field(default=None, max_length=_LIBRARY_JD_MAX)
-    url: str | None = Field(default=None, max_length=300)
+    # 全部可选且容忍显式 null（前端编辑框可能传 null），仅更新显式提供的字段；
+    # 长度截断同 LibraryJobIn 由 handler 统一做
+    title: str | None = Field(default=None, min_length=1)
+    company: str | None = None
+    city: str | None = None
+    salary: str | None = None
+    jd: str | None = None
+    url: str | None = None
 
 
 class LibraryBatchDeleteRequest(BaseModel):
