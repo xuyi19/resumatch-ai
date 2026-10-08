@@ -585,7 +585,7 @@ async def export_interview_report(
     db: AsyncSession = Depends(get_db),
     owner_id: str = Depends(get_owner_id),
 ):
-    """M33 面试报告导出 Word：问答记录 + 总评。
+    """M33 面试报告导出 Word：问答记录 + 总评 + 多轮对话全文附录（M47）。
 
     save_path 为空：浏览器 blob 下载；非空（仅桌面形态）：服务端直写该路径。
     两种方式均落 export_history（template=interview）。
@@ -611,6 +611,7 @@ async def export_interview_report(
             "questions": conv.questions or [],
             "answers": conv.answers or {},
             "summary": conv.optimized_resume or {},
+            "chat_log": _chat_base_log(conv),  # M47 附录：完整对话流（旧会话自动合成）
         })
     except Exception as e:
         raise HTTPException(500, f"生成失败: {e}")

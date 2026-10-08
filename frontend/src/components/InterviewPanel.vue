@@ -135,6 +135,13 @@
                 </span>
                 <span class="text-xs text-ink-faint">/ 10</span>
               </div>
+              <!-- M47 总评一键复制（导出按钮左侧） -->
+              <button @click="copySummary" :disabled="copying"
+                class="text-xs px-3 py-1.5 rounded-md border border-line
+                  text-ink-sub hover:text-accent hover:border-accent/50
+                  disabled:opacity-50 transition-colors">
+                {{ copying ? '复制中…' : '📋 一键复制' }}
+              </button>
               <button @click="exportReport" :disabled="exporting"
                 class="text-xs px-3 py-1.5 rounded-md border border-line
                   text-ink-sub hover:text-accent hover:border-accent/50
@@ -408,6 +415,31 @@ async function sendChat(forceAdvance = false) {
 
 // M33 面试报告导出 Word（blob 下载）
 const exporting = ref(false)
+// M47 总评一键复制：拼纯文本便于贴到笔记 / IM 做复盘
+const copying = ref(false)
+async function copySummary() {
+  const s = interview.summary
+  if (!s || copying.value) return
+  const lines = ['【模拟面试总评】']
+  if (s.overall_score != null) lines.push(`总分：${s.overall_score}/10`)
+  if (s.overall) lines.push(String(s.overall))
+  const sec = (title, arr) => {
+    const items = (arr || []).map(x => String(x).trim()).filter(Boolean)
+    if (items.length) lines.push('', `【${title}】`, ...items.map(x => `• ${x}`))
+  }
+  sec('亮点', s.strengths)
+  sec('待改进', s.weaknesses)
+  sec('建议', s.suggestions)
+  copying.value = true
+  try {
+    await navigator.clipboard.writeText(lines.join('\n'))
+    Message.success('总评已复制到剪贴板')
+  } catch {
+    Message.error('复制失败，请手动选择文本复制')
+  } finally {
+    copying.value = false
+  }
+}
 async function exportReport() {
   if (exporting.value) return
   exporting.value = true

@@ -170,15 +170,17 @@ def generate_report_docx(result: dict) -> bytes:
 
 
 def generate_interview_docx(payload: dict) -> bytes:
-    """把面试会话数据渲染为报告 docx 字节流（M33）：问答记录 + 总评。
+    """把面试会话数据渲染为报告 docx 字节流（M33）：问答记录 + 总评 + 多轮对话附录（M47）。
 
     payload: {questions: [{id, category, question}], answers: {qid: {answer, feedback}},
-              summary: {overall, strengths, weaknesses, suggestions}}
+              summary: {overall, strengths, weaknesses, suggestions},
+              chat_log: [{role: interviewer|candidate, qid, content}]}
     与页面同源（Conversation 表），不依赖前端传参。
     """
     questions = payload.get("questions") or []
     answers = payload.get("answers") or {}
     summary = payload.get("summary") or {}
+    chat_log = payload.get("chat_log") or []
     scores = summary.get("scores") or {}
     overall_score = summary.get("overall_score")
 
@@ -233,6 +235,18 @@ def generate_interview_docx(payload: dict) -> bytes:
             doc.add_heading(title, level=2)
             for x in items:
                 _para(doc, f"• {x}", color=color, space_after=3)
+
+    # ---- 附录：多轮对话全文（M47：完整还原真实面试对话节奏） ----
+    if chat_log:
+        doc.add_heading("附录 · 多轮对话全文", level=1)
+        role_label = {"interviewer": "面试官", "candidate": "我"}
+        for m in chat_log:
+            content = str(m.get("content") or "").strip()
+            if not content:
+                continue
+            who = role_label.get(m.get("role"), "对话")
+            _para(doc, f"{who}：{content}",
+                  bold=(m.get("role") == "interviewer"), space_after=6)
 
     buf = io.BytesIO()
     doc.save(buf)

@@ -245,11 +245,17 @@ async def test_export_interview_report(client):
     res = await client.post(f"/api/v1/interview/export/{task_id}")
     assert res.status_code == 409
 
-    # 走完全部题目（fake LLM：带【强制收尾】必 advance）
+    # 走完全部题目（模拟真实节奏：先真实发言入对话流，再强制收尾推进；
+    # fake LLM 见【强制收尾】必 advance，占位控制语不入 chat_log）
     for _ in range(6):
         r = await client.post(
             f"/api/v1/interview/chat/{task_id}",
-            json={"content": "分点作答，结合项目经验展开。", "force_advance": True},
+            json={"content": "分点作答，结合项目经验展开。"},
+        )
+        assert r.status_code == 200, r.text
+        r = await client.post(
+            f"/api/v1/interview/chat/{task_id}",
+            json={"content": "（本题回答完毕，请进入下一题）", "force_advance": True},
         )
         assert r.status_code == 200, r.text
 
@@ -258,6 +264,16 @@ async def test_export_interview_report(client):
     assert res.headers["content-type"].startswith(
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
     assert res.content[:2] == b"PK"  # docx = zip 容器魔数
+
+    # M47 附录：多轮对话全文进入报告正文（题干 = 面试官 / 回答 = 我）
+    import io as _io
+    from docx import Document as _Doc
+
+    doc = _Doc(_io.BytesIO(res.content))
+    texts = [p.text for p in doc.paragraphs]
+    assert any("附录 · 多轮对话全文" in t for t in texts)
+    assert any(t.startswith("面试官：") for t in texts)
+    assert any(t.startswith("我：") for t in texts)
 
     # 会话不存在 → 404
     res = await client.post("/api/v1/interview/export/iv-notexist")
