@@ -9,8 +9,9 @@ from __future__ import annotations
 import inspect
 import json
 import re
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from loguru import logger
 from pydantic import BaseModel, Field
 from sqlalchemy import delete as sa_delete
@@ -31,6 +32,8 @@ from app.services.job_market import (
     parse_llm_ranking,
 )
 from app.utils.job_links import build_apply_links
+from app.utils.report_docx import generate_apply_docx
+
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -729,3 +732,82 @@ async def make_apply_kit(
         "cover_letter": kit.cover_letter.strip()[:2500],
         "intro_points": [p.strip()[:80] for p in kit.intro_points if p.strip()][:6],
     }
+
+
+class ApplyKitExportRequest(BaseModel):
+    """M56.3 材料包导出：内容为材料包区当前展示文本（LLM 结果或用户手改）；resume_id 可选附带简历附录。"""
+
+    greeting: str | None = None
+    cover_letter: str | None = None
+    intro_points: list[str] | None = None
+    resume_id: int | None = None
+    save_path: str | None = None  # 桌面形态专用：服务端直写；为空走 blob 下载
+
+
+@router.post("/library/{job_id}/export-kit")
+async def export_apply_kit(
+    job_id: int,
+    req: ApplyKitExportRequest,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """M56.3 简历+求职信一键导出材料包 Word（复用导出基建，落 export_history template=apply）。
+
+    save_path 为空：浏览器 blob 下载；非空（仅桌面形态）：服务端直写该路径。
+    """
+    job = await db.get(SavedJob, job_id)
+    if not job or job.owner_id != owner_id:
+        raise HTTPException(status_code=404, detail="岗位不存在")
+    cover_letter = (req.cover_letter or "").strip()
+    if not cover_letter:
+        raise HTTPException(status_code=422, detail="求职信内容为空，请先生成材料包")
+
+    resume_text = None
+    if req.resume_id:
+        resume = (
+            await db.execute(
+                select(Resume).where(Resume.id == req.resume_id, Resume.owner_id == owner_id)
+            )
+        ).scalars().first()
+        if not resume:
+            raise HTTPException(status_code=404, detail="简历不存在")
+        resume_text = resume.raw_text
+
+    try:
+        data = generate_apply_docx({
+            "job": {"title": job.title, "company": job.company,
+                    "city": job.city, "salary": job.salary},
+            "kit": {"greeting": req.greeting, "cover_letter": cover_letter,
+                    "intro_points": req.intro_points or []},
+            "resume_text": resume_text,
+        })
+    except Exception as e:
+        logger.warning(f"投递材料包导出失败: {e}")
+        raise HTTPException(status_code=500, detail=f"生成失败: {e}")
+
+    safe_title = re.sub(r'[\\/:*?"<>|]', "", job.title).strip()[:30] or "岗位"
+    filename = f"投递材料包_{safe_title}_{datetime.now().strftime('%Y%m%d_%H%M')}.docx"
+
+    # 复用简历导出的路径校验与导出历史记录（同为 .docx 产物）
+    from app.api.v1.resume import _record_export, _validate_save_path
+
+    if req.save_path:
+        target = _validate_save_path(req.save_path)
+        try:
+            target.write_bytes(data)
+        except OSError as e:
+            raise HTTPException(status_code=500, detail=f"写入文件失败: {e}")
+        await _record_export(db, owner_id, target.name, str(target), "apply")
+        return {"saved_to": str(target), "filename": target.name}
+
+    await _record_export(db, owner_id, filename, None, "apply")
+    from urllib.parse import quote as _quote
+
+    quoted = _quote(filename)
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quoted}",
+        },
+    )

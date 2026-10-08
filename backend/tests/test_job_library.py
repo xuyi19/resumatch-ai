@@ -563,3 +563,72 @@ async def test_apply_kit_validations(client):
         f"/api/v1/jobs/library/{jid}/apply-kit", json={"resume_text": RESUME_TEXT}, headers=_sid()
     )
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------- 邮箱投递通道（M56.3）
+
+
+async def test_export_apply_kit(client):
+    """M56.3 材料包导出：blob docx 含求职信/要点/简历附录；落 export_history template=apply。"""
+    import io
+
+    from docx import Document
+
+    hd = _sid()
+    resp = await client.post(
+        "/api/v1/resumes/upload-text",
+        json={"filename": "导出材料包简历.txt", "text": RESUME_TEXT},
+        headers=hd,
+    )
+    resume_id = resp.json()["id"]
+    jid = (await _add(client, hd, [{"title": "Python 后端工程师", "company": "A 科技", "city": "杭州",
+                                    "jd": "材料包导出验证岗位。"}])).json()["items"][0]["id"]
+
+    resp = await client.post(
+        f"/api/v1/jobs/library/{jid}/export-kit",
+        json={"greeting": "您好，期待沟通。", "cover_letter": "尊敬的面试官：\n我具备三年 Python 后端经验。",
+              "intro_points": ["三年后端经验", "高并发实战"], "resume_id": resume_id},
+        headers=hd,
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    doc = Document(io.BytesIO(resp.content))
+    texts = [p.text for p in doc.paragraphs]
+    assert any("投递材料包" in t for t in texts)
+    assert any("求职信" in t for t in texts)
+    assert any("三年 Python 后端经验" in t for t in texts)
+    assert any("附录 · 简历内容" in t for t in texts)  # resume_id 附带简历附录
+    assert any("三年后端经验" in t for t in texts)
+
+    # 导出历史落库（template=apply）
+    hist = await client.get("/api/v1/resumes/export-history", headers=hd)
+    assert "apply" in [i["template"] for i in hist.json()["items"]]
+
+
+async def test_export_apply_kit_validations(client):
+    """空求职信 422 / 岗位不存在 404 / 他人岗位 404 / 简历不存在 404。"""
+    hd = _sid()
+    jid = (await _add(client, hd, [{"title": "导出校验岗", "company": "D 校", "jd": "导出校验岗位描述。"}])).json()["items"][0]["id"]
+
+    resp = await client.post(
+        f"/api/v1/jobs/library/{jid}/export-kit", json={"cover_letter": "  "}, headers=hd
+    )
+    assert resp.status_code == 422
+
+    resp = await client.post(
+        f"/api/v1/jobs/library/{jid}/export-kit",
+        json={"cover_letter": "正文内容足够。", "resume_id": 999999}, headers=hd
+    )
+    assert resp.status_code == 404
+
+    resp = await client.post(
+        f"/api/v1/jobs/library/{jid}/export-kit",
+        json={"cover_letter": "正文内容足够。"}, headers=_sid()
+    )
+    assert resp.status_code == 404
+    resp = await client.post(
+        "/api/v1/jobs/library/999999/export-kit",
+        json={"cover_letter": "正文内容足够。"}, headers=hd
+    )
+    assert resp.status_code == 404

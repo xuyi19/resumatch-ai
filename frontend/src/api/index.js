@@ -115,6 +115,10 @@ export default {
   // M56 投递直达：平台搜索深链 + AI 投递材料包
   getApplyLinks: (id) => api.get(`/jobs/library/${id}/apply-links`),
   jobApplyKit: (id, data) => api.post(`/jobs/library/${id}/apply-kit`, data),
+  // M56.3 材料包导出 Word（blob 下载）
+  exportApplyKit: (id, data) => api.post(`/jobs/library/${id}/export-kit`, data, {
+    responseType: 'blob',
+  }),
 
   // M22 数据与隐私：一键清空本用户全部数据
   clearAllData: () => api.delete('/data'),

@@ -251,3 +251,58 @@ def generate_interview_docx(payload: dict) -> bytes:
     buf = io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
+
+
+def generate_apply_docx(payload: dict) -> bytes:
+    """把投递材料包渲染为 docx 字节流（M56.3）：求职信 + 自我介绍要点 + 简历附录。
+
+    payload: {job: {title, company, city, salary}, kit: {greeting, cover_letter,
+              intro_points}, resume_text: str | None}
+    内容由前端材料包区透传（LLM 生成结果或用户手改），与页面同源。
+    """
+    job = payload.get("job") or {}
+    kit = payload.get("kit") or {}
+    resume_text = str(payload.get("resume_text") or "").strip()
+
+    doc = Document()
+    _style(doc)
+
+    company = str(job.get("company") or "").strip()
+    title = str(job.get("title") or "未命名岗位").strip()
+    _para(doc, "投递材料包", bold=True, size=22,
+          align=WD_ALIGN_PARAGRAPH.CENTER, space_after=2)
+    sub = " · ".join(x for x in [title, company, str(job.get("city") or "").strip(),
+                                 str(job.get("salary") or "").strip()] if x)
+    _para(doc, f"{sub} · 生成于 {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+          color=_SUB, size=9, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=14)
+
+    # ---- 招呼语（可选） ----
+    greeting = str(kit.get("greeting") or "").strip()
+    if greeting:
+        doc.add_heading("一、招呼语（BOSS 直聘风格）", level=1)
+        _para(doc, greeting, space_after=8)
+
+    # ---- 求职信（必填段，按换行分段渲染） ----
+    cover = str(kit.get("cover_letter") or "").strip()
+    doc.add_heading("二、求职信" if greeting else "一、求职信", level=1)
+    for line in cover.splitlines():
+        if line.strip():
+            _para(doc, line.strip(), space_after=6)
+
+    # ---- 自我介绍要点 ----
+    points = [str(p).strip() for p in (kit.get("intro_points") or []) if str(p).strip()]
+    if points:
+        doc.add_heading("三、自我介绍要点" if greeting else "二、自我介绍要点", level=1)
+        for p in points:
+            _para(doc, f"• {p}", space_after=3)
+
+    # ---- 附录：简历内容 ----
+    if resume_text:
+        doc.add_heading("附录 · 简历内容", level=1)
+        for line in resume_text.splitlines():
+            if line.strip():
+                _para(doc, line.strip(), space_after=4)
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()

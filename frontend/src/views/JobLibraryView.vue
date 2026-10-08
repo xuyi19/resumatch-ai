@@ -323,6 +323,22 @@
                 <p class="text-xs text-ink-sub bg-inset rounded-lg px-3 py-2.5 leading-relaxed whitespace-pre-wrap">
                   {{ kit.cover_letter }}</p>
               </div>
+
+              <!-- M56.3 邮件投递 + 材料包导出 -->
+              <div v-if="kit.cover_letter" class="flex items-center gap-2.5 mt-3 pt-3 border-t border-line/60 flex-wrap">
+                <a :href="mailtoUrl"
+                  class="px-3.5 py-1.5 text-xs font-medium rounded-lg border border-accent/50 text-accent
+                    hover:bg-accent/10 transition-colors">📧 邮件投递</a>
+                <button @click="exportKit" :disabled="exporting"
+                  class="px-3.5 py-1.5 text-xs font-medium rounded-lg bg-accent text-white
+                    hover:bg-accent-hover active:scale-[0.98] transition-all disabled:opacity-40">
+                  {{ exporting ? '导出中…' : '📄 导出材料包 Word' }}
+                </button>
+              </div>
+              <p v-if="kit.cover_letter" class="text-[11px] text-ink-faint mt-1.5">
+                邮件投递会打开本机邮件客户端并预填主题与正文（收件人请自行填写）；
+                导出的 Word 含求职信与要点{{ applyResumeId ? '，并附所选简历内容' : '（选简历后可附简历内容）' }}。
+              </p>
             </template>
             <p v-else class="text-[11px] text-ink-faint">
               选一份简历后点「生成材料包」，AI 按简历与 JD 生成招呼语、自我介绍要点和求职信，逐段一键复制。
@@ -601,6 +617,50 @@ async function copyText(text, tip) {
 async function markApplied() {
   await setStatus(applyJob.value, 'applied')
   closeApply()
+}
+
+/* ---- M56.3 邮件投递（mailto: 预填） + 材料包导出 Word ---- */
+const exporting = ref(false)
+
+const mailtoUrl = computed(() => {
+  if (!kit.cover_letter || !applyJob.value) return ''
+  const subject = `应聘${applyJob.value.company || ''}「${applyJob.value.title}」岗位`
+  const parts = []
+  if (kit.greeting) parts.push(kit.greeting)
+  parts.push(kit.cover_letter)
+  if (kit.intro_points.length) {
+    parts.push('自我介绍要点：\n' + kit.intro_points.map((p) => '· ' + p).join('\n'))
+  }
+  return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(parts.join('\n\n'))}`
+})
+
+async function exportKit() {
+  if (!kit.cover_letter?.trim()) {
+    Message.warning('先生成材料包')
+    return
+  }
+  exporting.value = true
+  try {
+    const res = await api.exportApplyKit(applyJob.value.id, {
+      greeting: kit.greeting || null,
+      cover_letter: kit.cover_letter,
+      intro_points: kit.intro_points.length ? kit.intro_points : null,
+      resume_id: applyResumeId.value ? Number(applyResumeId.value) : null,
+    })
+    const url = URL.createObjectURL(new Blob([res.data], {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `投递材料包_${applyJob.value.title || Date.now()}.docx`
+    a.click()
+    URL.revokeObjectURL(url)
+    Message.success('材料包已导出')
+  } catch (e) {
+    Message.error(e.response?.data?.detail || '导出失败')
+  } finally {
+    exporting.value = false
+  }
 }
 
 /* ---- 搜索与筛选（本地过滤，匹配分排序作用于筛选后的子集） ---- */
