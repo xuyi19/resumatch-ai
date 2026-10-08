@@ -3,7 +3,7 @@
 面试/简历数据走真实 API 链路（LLM 已 monkeypatch），
 诊断记录直接插测试库（跑完整诊断图太重，统计端点只消费落库结果）。
 """
-from datetime import datetime
+from datetime import date, datetime
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -68,7 +68,7 @@ async def test_stats_structure(client):
     for key in ("resume_count", "diagnosis_total", "diagnosis_avg_score", "latest_diagnosis",
                 "ongoing_diagnoses", "interview_total", "interview_finished",
                 "interview_avg_score", "latest_interview_score", "ongoing_interviews",
-                "diagnosis_trend", "interview_trend"):
+                "diagnosis_trend", "interview_trend", "activity_heatmap"):
         assert key in data, f"缺少字段 {key}"
     assert isinstance(data["ongoing_diagnoses"], list)
     assert isinstance(data["ongoing_interviews"], list)
@@ -123,6 +123,32 @@ async def test_stats_aggregates_diagnosis_and_interview(client):
     assert data["interview_finished"] == before["interview_finished"]
     # M37：0 题未答的空会话不进「继续进行」→ ongoing 数不变
     assert len(data["ongoing_interviews"]) == len(before["ongoing_interviews"])
+
+
+@pytest.mark.asyncio
+async def test_activity_heatmap(client):
+    """M53 活跃热力图：近 90 天每日活跃（诊断+面试同天计数）。"""
+    await _cleanup()
+    res = await client.post(
+        "/api/v1/resumes/upload-text",
+        json={"filename": "张三-统计测试.txt", "text": RESUME_TEXT},
+    )
+    assert res.status_code == 200, res.text
+    owner = await _current_owner(client)
+    await _insert_diagnosis(owner, "stat-diag-heat", "success", 70)
+    iv = await client.post(
+        "/api/v1/interview/start-free",
+        json={"resume_id": res.json()["id"], "jd_text": "负责算法平台研发，要求熟悉大模型推理优化。"},
+    )
+    assert iv.status_code == 200, iv.text
+
+    data = (await client.get("/api/v1/history/stats")).json()
+    days = data["activity_heatmap"]
+    assert len(days) == 90
+    assert days == sorted(days, key=lambda d: d["date"])  # 时间正序
+    # 最后一天 = 今天：1 条诊断 + 1 场面试同天落格
+    assert days[-1]["date"] == date.today().isoformat()
+    assert days[-1]["count"] >= 2
 
 
 @pytest.mark.asyncio

@@ -167,6 +167,15 @@
         </div>
       </div>
 
+      <!-- M53 活跃热力图 -->
+      <div v-if="hasActivity" class="bg-panel border border-line rounded-2xl p-5 mb-8">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-semibold text-ink">🔥 活跃热力图</h2>
+          <span class="text-xs text-ink-faint">近 90 天 · 诊断 / 面试 / 投递</span>
+        </div>
+        <HeatmapChart :days="stats.activity_heatmap || []" />
+      </div>
+
       <!-- 最近记录双列 -->
       <div class="grid md:grid-cols-2 gap-5">
         <!-- 最近诊断 -->
@@ -240,6 +249,7 @@ import { useRoute, useRouter } from 'vue-router'
 import api from '../api'
 import LoadingBlock from '../components/LoadingBlock.vue'
 import LineChart from '../components/LineChart.vue'
+import HeatmapChart from '../components/HeatmapChart.vue'
 import OnboardingGuide from '../components/OnboardingGuide.vue'
 
 const route = useRoute()
@@ -256,6 +266,7 @@ const stats = ref({
   latest_interview_score: null, ongoing_interviews: [],
   saved_jobs_count: 0,
   apply_funnel: {},  // M56.4 投递漏斗（stats 缺字段时回退空对象）
+  activity_heatmap: [],  // M53 活跃热力图（stats 缺字段时回退空数组）
 })
 const recentDiags = ref([])
 const recentInterviews = ref([])
@@ -302,6 +313,10 @@ function funnelPct(n) {
   const max = Math.max(...funnelSteps.value.map((s) => s.count), 1)
   return `${Math.max(Math.round((n / max) * 100), n ? 8 : 0)}%`
 }
+
+// M53 有任意活跃天才显示热力图卡（新用户避免空格子占版面）
+const hasActivity = computed(() =>
+  (stats.value.activity_heatmap || []).some((d) => d.count > 0))
 
 const cards = computed(() => [
   { label: '简历库', icon: '📄', value: stats.value.resume_count, unit: '份', to: '/app/resumes' },

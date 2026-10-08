@@ -1,5 +1,7 @@
 from urllib.parse import quote
 
+from datetime import date, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -52,6 +54,33 @@ async def history_stats(
         k: status_counts.get(k, 0)
         for k in ("wish", "applied", "interviewing", "offer", "closed")
     }
+    # M53 活跃热力图：近 90 天每日活跃次数（诊断发起 + 面试会话 + 岗位投递）
+    start_day = date.today() - timedelta(days=89)
+    heat = {(start_day + timedelta(days=i)).isoformat(): 0 for i in range(90)}
+    heat_queries = (
+        select(func.date(DiagnosisRecord.created_at), func.count(DiagnosisRecord.id))
+        .where(DiagnosisRecord.owner_id == owner_id)
+        .group_by(func.date(DiagnosisRecord.created_at)),
+        select(func.date(Conversation.created_at), func.count(Conversation.id))
+        .where(
+            Conversation.owner_id == owner_id,
+            Conversation.type == "interview",
+        )
+        .group_by(func.date(Conversation.created_at)),
+        select(func.date(SavedJob.apply_at), func.count(SavedJob.id))
+        .where(
+            SavedJob.owner_id == owner_id,
+            SavedJob.apply_at.is_not(None),
+        )
+        .group_by(func.date(SavedJob.apply_at)),
+    )
+    for q in heat_queries:
+        for d, c in (await db.execute(q)).all():
+            if d and d in heat:
+                heat[d] += c
+    activity_heatmap = [
+        {"date": d, "count": heat[d]} for d in sorted(heat)
+    ]
 
     diag_rows = (
         await db.execute(
@@ -102,6 +131,7 @@ async def history_stats(
         "resume_count": resume_count or 0,
         "saved_jobs_count": saved_jobs_count or 0,
         "apply_funnel": apply_funnel,  # M56.4 投递漏斗
+        "activity_heatmap": activity_heatmap,  # M53 近 90 天每日活跃
         "diagnosis_total": len(diag_rows),
         "diagnosis_avg_score": round(sum(diag_scores) / len(diag_scores), 1) if diag_scores else None,
         # M38 趋势：最近 10 次有分数的记录，时间正序（折线图数据源）
