@@ -15,10 +15,10 @@
       <div v-if="serverManaged"
         class="p-4 rounded-lg text-sm bg-ok/10 border border-ok/30 text-ok leading-relaxed">
         ✓ 本程序已由分发者预置 API Key，<strong>无需填写即可直接使用</strong>。
-        如需更换为自有 Key，可在下方填写并保存。
+        如需更换为自有 Key，可点「修改配置」弹窗填写并保存。
       </div>
 
-      <!-- 状态卡片 -->
+      <!-- 状态卡片（紧凑入口，配置表单收进弹窗） -->
       <div class="bg-panel border border-line rounded-lg p-5">
         <div class="flex items-center justify-between gap-4">
           <div class="flex items-center gap-3.5 min-w-0">
@@ -41,14 +41,33 @@
               </div>
             </div>
           </div>
-          <span v-if="hasConfig" class="w-2.5 h-2.5 rounded-full bg-ok shrink-0"
-            title="已配置" />
+          <div class="flex items-center gap-3 shrink-0">
+            <span v-if="hasConfig" class="w-2.5 h-2.5 rounded-full bg-ok" title="已配置" />
+            <button @click="showApiModal = true"
+              class="px-4 py-2 text-sm font-medium rounded-md
+                bg-accent text-white hover:bg-accent-hover
+                shadow-[0_1px_0_rgba(255,255,255,0.25)_inset]
+                transition-colors">
+              {{ hasConfig ? '修改配置' : '立即配置' }}
+            </button>
+          </div>
         </div>
       </div>
 
-      <!-- 配置表单 -->
-      <div class="bg-panel border border-line rounded-lg p-5 md:p-7">
-        <h2 class="text-base font-semibold mb-5">API 配置</h2>
+      <!-- API 配置弹窗（原内联表单收进 Modal，页面更紧凑） -->
+      <Teleport to="body">
+        <div v-if="showApiModal"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40"
+          @click.self="showApiModal = false"
+          @keydown.esc="showApiModal = false">
+          <div class="w-full max-w-lg max-h-[88vh] overflow-y-auto bg-panel border border-line
+            rounded-xl shadow-[6px_6px_0_rgba(0,0,0,0.08)] p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-base font-semibold">API 配置</h2>
+              <button @click="showApiModal = false"
+                class="w-7 h-7 rounded-md flex items-center justify-center text-ink-faint
+                  hover:text-ink hover:bg-inset transition-colors">✕</button>
+            </div>
 
         <div class="space-y-5">
 
@@ -172,7 +191,9 @@
             保存配置
           </button>
         </div>
-      </div>
+          </div>
+        </div>
+      </Teleport>
 
       <!-- M19：招聘数据源（岗位一键获取/推荐） -->
       <div class="bg-panel border border-line rounded-lg p-5 md:p-7">
@@ -260,8 +281,8 @@
         <div class="space-y-3.5 text-sm text-ink-sub leading-relaxed">
           <div class="flex gap-3">
             <span class="text-accent font-mono text-xs shrink-0 pt-0.5">01</span>
-            <span>在上方选择厂商，点击「前往控制台创建 API Key」注册并生成 Key
-              （智谱 glm-4-flash 免费、硅基流动有免费额度、Ollama 本地免费）</span>
+            <span>点上方「立即配置 / 修改配置」打开配置弹窗，选择厂商后点击「前往控制台创建 API Key」
+              注册并生成 Key（智谱 glm-4-flash 免费、硅基流动有免费额度、Ollama 本地免费）</span>
           </div>
           <div class="flex gap-3">
             <span class="text-accent font-mono text-xs shrink-0 pt-0.5">02</span>
@@ -416,7 +437,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import api from '../api'
 import { useAppMode } from '../composables/useAppMode'
@@ -428,6 +449,7 @@ const { isDesktop, isWeb } = useAppMode()
 
 const form = reactive({ api_key: '', base_url: '', model: '' })
 const showKey = ref(false)
+const showApiModal = ref(false) // API 配置弹窗（原内联表单收进 Modal）
 const testing = ref(false)
 const testResult = ref(null)
 const serverManaged = ref(false)
@@ -555,6 +577,7 @@ function saveSettings() {
   localStorage.setItem('llm_config', JSON.stringify({ ...form }))
   Message.success('配置已保存')
   testResult.value = { success: true, message: '✓ 配置已保存到本机' }
+  showApiModal.value = false
   // 保存后刷新引导状态（小红点消失）
   guide.refresh()
 }
@@ -610,7 +633,17 @@ onMounted(() => {
   loadBackupStats()
   loadExportRoot()
   loadFollowupDays()
+  // Esc 关闭 API 配置弹窗（Teleport 到 body，@keydown.esc 不可靠）
+  window.addEventListener('keydown', onGlobalKey)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onGlobalKey)
+})
+
+function onGlobalKey(e) {
+  if (e.key === 'Escape' && showApiModal.value) showApiModal.value = false
+}
 
 /* ================================ M19：招聘数据源 ================================ */
 
