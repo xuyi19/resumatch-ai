@@ -90,6 +90,7 @@ _SCHEMA_NEW_COLUMNS: dict[str, list[tuple[str, str]]] = {
         ("status", "VARCHAR(16) DEFAULT 'wish'"),
         ("apply_channel", "VARCHAR(16)"),
         ("apply_at", "DATETIME"),
+        ("next_interview_at", "DATETIME"),  # M60 面试日程
     ],
 }
 

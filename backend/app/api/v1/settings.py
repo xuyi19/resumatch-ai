@@ -220,3 +220,64 @@ async def open_export_dir(
     except OSError as e:
         raise HTTPException(status_code=500, detail=f"打开目录失败：{e}")
     return {"opened": str(target)}
+
+
+# ================================ M60：跟进提醒阈值 ================================
+
+SETTING_KEY_FOLLOWUP_DAYS = "followup_days"
+_FOLLOWUP_DAYS_DEFAULT = 7
+
+
+class FollowupDaysRequest(BaseModel):
+    days: int
+
+
+async def get_followup_days(db, owner_id: str) -> int:
+    """跟进提醒阈值（owner 隔离）：applied 超 N 天未流转即提醒。默认 7；脏值回退默认。
+
+    供 jobs.py /jobs/followups 复用（jobs 顶层 import 本模块，无循环依赖）。
+    """
+    res = await db.execute(
+        select(AppSetting).where(
+            AppSetting.owner_id == owner_id,
+            AppSetting.key == SETTING_KEY_FOLLOWUP_DAYS,
+        )
+    )
+    rec = res.scalars().first()
+    try:
+        return int(rec.value) if rec else _FOLLOWUP_DAYS_DEFAULT
+    except (TypeError, ValueError):
+        return _FOLLOWUP_DAYS_DEFAULT
+
+
+@router.get("/followup-days")
+async def read_followup_days(
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """当前跟进提醒阈值（1~30，默认 7）。"""
+    return {"days": await get_followup_days(db, owner_id)}
+
+
+@router.put("/followup-days")
+async def update_followup_days(
+    req: FollowupDaysRequest,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """保存跟进提醒阈值（owner 隔离）；1~30 之外 422。"""
+    if not (1 <= req.days <= 30):
+        raise HTTPException(status_code=422, detail="跟进天数需在 1~30 之间")
+    res = await db.execute(
+        select(AppSetting).where(
+            AppSetting.owner_id == owner_id,
+            AppSetting.key == SETTING_KEY_FOLLOWUP_DAYS,
+        )
+    )
+    rec = res.scalars().first()
+    if rec:
+        rec.value = str(req.days)
+    else:
+        db.add(AppSetting(owner_id=owner_id, key=SETTING_KEY_FOLLOWUP_DAYS, value=str(req.days)))
+    await db.commit()
+    return {"days": req.days}

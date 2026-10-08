@@ -162,6 +162,15 @@
               class="flex-1 min-w-0 px-3 py-2 text-xs bg-inset rounded-lg border border-line
                 focus:outline-none focus:border-accent placeholder:text-ink-faint transition-colors" />
           </div>
+          <!-- M60 面试日程（写入工作台「求职跟进」提醒） -->
+          <div class="flex items-center gap-2 mt-2">
+            <span class="text-xs text-ink-faint shrink-0">面试日程</span>
+            <input v-model="form.next_interview_at" type="datetime-local"
+              class="flex-1 min-w-0 px-3 py-2 text-xs bg-inset rounded-lg border border-line
+                focus:outline-none focus:border-accent transition-colors" />
+            <button v-if="form.next_interview_at" @click="form.next_interview_at = ''"
+              class="text-xs text-ink-faint hover:text-bad shrink-0 transition-colors">清除</button>
+          </div>
           <div class="flex items-center gap-3 mt-3">
             <button @click="saveForm" :disabled="formSaving"
               class="px-5 py-2 text-xs font-medium rounded-lg bg-accent text-white
@@ -485,10 +494,13 @@
 
       <!-- M51+ 网格卡片布局（对齐简历库）：同屏容量与信息可读性平衡 -->
       <div v-else class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div v-for="j in displayJobs" :key="j.id"
+        <div v-for="j in displayJobs" :key="j.id" :id="`job-card-${j.id}`"
           class="bg-panel border border-line rounded-lg p-5 flex flex-col hover:border-accent/50
             hover:shadow-md transition-all"
-          :class="selMode && selIds.has(j.id) && 'ring-2 ring-accent/50 border-accent/40'">
+          :class="[
+            selMode && selIds.has(j.id) && 'ring-2 ring-accent/50 border-accent/40',
+            focusJobId === j.id && 'ring-2 ring-accent border-accent/60',
+          ]">
           <!-- 头部：复选 + 岗位名/公司 + 匹配分 -->
           <div class="flex items-start gap-2.5 mb-2">
             <input v-if="selMode" type="checkbox" :checked="selIds.has(j.id)"
@@ -518,6 +530,11 @@
             <!-- M69 岗位链接命中招聘平台域名时显示来源徽标 -->
             <span v-if="urlPlatform(j.url)" class="px-1.5 py-0.5 rounded text-[10px] border border-line text-ink-faint shrink-0">{{ urlPlatform(j.url) }}</span>
             <span class="px-1.5 py-0.5 rounded text-[11px] bg-inset text-ink-faint shrink-0">{{ sourceLabel(j.source) }}</span>
+            <!-- M60 面试日程徽标：今天/明天临近 accent 强调 -->
+            <span v-if="j.next_interview_at" class="px-1.5 py-0.5 rounded text-[11px] shrink-0"
+              :class="interviewSoon(j.next_interview_at) ? 'bg-accent/10 text-accent' : 'bg-inset text-ink-faint'">
+              📅 {{ fmtBadgeDate(j.next_interview_at) }} 面试
+            </span>
             <span v-if="matchMap[j.id]?.reason" :title="matchMap[j.id].reason"
               class="text-[10px] text-ink-faint truncate max-w-[100px]">{{ matchMap[j.id].reason }}</span>
             <select :value="j.status || 'wish'" @change="setStatus(j, $event.target.value)" @click.stop
@@ -559,8 +576,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import api from '../api'
 import { useAppMode } from '../composables/useAppMode'
@@ -571,6 +588,7 @@ import { loadFavorites, clearFavorites } from '../utils/favorites'
 const { isDesktop } = useAppMode()
 
 const router = useRouter()
+const route = useRoute()
 
 const loading = ref(true)
 const loadError = ref(false)
@@ -581,7 +599,7 @@ const selectedResumeId = ref('')
 const formOpen = ref(false)
 const editingId = ref(null)
 const formSaving = ref(false)
-const form = reactive({ title: '', company: '', city: '', salary: '', jd: '', url: '' })
+const form = reactive({ title: '', company: '', city: '', salary: '', jd: '', url: '', next_interview_at: '' })
 
 const matching = ref(false)
 const matchDone = ref(false)
@@ -944,6 +962,8 @@ function openEdit(j) {
     salary: j.salary || '',
     jd: j.jd || '',
     url: j.url || '',  // M69 老数据可能无 url，容错空值
+    // M60 ISO 截断到分钟供 datetime-local 回显（"2026-10-15T14:30:00" → "2026-10-15T14:30"）
+    next_interview_at: (j.next_interview_at || '').slice(0, 16),
   })
   formOpen.value = true
 }
@@ -955,7 +975,7 @@ function closeForm() {
 }
 
 function resetForm() {
-  Object.assign(form, { title: '', company: '', city: '', salary: '', jd: '', url: '' })
+  Object.assign(form, { title: '', company: '', city: '', salary: '', jd: '', url: '', next_interview_at: '' })
 }
 
 async function saveForm() {
@@ -973,6 +993,8 @@ async function saveForm() {
       salary: form.salary.trim(),
       jd: form.jd.trim(),
       url: form.url.trim(),  // M69 岗位链接快存
+      // M60 面试日程：空值提交 null = 清除，有值提交 ISO（分钟精度）
+      next_interview_at: form.next_interview_at || null,
     }
     if (editingId.value != null) {
       const res = await api.updateLibraryJob(editingId.value, payload)
@@ -1230,6 +1252,35 @@ function interviewWith(j) {
   router.push(`/app/interview?jd=${encodeURIComponent(j.jd)}`)
 }
 
+/* ---- M60 面试日程徽标 + ?focus 深链定位（工作台「去跟进」跳转） ---- */
+// 徽标日期 M/D
+function fmtBadgeDate(iso) {
+  const d = new Date(iso)
+  return `${d.getMonth() + 1}/${d.getDate()}`
+}
+// 今天/明天临近 → accent 强调
+function interviewSoon(iso) {
+  const d = new Date(iso); d.setHours(0, 0, 0, 0)
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const diff = Math.round((d - today) / 86400000)
+  return diff >= 0 && diff <= 1
+}
+
+const focusJobId = ref(null)
+
+async function applyFocus() {
+  const fid = Number(route.query.focus)
+  if (!fid) return
+  // 用后即清（对齐 onboarding 清 query 惯例，防刷新重触发）
+  router.replace({ query: { ...route.query, focus: undefined } })
+  await nextTick()
+  const el = document.getElementById(`job-card-${fid}`)
+  if (!el) return  // 岗位不存在/被筛选隐藏：静默跳过
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  focusJobId.value = fid
+  setTimeout(() => { if (focusJobId.value === fid) focusJobId.value = null }, 2000)
+}
+
 function onEscKey(e) {
   if (e.key !== 'Escape') return
   if (applyJob.value) closeApply()
@@ -1237,8 +1288,9 @@ function onEscKey(e) {
   else if (importOpen.value) closeImport()
 }
 
-onMounted(() => {
-  loadAll()
+onMounted(async () => {
+  await loadAll()
+  applyFocus()
   // M51 旧版收藏检测（有则显示迁移横幅）
   legacyFavs.value = loadFavorites()
   window.addEventListener('keydown', onEscKey)

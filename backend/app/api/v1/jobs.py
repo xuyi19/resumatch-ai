@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.llm import get_llm
 from app.agents.utils import call_llm_for_json
+from app.api.v1.settings import get_followup_days
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.deps import get_owner_id
@@ -221,6 +222,17 @@ class LibraryStatusBatchIn(BaseModel):
     status: str | None = None
 
 
+def _parse_dt(value: str | None) -> datetime | None:
+    """ISO 字符串 → naive datetime；空/解析失败返回 None（同 backup.py 口径）。"""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        dt = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return dt.replace(tzinfo=None) if dt.tzinfo else dt
+
+
 def _job_dict(r: SavedJob) -> dict:
     return {
         "id": r.id,
@@ -234,6 +246,10 @@ def _job_dict(r: SavedJob) -> dict:
         # M56.4 投递台账
         "apply_channel": getattr(r, "apply_channel", None),
         "apply_at": r.apply_at.isoformat() if getattr(r, "apply_at", None) else None,
+        # M60 面试日程（编辑弹窗维护；followups 工作台提醒数据源）
+        "next_interview_at": (
+            r.next_interview_at.isoformat() if getattr(r, "next_interview_at", None) else None
+        ),
         "url": r.url,
         "created_at": r.created_at.isoformat() if r.created_at else None,
     }
@@ -267,6 +283,9 @@ class LibraryUpdateRequest(BaseModel):
     salary: str | None = None
     jd: str | None = None
     url: str | None = None
+    # M60 面试日程：ISO 字符串；显式传 null = 清除，不提供 = 不动。null 会被下方
+    # exclude_none 丢弃，handler 按 model_fields_set 单独判断「是否提供」
+    next_interview_at: str | None = None
 
 
 class LibraryBatchDeleteRequest(BaseModel):
@@ -727,6 +746,9 @@ async def update_library_job(
     for field, limit in limits.items():
         if field in data:
             setattr(rec, field, data[field].strip()[:limit])
+    # M60 面试日程：显式提供才生效（null/空串/非法串 = 清除，ISO 串 = 解析落库）
+    if "next_interview_at" in req.model_fields_set:
+        rec.next_interview_at = _parse_dt(req.next_interview_at)
     await db.commit()
     await db.refresh(rec)
     return _job_dict(rec)
@@ -746,6 +768,68 @@ async def delete_library_job(
     if res.rowcount == 0:
         raise HTTPException(status_code=404, detail="岗位不存在")
     return {"deleted": res.rowcount}
+
+
+# ============================ M60 求职跟进 ============================
+
+# 提醒列表上限（工作台卡片空间有限，全量去岗位库看）
+_FOLLOWUP_CAP = 10
+
+
+@router.get("/followups")
+async def list_followups(
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """M60 求职跟进聚合：applied 超 N 天未流转 + 面试日程（工作台「该跟进」卡数据源）。
+
+    状态机驱动：岗位流转到 interviewing/offer/closed 后提醒自然消失，不做 dismiss。
+    字面路径 /followups：/jobs 顶层没有参数路由（参数路由都在 /library/ 下，
+    /history/stats 吃过的亏这里不存在），注册位置安全。
+    """
+    days = await get_followup_days(db, owner_id)
+    today = datetime.now().date()
+    rows = (
+        await db.execute(
+            select(SavedJob).where(SavedJob.owner_id == owner_id).order_by(SavedJob.id.desc())
+        )
+    ).scalars().all()
+
+    stale_applies: list[dict] = []
+    upcoming: list[dict] = []
+    for r in rows:
+        # 逾期未流转：仍停留 applied 且距首次投递 >= N 天
+        if r.status == "applied" and r.apply_at:
+            stale_days = (today - r.apply_at.date()).days
+            if stale_days >= days:
+                stale_applies.append({
+                    "id": r.id,
+                    "title": r.title,
+                    "company": r.company,
+                    "apply_at": r.apply_at.isoformat(),
+                    "days": stale_days,
+                    "url": r.url,
+                    "city": r.city,
+                    "salary": r.salary,
+                })
+        # 面试日程：有安排且未到终态（offer/closed 不再提醒）
+        if r.next_interview_at and r.status not in ("offer", "closed"):
+            upcoming.append({
+                "id": r.id,
+                "title": r.title,
+                "company": r.company,
+                "next_interview_at": r.next_interview_at.isoformat(),
+                "status": r.status or "wish",
+                "days_left": (r.next_interview_at.date() - today).days,
+            })
+
+    stale_applies.sort(key=lambda x: x["days"], reverse=True)  # 最久未流转在前
+    upcoming.sort(key=lambda x: x["next_interview_at"])  # 时间正序：逾期最久在最前
+    return {
+        "days": days,
+        "stale_applies": stale_applies[:_FOLLOWUP_CAP],
+        "upcoming_interviews": upcoming[:_FOLLOWUP_CAP],
+    }
 
 
 # ============================ M56 投递直达 ============================

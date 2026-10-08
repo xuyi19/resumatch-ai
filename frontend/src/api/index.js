@@ -96,6 +96,9 @@ export default {
   getExportRoot: () => api.get('/settings/export-root'),
   setExportRoot: (path) => api.put('/settings/export-root', { path }),
   openExportDir: (subdir = '') => api.post('/settings/open-dir', { subdir }),
+  // M60 跟进提醒阈值：applied 超 N 天未流转即提醒（1~30，默认 7）
+  getFollowupDays: () => api.get('/settings/followup-days'),
+  setFollowupDays: (days) => api.put('/settings/followup-days', { days }),
 
   // M19 岗位市场：一键获取岗位 + 按简历推荐 + 数据源测试
   searchJobs: (data) => api.post('/jobs/search', data),
@@ -125,6 +128,8 @@ export default {
     responseType: 'blob',
   }),
   exportApplyKitToPath: (id, data) => api.post(`/jobs/library/${id}/export-kit`, data),
+  // M60 求职跟进：工作台提醒聚合（逾期 applied + 面试日程）
+  getFollowups: () => api.get('/jobs/followups'),
 
   // M22 数据与隐私：一键清空本用户全部数据
   clearAllData: () => api.delete('/data'),

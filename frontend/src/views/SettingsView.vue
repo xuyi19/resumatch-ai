@@ -390,6 +390,27 @@
         </p>
       </div>
 
+      <!-- M60 跟进提醒 -->
+      <div class="bg-panel border border-line rounded-lg p-5 md:p-7">
+        <h2 class="text-base font-semibold mb-2">🔔 跟进提醒</h2>
+        <p class="text-sm text-ink-sub leading-relaxed mb-4">
+          岗位标记「已投递」后超过下面的天数仍停留在「已投递」状态，工作台会出现「📌 求职跟进」提醒；
+          把岗位流转到面试中 / Offer / 已结束，提醒自动消失。
+        </p>
+        <div class="flex items-center gap-2.5 flex-wrap">
+          <label for="followup-days" class="text-xs text-ink-sub shrink-0">提醒阈值</label>
+          <input id="followup-days" v-model.number="followupDaysInput" type="number" min="1" max="30"
+            class="w-24 px-3 py-2 text-sm bg-inset rounded-md border border-line
+              focus:outline-none focus:border-accent transition-colors" />
+          <span class="text-xs text-ink-faint">天（1~30，默认 7）</span>
+          <button @click="saveFollowupDays" :disabled="savingFollowupDays"
+            class="px-4 py-2 text-sm font-medium rounded-md shrink-0
+              bg-accent text-white hover:bg-accent-hover disabled:opacity-40 transition-colors">
+            {{ savingFollowupDays ? '保存中…' : '保存' }}
+          </button>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
@@ -588,6 +609,7 @@ onMounted(() => {
   loadJobSourceCfg()
   loadBackupStats()
   loadExportRoot()
+  loadFollowupDays()
 })
 
 /* ================================ M19：招聘数据源 ================================ */
@@ -846,6 +868,35 @@ async function openExportDir() {
     Message.error(e.response?.data?.detail || '打开目录失败')
   } finally {
     openingExportDir.value = false
+  }
+}
+
+/* ================================ M60：跟进提醒 ================================ */
+
+const followupDaysInput = ref(7)
+const savingFollowupDays = ref(false)
+
+async function loadFollowupDays() {
+  try {
+    const res = await api.getFollowupDays()
+    followupDaysInput.value = res.data?.days ?? 7
+  } catch (e) { /* 静默失败，展示默认值 */ }
+}
+
+async function saveFollowupDays() {
+  const days = Number(followupDaysInput.value)
+  if (!Number.isInteger(days) || days < 1 || days > 30) {
+    Message.warning('请输入 1~30 的整数')
+    return
+  }
+  savingFollowupDays.value = true
+  try {
+    await api.setFollowupDays(days)
+    Message.success(`已保存：投递 ${days} 天未流转将提醒跟进`)
+  } catch (e) {
+    Message.error(e.response?.data?.detail || '保存失败')
+  } finally {
+    savingFollowupDays.value = false
   }
 }
 </script>

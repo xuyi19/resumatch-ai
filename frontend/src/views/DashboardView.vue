@@ -167,6 +167,54 @@
         </div>
       </div>
 
+      <!-- M60 求职跟进：applied 逾期提醒 + 面试日程（状态流转后自动消失，无 dismiss） -->
+      <div v-if="followups.stale_applies.length || followups.upcoming_interviews.length"
+        class="bg-panel border border-line rounded-2xl p-5 mb-8">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-semibold text-ink">📌 求职跟进</h2>
+          <span class="text-xs text-ink-faint">投递 {{ followups.days }} 天未流转提醒</span>
+        </div>
+        <div class="grid md:grid-cols-2 gap-5">
+          <!-- 该跟进 -->
+          <div>
+            <div class="text-xs font-medium text-ink-sub mb-2">该跟进（{{ followups.days }} 天未流转）</div>
+            <div v-if="!followups.stale_applies.length" class="text-xs text-ink-faint py-3">
+              暂无待跟进 ✓
+            </div>
+            <div v-else class="space-y-2">
+              <div v-for="s in followups.stale_applies" :key="s.id"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-2xl border border-warn/30 bg-warn/5">
+                <span class="flex-1 min-w-0">
+                  <span class="block text-sm text-ink truncate">{{ s.title }}<span v-if="s.company" class="text-ink-faint"> · {{ s.company }}</span></span>
+                  <span class="block text-xs text-ink-faint">已投递 {{ s.days }} 天无流转<span v-if="s.city"> · {{ s.city }}</span></span>
+                </span>
+                <button @click="goFollowUp(s.id)"
+                  class="text-xs font-medium text-warn hover:text-ink shrink-0 transition-colors">
+                  去跟进 →
+                </button>
+              </div>
+            </div>
+          </div>
+          <!-- 面试日程 -->
+          <div>
+            <div class="text-xs font-medium text-ink-sub mb-2">面试日程</div>
+            <div v-if="!followups.upcoming_interviews.length" class="text-xs text-ink-faint py-3">
+              暂无面试安排
+            </div>
+            <div v-else class="space-y-2">
+              <div v-for="iv in followups.upcoming_interviews" :key="iv.id"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-2xl border border-line bg-inset/50">
+                <span class="flex-1 min-w-0">
+                  <span class="block text-sm text-ink truncate">{{ iv.title }}<span v-if="iv.company" class="text-ink-faint"> · {{ iv.company }}</span></span>
+                  <span class="block text-xs text-ink-faint">{{ fmtInterviewDate(iv.next_interview_at) }}</span>
+                </span>
+                <span class="text-xs shrink-0" :class="interviewDue(iv).cls">{{ interviewDue(iv).text }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- M53 活跃热力图 -->
       <div v-if="hasActivity" class="bg-panel border border-line rounded-2xl p-5 mb-8">
         <div class="flex items-center justify-between mb-4">
@@ -270,6 +318,8 @@ const stats = ref({
 })
 const recentDiags = ref([])
 const recentInterviews = ref([])
+// M60 求职跟进：逾期 applied + 面试日程（接口失败回退空态，整卡隐藏不阻断总览）
+const followups = ref({ days: 7, stale_applies: [], upcoming_interviews: [] })
 
 const today = new Date().toLocaleDateString('zh-CN', {
   year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
@@ -351,19 +401,39 @@ function ivScoreCls(s) {
   return s >= 8 ? 'text-ok' : s >= 6 ? 'text-accent' : 'text-warn'
 }
 
+/* ---- M60 求职跟进 ---- */
+function goFollowUp(id) {
+  // 本地 optimistic 移除：跳转岗位库后本卡不再显示，防重复点击感
+  followups.value.stale_applies = followups.value.stale_applies.filter((s) => s.id !== id)
+  router.push(`/app/jobs?focus=${id}`)
+}
+function fmtInterviewDate(iso) {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return `${d.getMonth() + 1}月${d.getDate()}日 ${hm}`
+}
+function interviewDue(item) {
+  if (item.days_left < 0) return { text: `逾期 ${-item.days_left} 天`, cls: 'text-warn' }
+  if (item.days_left === 0) return { text: '今天', cls: 'text-accent' }
+  return { text: `还有 ${item.days_left} 天`, cls: 'text-ink-faint' }
+}
+
 async function loadAll() {
   loading.value = true
   loadError.value = false
   try {
-    // 统计 + 最近诊断 + 最近面试三路并发
-    const [statsRes, histRes, ivRes] = await Promise.all([
+    // 统计 + 最近诊断 + 最近面试 + 跟进聚合 四路并发（跟进失败不阻断总览）
+    const [statsRes, histRes, ivRes, fuRes] = await Promise.all([
       api.getStats(),
       api.getHistory({ limit: 5 }),
       api.interviewSessions(),
+      api.getFollowups().catch(() => null),
     ])
     stats.value = statsRes.data
     recentDiags.value = histRes.data.items || []
     recentInterviews.value = (ivRes.data.items || []).slice(0, 5)
+    if (fuRes?.data) followups.value = fuRes.data
   } catch (e) {
     console.warn('[dashboard] 统计加载失败', e)
     loadError.value = true
