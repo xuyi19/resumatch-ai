@@ -591,14 +591,65 @@ async def generate_library_jobs(
     return {"items": [_job_dict(r) for r in saved]}
 
 
+_URL_PLATFORMS = [
+    ("zhipin.com", "BOSS直聘"),
+    ("zhaopin.com", "智联招聘"),
+    ("liepin.com", "猎聘"),
+    ("nowcoder.com", "牛客"),
+]
+_URL_RE = re.compile(r"https?://\S+")
+
+
+def _url_platform(url: str) -> str:
+    for domain, name in _URL_PLATFORMS:
+        if domain in (url or "").lower():
+            return name
+    return "岗位链接"
+
+
 def _rule_parse_batch(raw_text: str) -> list[dict]:
-    """无 LLM 降级：按空行拆段，每段第一行当岗位名，整段当 JD（粗但可用）。"""
+    """无 LLM 降级：按空行拆段，每段第一行当岗位名，整段当 JD（粗但可用）。
+
+    链接感知（M70 配套）：段内含 http(s) 链接时提取到 url 字段（书签采集文本
+    的「链接：…」行因此不会污染标题）；文本扣除链接后过短（纯链接粘贴）时，
+    尝试从 URL query 参数（query/kw/key）或平台名兜底标题。
+    """
     segments = [s.strip() for s in re.split(r"\n\s*\n", raw_text) if s.strip()]
     out = []
     for seg in segments[:50]:
-        lines = seg.splitlines()
-        title = lines[0].strip()[:60]
-        out.append({"title": title, "company": "", "city": "", "salary": "", "jd": seg[:_LIBRARY_JD_MAX]})
+        url = ""
+        m = _URL_RE.search(seg)
+        if m:
+            url = m.group(0).rstrip(")，。、；")
+            # 去掉链接所在行（常见「链接：https://...」），余下文本作为标题/JD
+            seg = "\n".join(
+                ln for ln in seg.splitlines() if not _URL_RE.search(ln)
+            ).strip()
+        title = seg.splitlines()[0].strip()[:60] if seg else ""
+        if not title and url:
+            # 纯链接粘贴：尝试 query/kw/key 参数当标题，再退平台名
+            fallback = ""
+            try:
+                from urllib.parse import parse_qs, urlparse
+
+                qs = parse_qs(urlparse(url).query)
+                for k in ("query", "kw", "key"):
+                    if qs.get(k):
+                        fallback = qs[k][0].strip()[:60]
+                        break
+            except Exception:
+                fallback = ""
+            title = fallback or f"{_url_platform(url)}岗位（信息待补）"
+        if not title:
+            continue
+        out.append({
+            "title": title,
+            "company": "",
+            "city": "",
+            "salary": "",
+            "jd": seg[:_LIBRARY_JD_MAX],
+            "url": url[:300],
+        })
     return out
 
 
@@ -625,9 +676,10 @@ async def parse_library_batch(
         prompt = (
             "你是岗位信息提取助手。下面的文本里混排了一个或多个招聘岗位（来自招聘网站复制、"
             "JD 列表等）。提取出所有岗位，每条包含 title(岗位名)/company(公司)/city(城市)/"
-            "salary(薪资)/jd(岗位描述全文，保留原文尽量完整)。文本中没有的信息留空字符串，"
+            "salary(薪资)/jd(岗位描述全文，保留原文尽量完整)/url(文本中出现的 http(s) 岗位链接，"
+            "没有则空字符串)。文本中没有的信息留空字符串，"
             "不要编造。严格输出 JSON 数组，不要任何其他内容：\n"
-            '[{"title":"...","company":"...","city":"...","salary":"...","jd":"..."}]\n\n'
+            '[{"title":"...","company":"...","city":"...","salary":"...","jd":"...","url":"..."}]\n\n'
             f"待提取文本：\n{req.raw_text[:15000]}"
         )
         resp = await llm.ainvoke(prompt)

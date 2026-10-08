@@ -373,6 +373,33 @@ async def test_parse_batch_degrades_to_rules(client, monkeypatch):
     assert "Golang" in body["items"][0]["jd"]
 
 
+def test_rule_parse_batch_extracts_url():
+    """M70 配套：链接感知解析——链接行不污染标题；纯链接粘贴从 query 参数/平台名兜底标题。"""
+    from app.api.v1.jobs import _rule_parse_batch
+
+    # 书签采集文本：链接独立成行 → 提取到 url 字段，标题取首行
+    items = _rule_parse_batch(
+        "岗位：产品经理（AI 方向）\n"
+        "链接：https://www.zhipin.com/job_detail/abc.html?query=产品经理&city=101210100\n"
+        "岗位职责：负责 AI 产品规划。"
+    )
+    assert len(items) == 1
+    assert items[0]["title"] == "岗位：产品经理（AI 方向）"
+    assert "zhipin.com" in items[0]["url"]
+    assert "zhipin.com" not in items[0]["jd"]
+
+    # 纯链接粘贴：query/kw/key 参数当标题（parse_qs 自动解码百分号编码）
+    items = _rule_parse_batch(
+        "https://www.zhipin.com/web/geek/job?query=Python%E5%BC%80%E5%8F%91&city=101210100"
+    )
+    assert items[0]["title"] == "Python开发"
+    assert items[0]["url"].startswith("https://")
+
+    # 纯链接无可用 query：平台名兜底
+    items = _rule_parse_batch("https://www.liepin.com/zhaopin/abc/")
+    assert items[0]["title"] == "猎聘岗位（信息待补）"
+
+
 async def test_library_add_skip_duplicates(client):
     """批量导入去重：skip_duplicates=true 跳过库内已有「公司+岗位」。"""
     hd = _sid()

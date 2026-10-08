@@ -78,6 +78,8 @@
                 {{ j.title || '（无岗位名）' }}
                 <span v-if="j.company" class="font-normal text-ink-faint ml-1.5">{{ j.company }}</span>
                 <span v-if="j.city || j.salary" class="font-normal text-ink-faint ml-1.5">{{ [j.city, j.salary].filter(Boolean).join(' · ') }}</span>
+                <a v-if="j.url" :href="j.url" target="_blank" rel="noopener"
+                  class="font-normal text-accent ml-1.5 hover:underline" @click.stop>🔗 原链</a>
               </div>
               <div class="text-[11px] text-ink-faint mt-0.5 line-clamp-2 whitespace-pre-line">{{ j.jd || '（无 JD）' }}</div>
             </div>
