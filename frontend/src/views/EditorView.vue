@@ -331,10 +331,13 @@ import { useRoute, RouterLink } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import { renderAsync } from 'docx-preview'
 import api from '../api'
+import { useAppMode } from '../composables/useAppMode'
 import { checkResume } from '../utils/checker'
 import ResumePreview from '../components/ResumePreview.vue'
 import EmptyState from '../components/EmptyState.vue'
 import LoadingBlock from '../components/LoadingBlock.vue'
+
+const { isDesktop } = useAppMode()
 
 const route = useRoute()
 // 支持两种模式：/editor/:taskId（诊断/对话优化后进入，读取任务数据）
@@ -816,13 +819,10 @@ async function downloadWord() {
     photo_id: photoId.value || undefined,
   }
   try {
-    // 桌面形态：原生「另存为」选路径 → 服务端直写，保存位置明确可见
-    const bridge = window.pywebview?.api
-    if (bridge?.pick_save_path) {
-      const savePath = await bridge.pick_save_path(`${data.value.name || '简历'}.docx`)
-      if (!savePath) return // 用户取消
-      const res = await api.exportDocxToPath({ ...payload, save_path: savePath })
-      Message.success(`已保存到：${res.data?.saved_to || savePath}`)
+    // 桌面形态（M71）：统一保存到「导出位置」设置的目录并分类归档，返回实际路径
+    if (isDesktop.value) {
+      const res = await api.exportDocxToPath({ ...payload, save_path: 'auto' })
+      Message.success(`已保存到：${res.data?.saved_to || res.data?.save_path || ''}`)
       return
     }
     // 网页形态：浏览器 blob 下载

@@ -20,6 +20,7 @@ from loguru import logger
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.db import get_db
 from app.core.deps import get_owner_id
 from app.models.entities import (
@@ -92,10 +93,15 @@ def _with_dt(rec, row: dict, *fields: str) -> None:
 
 @router.get("/export")
 async def export_backup(
+    save: int = 0,
     db: AsyncSession = Depends(get_db),
     owner_id: str = Depends(get_owner_id),
 ):
-    """导出当前 owner 全量数据 JSON 快照（纯本地聚合，零 LLM 依赖）。"""
+    """导出当前 owner 全量数据 JSON 快照（纯本地聚合，零 LLM 依赖）。
+
+    M71：桌面形态可带 ?save=1 让服务端直写「数据备份」子目录并返回 save_path；
+    网页形态或未带 save=1 时照旧返回 JSON body（前端 blob 下载）。
+    """
     async def _all(model):
         res = await db.execute(
             select(model).where(model.owner_id == owner_id).order_by(model.id)
@@ -112,13 +118,30 @@ async def export_backup(
     }
     counts = {k: len(v) for k, v in data.items()}
     logger.info(f"备份导出 owner={owner_id[:8]}…: {counts}")
-    return {
+    payload = {
         "app": APP_TAG,
         "schema_version": SCHEMA_VERSION,
         "exported_at": datetime.now().isoformat(timespec="seconds"),
         "counts": counts,
         "data": data,
     }
+
+    if save and settings.APP_MODE != "web":
+        # 桌面形态（M71）：落盘到导出根目录「数据备份」子目录
+        from app.utils.export_paths import resolve_save_path
+
+        filename = f"知岗备份_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
+        target = await resolve_save_path("backup", filename, db, owner_id)
+        try:
+            target.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        except OSError as e:
+            raise HTTPException(status_code=500, detail=f"写入备份文件失败: {e}")
+        logger.info(f"备份落盘 owner={owner_id[:8]}…: {target}")
+        return {"save_path": str(target), "filename": target.name, "counts": counts}
+
+    return payload
 
 
 @router.post("/import")

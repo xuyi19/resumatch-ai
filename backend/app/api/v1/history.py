@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.db import get_db
 from app.core.deps import get_owner_id
 from app.models.entities import Conversation, DiagnosisRecord, Resume, SavedJob
+from app.utils.export_paths import resolve_save_path
 from app.utils.report_docx import generate_report_docx
 
 router = APIRouter(prefix="/history", tags=["history"])
@@ -251,8 +252,8 @@ async def delete_record(
 
 
 class ExportReportRequest(BaseModel):
-    # 桌面形态专用：原生另存为对话框选定的绝对路径，服务端直写。
-    # 为空时走浏览器 blob 下载（网页形态主路径）。
+    # 桌面形态专用：非空即触发服务端直写（M71 起统一写入设置的导出根目录并按类型
+    # 分类落盘，本字段的路径值不再使用）；为空时走浏览器 blob 下载。
     save_path: str | None = None
 
 
@@ -265,8 +266,8 @@ async def export_report(
 ):
     """把诊断报告导出为 Word 文档（M20 A2）：评分表格 + 差距 + 建议三段式。
 
-    save_path 为空：浏览器 blob 下载；非空（仅桌面形态）：服务端直写该路径。
-    两种方式均落 export_history（template=report）。
+    save_path 为空：浏览器 blob 下载；非空（仅桌面形态）：M71 统一落盘到设置的
+    导出根目录「诊断报告」子目录。两种方式均落 export_history（template=report）。
     """
     # FastAPI 对 body 可选模型传 None 时 req 可能为 None，统一兜底
     req = req or ExportReportRequest()
@@ -290,17 +291,20 @@ async def export_report(
     keyword = (record.keyword or "诊断报告").strip()[:40] or "诊断报告"
     filename = f"诊断报告_{keyword}.docx"
 
-    # 复用简历导出的路径校验与导出历史记录（同为 .docx 产物）
-    from app.api.v1.resume import _record_export, _validate_save_path
+    # 复用简历导出的历史记录（同为 .docx 产物）
+    from app.api.v1.resume import _record_export
 
     if req.save_path:
-        target = _validate_save_path(req.save_path)
+        # 桌面形态（M71）：save_path 仅作直写标志，按「导出位置」设置分类落盘
+        if settings.APP_MODE == "web":
+            raise HTTPException(status_code=403, detail="网页形态不支持服务端落盘")
+        target = await resolve_save_path("report", filename, db, owner_id)
         try:
             target.write_bytes(data)
         except OSError as e:
             raise HTTPException(status_code=500, detail=f"写入文件失败: {e}")
         await _record_export(db, owner_id, target.name, str(target), "report")
-        return {"saved_to": str(target), "filename": target.name}
+        return {"saved_to": str(target), "save_path": str(target), "filename": target.name}
 
     await _record_export(db, owner_id, filename, None, "report")
     quoted = quote(filename)

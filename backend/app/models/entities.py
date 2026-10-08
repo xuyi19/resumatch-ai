@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, JSON, String, Text, func
+from sqlalchemy import JSON, DateTime, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -95,6 +95,25 @@ class Conversation(Base):
     chat_log: Mapped[str | None] = mapped_column(Text, nullable=True)
     optimized_resume: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class AppSetting(Base):
+    """M71 通用键值设置（owner+key 唯一）：导出根目录等用户级配置，为 M67 目标画像铺路。
+
+    新表由 Base.metadata.create_all 建全，无需登记 ensure_schema_columns。
+    """
+    __tablename__ = "app_settings"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "key", name="uq_app_settings_owner_key"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    owner_id: Mapped[str] = mapped_column(String(64), default="local", index=True)
+    key: Mapped[str] = mapped_column(String(64))
+    value: Mapped[str] = mapped_column(Text, default="")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )

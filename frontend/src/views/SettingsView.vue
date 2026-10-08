@@ -342,6 +342,54 @@
         </p>
       </div>
 
+      <!-- M71 导出位置 -->
+      <div class="bg-panel border border-line rounded-lg p-5 md:p-7">
+        <h2 class="text-base font-semibold mb-2">📁 导出位置</h2>
+        <p v-if="isWeb" class="text-sm text-ink-sub leading-relaxed mb-4">
+          网页版文件直接下载到浏览器下载目录，无需设置；下面的配置仅桌面版生效。
+        </p>
+        <p v-else class="text-sm text-ink-sub leading-relaxed mb-4">
+          桌面版所有导出统一保存到下面的目录，并按类型自动归入子文件夹，不再散落各处。
+        </p>
+
+        <!-- 当前生效目录 -->
+        <div class="flex items-center gap-3 flex-wrap mb-4">
+          <code
+            class="text-xs font-mono bg-inset border border-line rounded px-2.5 py-1.5 break-all min-w-0 flex-1">
+            {{ exportRoot || '加载中…' }}
+          </code>
+          <button @click="openExportDir" :disabled="!isDesktop || openingExportDir"
+            :title="isDesktop ? '在资源管理器中打开' : '仅桌面版支持'"
+            class="px-4 py-2 text-sm font-medium rounded-md text-ink shrink-0
+              border border-line-strong hover:border-accent hover:text-accent
+              disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            {{ openingExportDir ? '打开中…' : '📂 打开' }}
+          </button>
+        </div>
+
+        <!-- 自定义目录 -->
+        <div class="flex items-center gap-2.5 flex-wrap">
+          <input v-model="exportRootInput" type="text"
+            placeholder="输入新的导出目录绝对路径；留空保存 = 恢复默认"
+            class="flex-1 min-w-[240px] px-3.5 py-2.5 text-sm bg-inset rounded-md border border-line
+              font-mono focus:outline-none focus:border-accent transition-colors" />
+          <button @click="saveExportRoot" :disabled="savingExportRoot"
+            class="px-4 py-2.5 text-sm font-medium rounded-md shrink-0
+              bg-accent text-white hover:bg-accent-hover
+              disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            {{ savingExportRoot ? '保存中…' : '保存' }}
+          </button>
+        </div>
+        <div class="text-xs text-ink-faint mt-1.5">
+          默认目录为程序目录下的 data/exports；桌面版导出无需每次另存为，自动按类型归档
+        </div>
+
+        <p class="text-xs text-ink-faint mt-3 leading-relaxed">
+          分类规则：简历 →「简历」 · 投递材料包 →「投递材料包」 · 面试报告 →「面试报告」 ·
+          诊断报告 →「诊断报告」 · 数据备份 →「数据备份」
+        </p>
+      </div>
+
     </div>
   </div>
 </template>
@@ -350,10 +398,12 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import api from '../api'
+import { useAppMode } from '../composables/useAppMode'
 import { useKeyGuide } from '../composables/useKeyGuide'
 import { JOB_SOURCES, loadJobSource, saveJobSource } from '../data/jobSources'
 
 const guide = useKeyGuide()
+const { isDesktop, isWeb } = useAppMode()
 
 const form = reactive({ api_key: '', base_url: '', model: '' })
 const showKey = ref(false)
@@ -537,6 +587,7 @@ onMounted(() => {
   checkServerDefault()
   loadJobSourceCfg()
   loadBackupStats()
+  loadExportRoot()
 })
 
 /* ================================ M19：招聘数据源 ================================ */
@@ -680,6 +731,17 @@ function backupFilename() {
 async function exportBackup() {
   exportingBackup.value = true
   try {
+    if (isDesktop.value) {
+      // M71 桌面态：服务端直写「数据备份」子目录，返回实际保存路径
+      const res = await api.exportBackupToPath()
+      const saved = res.data?.save_path
+      if (saved) {
+        Message.success(`备份已保存到：${saved}`)
+        await loadBackupStats()
+        return
+      }
+      // 后端未支持直写（旧版本）时退回 blob 下载
+    }
     const res = await api.exportBackup()
     const url = URL.createObjectURL(new Blob([res.data], { type: 'application/json' }))
     const a = document.createElement('a')
@@ -689,7 +751,7 @@ async function exportBackup() {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-    Message.success('备份已导出')
+    Message.success('备份已导出（见浏览器下载目录）')
   } catch (e) {
     Message.error('导出失败：' + (e.response?.data?.detail || e.message))
   } finally {
@@ -735,6 +797,55 @@ async function doImportBackup(file) {
     Message.error(e.response?.data?.detail || e.message || '导入失败')
   } finally {
     importingBackup.value = false
+  }
+}
+
+/* ================================ M71：导出位置 ================================ */
+
+const exportRoot = ref('')
+const exportRootInput = ref('')
+const savingExportRoot = ref(false)
+const openingExportDir = ref(false)
+
+async function loadExportRoot() {
+  try {
+    const res = await api.getExportRoot()
+    exportRoot.value = res.data?.export_root || ''
+    // 自定义目录回显到输入框；默认目录留空（占位符提示恢复默认语义）
+    exportRootInput.value = res.data?.is_default ? '' : exportRoot.value
+  } catch (e) {
+    exportRoot.value = '' // 静默失败，展示「加载中…」的前态即可
+  }
+}
+
+async function saveExportRoot() {
+  savingExportRoot.value = true
+  try {
+    const res = await api.setExportRoot(exportRootInput.value.trim())
+    exportRoot.value = res.data?.export_root || ''
+    exportRootInput.value = res.data?.is_default ? '' : exportRoot.value
+    Message.success(res.data?.is_default
+      ? '已恢复默认导出目录（data/exports）'
+      : `导出目录已保存：${exportRoot.value}`)
+  } catch (e) {
+    Message.error(e.response?.data?.detail || '保存失败')
+  } finally {
+    savingExportRoot.value = false
+  }
+}
+
+async function openExportDir() {
+  if (!isDesktop.value) {
+    Message.info('仅桌面版支持打开本地目录')
+    return
+  }
+  openingExportDir.value = true
+  try {
+    await api.openExportDir('')
+  } catch (e) {
+    Message.error(e.response?.data?.detail || '打开目录失败')
+  } finally {
+    openingExportDir.value = false
   }
 }
 </script>

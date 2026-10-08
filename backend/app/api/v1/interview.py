@@ -25,6 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.utils import call_llm_for_json
+from app.core.config import settings
 from app.core.db import get_db
 from app.core.deps import get_owner_id
 from app.models.entities import Conversation, DiagnosisRecord, Resume
@@ -574,7 +575,8 @@ def _history_text(questions: list, answers: dict) -> str:
 
 
 class ExportInterviewRequest(BaseModel):
-    # 桌面形态专用：服务端直写该绝对路径；为空时走浏览器 blob 下载
+    # 桌面形态专用：非空即触发服务端直写（M71 起统一写入设置的导出根目录并按类型
+    # 分类落盘，本字段的路径值不再使用）；为空时走浏览器 blob 下载
     save_path: str | None = None
 
 
@@ -587,8 +589,8 @@ async def export_interview_report(
 ):
     """M33 面试报告导出 Word：问答记录 + 总评 + 多轮对话全文附录（M47）。
 
-    save_path 为空：浏览器 blob 下载；非空（仅桌面形态）：服务端直写该路径。
-    两种方式均落 export_history（template=interview）。
+    save_path 为空：浏览器 blob 下载；非空（仅桌面形态）：M71 统一落盘到设置的
+    导出根目录「面试报告」子目录。两种方式均落 export_history（template=interview）。
     """
     req = req or ExportInterviewRequest()
     conv = (
@@ -618,17 +620,21 @@ async def export_interview_report(
 
     filename = f"模拟面试报告_{datetime.now().strftime('%Y%m%d_%H%M')}.docx"
 
-    # 复用简历导出的路径校验与导出历史记录（同为 .docx 产物）
-    from app.api.v1.resume import _record_export, _validate_save_path
+    # 复用简历导出的历史记录（同为 .docx 产物）
+    from app.api.v1.resume import _record_export
+    from app.utils.export_paths import resolve_save_path
 
     if req.save_path:
-        target = _validate_save_path(req.save_path)
+        # 桌面形态（M71）：save_path 仅作直写标志，按「导出位置」设置分类落盘
+        if settings.APP_MODE == "web":
+            raise HTTPException(status_code=403, detail="网页形态不支持服务端落盘")
+        target = await resolve_save_path("interview", filename, db, owner_id)
         try:
             target.write_bytes(data)
         except OSError as e:
             raise HTTPException(500, f"写入文件失败: {e}")
         await _record_export(db, owner_id, target.name, str(target), "interview")
-        return {"saved_to": str(target), "filename": target.name}
+        return {"saved_to": str(target), "save_path": str(target), "filename": target.name}
 
     await _record_export(db, owner_id, filename, None, "interview")
     quoted = quote(filename)

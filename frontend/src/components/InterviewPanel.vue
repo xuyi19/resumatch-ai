@@ -260,7 +260,10 @@
 import { reactive, ref, computed, watch, nextTick, onMounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import api from '../api'
+import { useAppMode } from '../composables/useAppMode'
 import RadarChart from './RadarChart.vue'
+
+const { isDesktop } = useAppMode()
 
 const props = defineProps({
   taskId: { type: String, required: true },
@@ -444,6 +447,12 @@ async function exportReport() {
   if (exporting.value) return
   exporting.value = true
   try {
+    // 桌面形态（M71）：统一保存到「导出位置」设置的目录「面试报告」子目录
+    if (isDesktop.value) {
+      const res = await api.interviewExportToPath(props.taskId, 'auto')
+      Message.success(`面试报告已保存到：${res.data?.saved_to || res.data?.save_path || ''}`)
+      return
+    }
     const res = await api.interviewExport(props.taskId)
     const url = URL.createObjectURL(new Blob([res.data], {
       type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

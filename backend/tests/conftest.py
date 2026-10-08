@@ -13,6 +13,7 @@ _TMP_DIR.mkdir(parents=True, exist_ok=True)
 os.environ["DB_URL"] = f"sqlite+aiosqlite:///{(_TMP_DIR / 'test.db').as_posix()}"
 os.environ["PHOTOS_DIR"] = str(_TMP_DIR / "photos")
 os.environ["FILES_DIR"] = str(_TMP_DIR / "files")  # 简历原文件（PDF/DOCX 预览）
+os.environ["DATA_DIR"] = str(_TMP_DIR / "data")  # M71 导出根目录默认值（data/exports）
 
 # M16：SqliteSaver 快照库（checkpoints.db）跨 pytest 运行留存，同 thread_id 的
 # 图状态会携带上次运行的 channel 残留（如已完成运行的 suggestions），先清空

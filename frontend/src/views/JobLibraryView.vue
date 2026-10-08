@@ -563,9 +563,12 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import api from '../api'
+import { useAppMode } from '../composables/useAppMode'
 import LoadingBlock from '../components/LoadingBlock.vue'
 import CityInput from '../components/CityInput.vue'
 import { loadFavorites, clearFavorites } from '../utils/favorites'
+
+const { isDesktop } = useAppMode()
 
 const router = useRouter()
 
@@ -744,13 +747,21 @@ async function exportKit() {
     return
   }
   exporting.value = true
+  const payload = {
+    greeting: kit.greeting || null,
+    cover_letter: kit.cover_letter,
+    intro_points: kit.intro_points.length ? kit.intro_points : null,
+    resume_id: applyResumeId.value ? Number(applyResumeId.value) : null,
+  }
   try {
-    const res = await api.exportApplyKit(applyJob.value.id, {
-      greeting: kit.greeting || null,
-      cover_letter: kit.cover_letter,
-      intro_points: kit.intro_points.length ? kit.intro_points : null,
-      resume_id: applyResumeId.value ? Number(applyResumeId.value) : null,
-    })
+    // 桌面形态（M71）：统一保存到「导出位置」设置的目录「投递材料包」子目录
+    if (isDesktop.value) {
+      const res = await api.exportApplyKitToPath(applyJob.value.id,
+        { ...payload, save_path: 'auto' })
+      Message.success(`材料包已保存到：${res.data?.saved_to || res.data?.save_path || ''}`)
+      return
+    }
+    const res = await api.exportApplyKit(applyJob.value.id, payload)
     const url = URL.createObjectURL(new Blob([res.data], {
       type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     }))
@@ -759,7 +770,7 @@ async function exportKit() {
     a.download = `投递材料包_${applyJob.value.title || Date.now()}.docx`
     a.click()
     URL.revokeObjectURL(url)
-    Message.success('材料包已导出')
+    Message.success('材料包已导出（见浏览器下载目录）')
   } catch (e) {
     Message.error(e.response?.data?.detail || '导出失败')
   } finally {

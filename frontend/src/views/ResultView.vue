@@ -546,9 +546,12 @@ import {ref, reactive, computed, onMounted, onUnmounted, nextTick, watch} from '
 import {useRoute, useRouter, RouterLink} from 'vue-router'
 import {Message, Modal} from '@arco-design/web-vue'
 import api from '../api'
+import { useAppMode } from '../composables/useAppMode'
 import EmptyState from '../components/EmptyState.vue'
 import RadarChart from '../components/RadarChart.vue'
 import InterviewPanel from '../components/InterviewPanel.vue'
+
+const { isDesktop } = useAppMode()
 
 const route = useRoute()
 const router = useRouter()
@@ -811,6 +814,12 @@ async function reanalyze() {
 async function exportReportWord() {
   exportingReport.value = true
   try {
+    // 桌面形态（M71）：统一保存到「导出位置」设置的目录「诊断报告」子目录
+    if (isDesktop.value) {
+      const res = await api.exportReportToPath(taskId, 'auto')
+      Message.success(`报告已保存到：${res.data?.saved_to || res.data?.save_path || ''}`)
+      return
+    }
     const res = await api.exportReport(taskId)
     const url = URL.createObjectURL(new Blob([res.data], {
       type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

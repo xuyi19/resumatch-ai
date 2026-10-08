@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.llm import get_llm
 from app.agents.utils import call_llm_for_json
+from app.core.config import settings
 from app.core.db import get_db
 from app.core.deps import get_owner_id
 from app.models.entities import Resume, SavedJob
@@ -833,7 +834,9 @@ class ApplyKitExportRequest(BaseModel):
     cover_letter: str | None = None
     intro_points: list[str] | None = None
     resume_id: int | None = None
-    save_path: str | None = None  # 桌面形态专用：服务端直写；为空走 blob 下载
+    # 桌面形态专用：非空即触发服务端直写（M71 起统一写入设置的导出根目录并按类型
+    # 分类落盘，本字段的路径值不再使用）；为空走 blob 下载
+    save_path: str | None = None
 
 
 @router.post("/library/{job_id}/export-kit")
@@ -845,7 +848,8 @@ async def export_apply_kit(
 ):
     """M56.3 简历+求职信一键导出材料包 Word（复用导出基建，落 export_history template=apply）。
 
-    save_path 为空：浏览器 blob 下载；非空（仅桌面形态）：服务端直写该路径。
+    save_path 为空：浏览器 blob 下载；非空（仅桌面形态）：M71 统一落盘到设置的
+    导出根目录「投递材料包」子目录。
     """
     job = await db.get(SavedJob, job_id)
     if not job or job.owner_id != owner_id:
@@ -880,17 +884,21 @@ async def export_apply_kit(
     safe_title = re.sub(r'[\\/:*?"<>|]', "", job.title).strip()[:30] or "岗位"
     filename = f"投递材料包_{safe_title}_{datetime.now().strftime('%Y%m%d_%H%M')}.docx"
 
-    # 复用简历导出的路径校验与导出历史记录（同为 .docx 产物）
-    from app.api.v1.resume import _record_export, _validate_save_path
+    # 复用简历导出的导出历史记录（同为 .docx 产物）
+    from app.api.v1.resume import _record_export
+    from app.utils.export_paths import resolve_save_path
 
     if req.save_path:
-        target = _validate_save_path(req.save_path)
+        # 桌面形态（M71）：save_path 仅作直写标志，按「导出位置」设置分类落盘
+        if settings.APP_MODE == "web":
+            raise HTTPException(status_code=403, detail="网页形态不支持服务端落盘")
+        target = await resolve_save_path("apply", filename, db, owner_id)
         try:
             target.write_bytes(data)
         except OSError as e:
             raise HTTPException(status_code=500, detail=f"写入文件失败: {e}")
         await _record_export(db, owner_id, target.name, str(target), "apply")
-        return {"saved_to": str(target), "filename": target.name}
+        return {"saved_to": str(target), "save_path": str(target), "filename": target.name}
 
     await _record_export(db, owner_id, filename, None, "apply")
     from urllib.parse import quote as _quote

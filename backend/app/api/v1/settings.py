@@ -1,11 +1,19 @@
 import inspect
+import os
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 from pydantic import BaseModel, Field
+from sqlalchemy import delete as sa_delete
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.llm import get_llm
 from app.core.config import settings
+from app.core.db import get_db
+from app.core.deps import get_owner_id
+from app.models.entities import AppSetting
+from app.utils import export_paths
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -114,3 +122,101 @@ async def test_job(req: TestJobRequest):
             "error": _JOB_ERROR_TEXT.get(e.error_type, f"请求失败：{str(e)[:160]}"),
             "raw": str(e)[:200],
         }
+
+
+# ================================ M71：统一导出目录 ================================
+
+
+class ExportRootRequest(BaseModel):
+    # 空串 = 恢复默认（删除该 owner 的自定义行）
+    path: str = ""
+
+
+class OpenDirRequest(BaseModel):
+    # 分类子目录名（resume/apply/backup…），空 = 打开导出根目录
+    subdir: str = ""
+
+
+@router.get("/export-root")
+async def get_export_root(
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """当前生效的导出根目录：app_settings 自定义 > 默认 data/exports。"""
+    root, is_default = await export_paths.get_export_root(db, owner_id)
+    return {"export_root": str(root), "is_default": is_default, "exists": root.is_dir()}
+
+
+@router.put("/export-root")
+async def set_export_root(
+    req: ExportRootRequest,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """保存导出根目录（owner 隔离）；空串恢复默认。
+
+    路径非法字符 422；相对路径一律 resolve 成绝对路径；保存后自动建目录。
+    """
+    raw = (req.path or "").strip()
+    if not raw:
+        await db.execute(
+            sa_delete(AppSetting).where(
+                AppSetting.owner_id == owner_id,
+                AppSetting.key == export_paths.SETTING_KEY_EXPORT_ROOT,
+            )
+        )
+        await db.commit()
+        root, _ = await export_paths.get_export_root(db, owner_id)
+        return {"export_root": str(root), "is_default": True, "exists": root.is_dir()}
+
+    try:
+        target = export_paths.validate_root_path(raw)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    try:
+        target.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        raise HTTPException(status_code=422, detail=f"无法创建目录：{e}")
+
+    res = await db.execute(
+        select(AppSetting).where(
+            AppSetting.owner_id == owner_id,
+            AppSetting.key == export_paths.SETTING_KEY_EXPORT_ROOT,
+        )
+    )
+    rec = res.scalars().first()
+    if rec:
+        rec.value = str(target)
+    else:
+        db.add(
+            AppSetting(
+                owner_id=owner_id,
+                key=export_paths.SETTING_KEY_EXPORT_ROOT,
+                value=str(target),
+            )
+        )
+    await db.commit()
+    logger.info(f"导出根目录已保存 owner={owner_id[:8]}…: {target}")
+    return {"export_root": str(target), "is_default": False, "exists": True}
+
+
+@router.post("/open-dir")
+async def open_export_dir(
+    req: OpenDirRequest,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """在资源管理器中打开导出目录（可带分类子目录）；仅桌面形态支持。"""
+    if settings.APP_MODE == "web":
+        raise HTTPException(status_code=400, detail="仅桌面版支持打开本地目录")
+    sub = (req.subdir or "").strip().strip("/\\")
+    if sub and (".." in sub or any(c in sub for c in '/\\<>:"|?*')):
+        raise HTTPException(status_code=422, detail="无效的子目录")
+    root, _ = await export_paths.get_export_root(db, owner_id)
+    target = root / sub if sub else root
+    try:
+        target.mkdir(parents=True, exist_ok=True)
+        os.startfile(str(target))  # Windows：资源管理器打开目录
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"打开目录失败：{e}")
+    return {"opened": str(target)}

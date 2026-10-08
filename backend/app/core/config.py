@@ -83,6 +83,9 @@ class Settings(BaseSettings):
     # 简历原文件存放目录（上传的 PDF/DOCX 原件，供浏览器内原版式预览）
     FILES_DIR: str = str((BASE_DIR / "data" / "files").resolve())
 
+    # M71 数据总目录：数据库 / 证件照 / 原文件 / 导出产物都聚在 data/ 下
+    DATA_DIR: str = str((BASE_DIR / "data").resolve())
+
     LLM_API_KEY: str = ""
     LLM_BASE_URL: str = ""
     LLM_MODEL: str = ""

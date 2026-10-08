@@ -16,6 +16,7 @@ from app.core.deps import get_owner_id
 from app.models.entities import Resume
 from app.services.resume_service import ResumeService
 from app.utils.docx_generator import generate_resume_docx
+from app.utils.export_paths import resolve_save_path
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
 
@@ -39,8 +40,8 @@ class ExportDocxRequest(BaseModel):
     optimized_resume: dict
     template: str = "classic"
     photo_id: str | None = None
-    # 桌面形态专用：用户通过原生另存为对话框选择的绝对路径，服务端直写该文件。
-    # 网页形态禁止（服务端不得写用户任意路径），为空时走浏览器 blob 下载。
+    # 桌面形态专用：非空即触发服务端直写（M71 起统一写入设置的导出根目录并按类型
+    # 分类落盘，本字段的路径值不再使用）；网页形态禁止，为空时走浏览器 blob 下载。
     save_path: str | None = None
 
 
@@ -484,20 +485,6 @@ async def delete_photo(photo_id: str):
 
 # ---------- Word 导出 ----------
 
-def _validate_save_path(save_path: str) -> Path:
-    """桌面形态保存路径校验：绝对路径 + .docx 后缀 + 父目录存在。"""
-    if settings.APP_MODE != "local":
-        raise HTTPException(status_code=403, detail="网页形态不支持指定保存路径")
-    p = Path(save_path)
-    if not p.is_absolute():
-        raise HTTPException(status_code=400, detail="保存路径必须是绝对路径")
-    if p.suffix.lower() != ".docx":
-        raise HTTPException(status_code=400, detail="保存路径必须以 .docx 结尾")
-    if not p.parent.is_dir():
-        raise HTTPException(status_code=400, detail=f"目录不存在：{p.parent}")
-    return p
-
-
 async def _record_export(
     db: AsyncSession, owner_id: str, filename: str, save_path: str | None, template: str
 ) -> None:
@@ -523,7 +510,8 @@ async def export_docx(
     """把优化后的简历导出为 Word 文件（可选嵌入证件照）。
 
     save_path 为空：浏览器 blob 下载（网页形态主路径），记录导出历史（无路径）。
-    save_path 非空（仅桌面形态）：服务端直写用户选择的路径，返回 JSON。
+    save_path 非空（仅桌面形态）：M71 统一落盘到设置的导出根目录「简历」子目录，
+    返回 JSON（saved_to/save_path 为实际保存路径）。
     """
     photo_path = None
     if req.photo_id:
@@ -546,13 +534,16 @@ async def export_docx(
     filename = "优化后的简历.docx"
 
     if req.save_path:
-        target = _validate_save_path(req.save_path)
+        # 桌面形态（M71）：save_path 仅作直写标志，按「导出位置」设置分类落盘
+        if settings.APP_MODE == "web":
+            raise HTTPException(status_code=403, detail="网页形态不支持服务端落盘")
+        target = await resolve_save_path("resume", filename, db, owner_id)
         try:
             target.write_bytes(data)
         except OSError as e:
             raise HTTPException(status_code=500, detail=f"写入文件失败: {e}")
         await _record_export(db, owner_id, target.name, str(target), req.template)
-        return {"saved_to": str(target), "filename": target.name}
+        return {"saved_to": str(target), "save_path": str(target), "filename": target.name}
 
     await _record_export(db, owner_id, filename, None, req.template)
     quoted = quote(filename)

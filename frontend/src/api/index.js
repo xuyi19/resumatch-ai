@@ -92,6 +92,10 @@ export default {
   testLLM: (config) => api.post('/settings/test-llm', config),
   // 服务端是否已预置 Key（零配置分发）
   llmDefault: () => api.get('/settings/llm-default'),
+  // M71 统一导出目录：读取 / 保存（空串=恢复默认）/ 资源管理器打开（仅桌面版）
+  getExportRoot: () => api.get('/settings/export-root'),
+  setExportRoot: (path) => api.put('/settings/export-root', { path }),
+  openExportDir: (subdir = '') => api.post('/settings/open-dir', { subdir }),
 
   // M19 岗位市场：一键获取岗位 + 按简历推荐 + 数据源测试
   searchJobs: (data) => api.post('/jobs/search', data),
@@ -116,10 +120,11 @@ export default {
   // M56 投递直达：平台搜索深链 + AI 投递材料包
   getApplyLinks: (id) => api.get(`/jobs/library/${id}/apply-links`),
   jobApplyKit: (id, data) => api.post(`/jobs/library/${id}/apply-kit`, data),
-  // M56.3 材料包导出 Word（blob 下载）
+  // M56.3 材料包导出 Word（blob 下载；桌面态用 exportApplyKitToPath 服务端分类落盘）
   exportApplyKit: (id, data) => api.post(`/jobs/library/${id}/export-kit`, data, {
     responseType: 'blob',
   }),
+  exportApplyKitToPath: (id, data) => api.post(`/jobs/library/${id}/export-kit`, data),
 
   // M22 数据与隐私：一键清空本用户全部数据
   clearAllData: () => api.delete('/data'),
@@ -127,6 +132,8 @@ export default {
   // M59 数据备份与恢复：条数统计 / 导出 JSON 快照（blob 下载）/ 合并式导入
   backupStats: () => api.get('/backup/stats'),
   exportBackup: () => api.get('/backup/export', { responseType: 'blob' }),
+  // M71 桌面态备份导出：?save=1 服务端直写「数据备份」子目录，返回 save_path
+  exportBackupToPath: () => api.get('/backup/export', { params: { save: 1 } }),
   importBackup: (payload) => api.post('/backup/import', payload),
 
   // M23 面试：题单生成 / 恢复会话；M32 多轮自由对话（聊天式模拟面试）
