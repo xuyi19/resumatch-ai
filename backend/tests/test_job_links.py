@@ -22,7 +22,7 @@ def test_links_basic_known_city():
 
 def test_links_unknown_city_falls_back():
     """未收录城市：Boss 用全国码，智联省略城市参数。"""
-    links = build_apply_links("数据分析", "某公司", "绍兴")
+    links = build_apply_links("数据分析", "某公司", "克拉玛依")
     assert "city=100010000" in links["boss"]  # 全国码
     assert "jl=" not in links["zhilian"]
     assert "kw=" in links["zhilian"]

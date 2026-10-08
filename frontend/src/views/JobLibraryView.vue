@@ -26,6 +26,11 @@
       </div>
     </div>
 
+    <!-- 共享城市候选项（弹窗城市输入 + AI 生成期望城市输入共用，可自由输入非列表城市） -->
+    <datalist id="city-options">
+      <option v-for="c in CITY_OPTIONS" :key="c" :value="c" />
+    </datalist>
+
     <!-- 批量导入：粘贴混排文本 → AI 解析 → 勾选入库 -->
     <div v-if="importOpen" class="bg-panel rounded-2xl p-5 md:p-6 mb-6">
       <div class="text-sm font-semibold mb-1">批量导入岗位</div>
@@ -84,41 +89,51 @@
       </div>
     </div>
 
-    <!-- 添加 / 编辑表单 -->
-    <div v-if="formOpen" class="bg-panel rounded-2xl p-5 md:p-6 mb-6">
-      <div class="text-sm font-semibold mb-4">
-        {{ editingId != null ? '编辑岗位' : '添加岗位' }}
-        <span class="ml-2 text-xs font-normal text-ink-faint">带 * 必填，其余可留空</span>
-      </div>
+    <!-- 添加 / 编辑弹窗（M56 后回炉：原表单块撑满页顶难看难用，改居中 Modal） -->
+    <Teleport to="body">
+      <div v-if="formOpen" @click.self="closeForm"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40">
+        <div class="bg-panel border border-line rounded-2xl w-full max-w-2xl max-h-[88vh]
+          overflow-y-auto p-5 md:p-6 shadow-lg">
+          <div class="flex items-center justify-between gap-3 mb-4">
+            <div class="text-sm font-semibold">
+              {{ editingId != null ? '✏️ 编辑岗位' : '＋ 添加岗位' }}
+              <span class="ml-2 text-xs font-normal text-ink-faint">带 * 必填，其余可留空</span>
+            </div>
+            <button @click="closeForm"
+              class="text-lg leading-none text-ink-sub hover:text-ink shrink-0">×</button>
+          </div>
 
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-        <input v-model="form.title" maxlength="80" placeholder="岗位名 *"
-          class="px-3 py-2 text-sm bg-inset rounded-lg border border-line focus:outline-none
-            focus:border-accent transition-colors" />
-        <input v-model="form.company" maxlength="60" placeholder="公司"
-          class="px-3 py-2 text-sm bg-inset rounded-lg border border-line focus:outline-none
-            focus:border-accent transition-colors" />
-        <input v-model="form.city" maxlength="20" placeholder="城市"
-          class="px-3 py-2 text-sm bg-inset rounded-lg border border-line focus:outline-none
-            focus:border-accent transition-colors" />
-        <input v-model="form.salary" maxlength="40" placeholder="薪资（如 25-40K）"
-          class="px-3 py-2 text-sm bg-inset rounded-lg border border-line focus:outline-none
-            focus:border-accent transition-colors" />
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+            <input v-model="form.title" maxlength="80" placeholder="岗位名 *"
+              class="px-3 py-2 text-sm bg-inset rounded-lg border border-line focus:outline-none
+                focus:border-accent transition-colors" />
+            <input v-model="form.company" maxlength="60" placeholder="公司（可留空）"
+              class="px-3 py-2 text-sm bg-inset rounded-lg border border-line focus:outline-none
+                focus:border-accent transition-colors" />
+            <input v-model="form.city" maxlength="20" list="city-options" placeholder="城市"
+              class="px-3 py-2 text-sm bg-inset rounded-lg border border-line focus:outline-none
+                focus:border-accent transition-colors" />
+            <input v-model="form.salary" maxlength="40" placeholder="薪资（如 25-40K）"
+              class="px-3 py-2 text-sm bg-inset rounded-lg border border-line focus:outline-none
+                focus:border-accent transition-colors" />
+          </div>
+          <textarea v-model="form.jd" rows="8" maxlength="20000"
+            placeholder="粘贴岗位 JD 全文（可从 BOSS / 智联 / 拉勾等平台复制岗位描述）&#10;JD 越完整，匹配推荐与面试出题越准"
+            class="w-full px-3.5 py-3 text-sm bg-inset rounded-lg border border-line resize-y
+              focus:outline-none focus:border-accent placeholder:text-ink-faint transition-colors"></textarea>
+          <div class="flex items-center gap-3 mt-3">
+            <button @click="saveForm" :disabled="formSaving"
+              class="px-5 py-2 text-xs font-medium rounded-lg bg-accent text-white
+                hover:bg-accent-hover active:scale-[0.98] transition-all disabled:opacity-50">
+              {{ formSaving ? '保存中…' : editingId != null ? '保存修改' : '保存（可连续录入）' }}
+            </button>
+            <button @click="closeForm"
+              class="px-4 py-2 text-xs text-ink-sub hover:text-ink transition-colors">取消</button>
+          </div>
+        </div>
       </div>
-      <textarea v-model="form.jd" rows="6" maxlength="20000"
-        placeholder="粘贴岗位 JD 全文（可从 BOSS / 智联 / 拉勾等平台复制岗位描述）&#10;JD 越完整，匹配推荐与面试出题越准"
-        class="w-full px-3.5 py-3 text-sm bg-inset rounded-lg border border-line resize-y
-          focus:outline-none focus:border-accent placeholder:text-ink-faint transition-colors"></textarea>
-      <div class="flex items-center gap-3 mt-3">
-        <button @click="saveForm" :disabled="formSaving"
-          class="px-5 py-2 text-xs font-medium rounded-lg bg-accent text-white
-            hover:bg-accent-hover active:scale-[0.98] transition-all disabled:opacity-50">
-          {{ formSaving ? '保存中…' : editingId != null ? '保存修改' : '保存（可连续录入）' }}
-        </button>
-        <button @click="closeForm"
-          class="px-4 py-2 text-xs text-ink-sub hover:text-ink transition-colors">取消</button>
-      </div>
-    </div>
+    </Teleport>
 
     <!-- 匹配操作条 -->
     <div v-if="jobs.length" class="bg-panel rounded-2xl px-5 py-4 mb-5
@@ -140,8 +155,11 @@
       <button @click="clearMatch"
         class="px-3 py-2 text-xs text-ink-faint hover:text-ink transition-colors">清除结果</button>
       <span class="w-px h-4 bg-line shrink-0 mx-1" />
+      <input v-model="generateCity" maxlength="20" list="city-options" placeholder="期望城市（可选）"
+        class="px-3 py-2 text-sm bg-inset rounded-lg border border-line focus:outline-none
+          focus:border-accent transition-colors w-36 shrink-0" />
       <button @click="runGenerate" :disabled="generating || !selectedResumeId"
-        :title="selectedResumeId ? 'AI 根据选中简历生成适合的岗位并入库' : '先选择一份简历'"
+        :title="selectedResumeId ? 'AI 根据选中简历生成适合的岗位并入库（不编造公司，投递时再补充）' : '先选择一份简历'"
         class="px-4 py-2 text-xs font-medium rounded-lg border border-accent/50 text-accent
           hover:bg-accent/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
         {{ generating ? 'AI 生成中…' : '✨ AI 生成岗位入库' }}
@@ -439,7 +457,8 @@
               class="mt-1 w-4 h-4 accent-accent shrink-0 cursor-pointer" />
             <div class="min-w-0 flex-1">
               <div class="text-sm font-semibold text-ink truncate" :title="j.title">{{ j.title }}</div>
-              <div class="text-xs text-ink-faint mt-0.5 font-mono truncate">
+              <div class="text-xs text-ink-faint mt-0.5 font-mono truncate"
+                :title="j.company ? '' : '公司待定 · 点卡片右下 ✏️ 编辑补填真实公司'">
                 {{ j.company || '公司待定' }}<span v-if="j.city"> · {{ j.city }}</span><span
                   v-if="!matchMap[j.id]"> · {{ fmtTime(j.created_at) }}</span>
               </div>
@@ -515,6 +534,16 @@ const formOpen = ref(false)
 const editingId = ref(null)
 const formSaving = ref(false)
 const form = reactive({ title: '', company: '', city: '', salary: '', jd: '' })
+
+/* 常用城市快捷选择（datalist：可点选也可自由输入；与后端深链码表覆盖一致） */
+const CITY_OPTIONS = [
+  '北京', '上海', '广州', '深圳', '天津', '重庆',
+  '杭州', '成都', '武汉', '西安', '南京', '苏州', '长沙', '郑州', '合肥',
+  '福州', '厦门', '济南', '青岛', '沈阳', '大连', '哈尔滨', '长春',
+  '石家庄', '太原', '南昌', '南宁', '海口', '贵阳', '昆明', '兰州',
+  '宁波', '无锡', '佛山', '东莞', '珠海', '烟台', '潍坊', '呼和浩特',
+  '乌鲁木齐', '西宁', '银川', '拉萨', '唐山', '保定', '洛阳', '中山', '惠州',
+]
 
 const matching = ref(false)
 const matchDone = ref(false)
@@ -846,9 +875,14 @@ function openForm() {
 
 function openEdit(j) {
   editingId.value = j.id
-  Object.assign(form, { title: j.title, company: j.company, city: j.city, salary: j.salary, jd: j.jd })
+  Object.assign(form, {
+    title: j.title || '',
+    company: j.company || '',
+    city: j.city || '',
+    salary: j.salary || '',
+    jd: j.jd || '',
+  })
   formOpen.value = true
-  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 function closeForm() {
@@ -1063,8 +1097,9 @@ async function fillSamples() {
   }
 }
 
-/* ---- AI 自动入库：按选中简历生成岗位 ---- */
+/* ---- AI 自动入库：按选中简历生成岗位（不编造公司，城市可指定） ---- */
 const generating = ref(false)
+const generateCity = ref('')
 
 async function runGenerate() {
   if (!selectedResumeId.value) {
@@ -1075,12 +1110,13 @@ async function runGenerate() {
   try {
     const res = await api.generateLibraryJobs({
       resume_id: Number(selectedResumeId.value),
+      city: generateCity.value.trim() || null,
       llm_config: null,
     })
     const added = res.data.items || []
     if (added.length) {
       jobs.value.unshift(...added)
-      Message.success(`已生成 ${added.length} 个岗位并入库`)
+      Message.success(`已生成 ${added.length} 个岗位并入库（公司留空，投递前请在卡片上 ✏️ 补填真实公司）`)
     } else {
       Message.info(res.data.message || '没有新岗位入库')
     }

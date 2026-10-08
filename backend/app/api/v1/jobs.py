@@ -501,6 +501,7 @@ class LibraryGenerateRequest(BaseModel):
     resume_id: int | None = None
     resume_text: str | None = Field(default=None, min_length=30, max_length=8000)
     count: int = Field(default=5, ge=1, le=10)
+    city: str | None = Field(default=None, max_length=20)  # 期望城市：传入则统一使用
     llm_config: dict | None = None
 
 
@@ -510,9 +511,10 @@ async def generate_library_jobs(
     db: AsyncSession = Depends(get_db),
     owner_id: str = Depends(get_owner_id),
 ):
-    """AI 自动入库：按简历生成适合的目标岗位（真实公司 + 完整 JD）并直接写入岗位库。
+    """AI 自动入库：按简历生成适合的目标岗位（岗位名 + 完整 JD）并直接写入岗位库。
 
-    与库内「公司+岗位」重复的跳过；全部重复时返回空列表 + 提示。
+    M56 后按用户实测反馈调整：不编造公司名（与实际投递脱节，公司留空由用户
+    从真实渠道补填）；城市优先用请求传入的期望城市。与库内同岗位名重复的跳过。
     """
     resume_text = await _resolve_resume_text(req.resume_id, req.resume_text, db, owner_id)
 
@@ -523,6 +525,10 @@ async def generate_library_jobs(
     ).all()
     seen = {(c.strip().lower(), t.strip().lower()) for c, t in existing}
 
+    want_city = (req.city or "").strip()
+    city_rule = f"所有岗位的城市一律使用「{want_city}」" if want_city else (
+        "城市取简历中的期望工作城市（未提及则留空字符串）"
+    )
     try:
         llm = get_llm(
             temperature=0.7,  # 生成任务比精排稍高，提升岗位多样性
@@ -532,9 +538,13 @@ async def generate_library_jobs(
         )
         prompt = (
             f"你是资深猎头。根据求职者简历，生成 {req.count} 个该候选人高概率投递且匹配的目标岗位。"
-            "要求：公司用真实存在的典型企业；每条 JD 为 150-400 字完整岗位描述（工作职责+任职要求）；"
-            "城市与薪资符合中国市场行情。严格输出 JSON 数组，不要任何其他内容：\n"
-            '[{"title":"...","company":"...","city":"...","salary":"...","jd":"..."}]\n\n'
+            "要求：\n"
+            "1. company 一律输出空字符串（不要编造公司名，真实公司由求职者自行查找填写）；\n"
+            f"2. {city_rule}；\n"
+            "3. 每条 JD 为 150-400 字完整岗位描述（工作职责+任职要求），岗位方向彼此有差异；\n"
+            "4. 薪资符合中国市场行情。\n"
+            "严格输出 JSON 数组，不要任何其他内容：\n"
+            '[{"title":"...","company":"","city":"...","salary":"...","jd":"..."}]\n\n'
             f"求职者简历：\n{resume_text[:3000]}"
         )
         resp = await llm.ainvoke(prompt)
@@ -552,12 +562,14 @@ async def generate_library_jobs(
         title = str(row.get("title") or "").strip()
         if not title:
             continue
-        company = str(row.get("company") or "").strip()
+        # 不编造公司（prompt 禁止 + 代码强制清空双保险，LLM 偶尔不听话）；真实公司用户自补
+        company = ""
         key = (company.lower(), title.lower())
         if key in seen:  # 与库内已有岗位（公司+岗位名相同）去重
             continue
         seen.add(key)
-        city = str(row.get("city") or "").strip()
+        # 期望城市硬覆盖（LLM 偶尔不听话输出其他城市）；未传则采信 LLM（取自简历期望城市）
+        city = want_city or str(row.get("city") or "").strip()
         jd = str(row.get("jd") or "").strip()
         rec = SavedJob(
             owner_id=owner_id,
@@ -565,7 +577,7 @@ async def generate_library_jobs(
             company=company[:60],
             city=city[:20],
             salary=str(row.get("salary") or "").strip()[:40],
-            jd_text=(jd or f"{company} {title} 岗位（{city or '城市待定'}）")[:_LIBRARY_JD_MAX],
+            jd_text=(jd or f"{title}（{city or '城市待定'}）")[:_LIBRARY_JD_MAX],
             source="ai_gen",  # 独立于面板入库 'ai'，供前端来源筛选
         )
         db.add(rec)

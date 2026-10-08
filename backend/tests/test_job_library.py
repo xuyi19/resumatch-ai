@@ -255,8 +255,8 @@ async def test_library_generate_dedupes(client, monkeypatch):
 
     monkeypatch.setattr(jobs_mod, "get_llm", lambda **kw: _MockLLM(GEN_JSON))
     hd = _sid()
-    # 预置一条与生成结果重复的岗位（字节跳动 / 资深 Python 开发工程师）
-    await _add(client, hd, [{"title": "资深 Python 开发工程师", "company": "字节跳动",
+    # 预置一条与生成结果重复的岗位（生成入库强制 company=""，按空公司+岗位名去重）
+    await _add(client, hd, [{"title": "资深 Python 开发工程师", "company": "",
                              "jd": "已有岗位描述内容足够长用于匹配测试。"}])
 
     resp = await client.post(
@@ -279,6 +279,26 @@ async def test_library_generate_dedupes(client, monkeypatch):
     assert resp.status_code == 200
     assert resp.json()["items"] == []
     assert "已在库中" in resp.json()["message"]
+
+
+async def test_library_generate_no_company_city_override(client, monkeypatch):
+    """M56 回炉：company 强制清空（mock 返回「字节跳动」也不采信）；传入 city 硬覆盖。"""
+    import app.api.v1.jobs as jobs_mod
+
+    monkeypatch.setattr(jobs_mod, "get_llm", lambda **kw: _MockLLM(GEN_JSON))
+    hd = _sid()
+    resp = await client.post(
+        "/api/v1/jobs/library-generate",
+        json={"resume_text": RESUME_TEXT, "city": "深圳", "llm_config": {}},
+        headers=hd,
+    )
+    assert resp.status_code == 200
+    items = resp.json()["items"]
+    assert len(items) == 2
+    for j in items:
+        assert j["company"] == ""   # 不编造公司
+        assert j["city"] == "深圳"  # 期望城市硬覆盖（mock 输出北京/杭州也被覆盖）
+        assert j["source"] == "ai_gen"
 
 
 async def test_library_generate_llm_failure(client, monkeypatch):
