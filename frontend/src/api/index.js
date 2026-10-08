@@ -142,6 +142,14 @@ export default {
   interviewExportToPath: (taskId, savePath) =>
     api.post(`/interview/export/${taskId}`, { save_path: savePath }),
 
+  // M64 刷题工坊：AI 出题 / 交卷 / 会话管理 / 错题本
+  quizGenerate: (data) => api.post('/quiz/generate', data),
+  quizSubmit: (taskId, data) => api.post(`/quiz/${taskId}/submit`, data),
+  quizSessions: () => api.get('/quiz/sessions'),
+  quizGet: (taskId) => api.get(`/quiz/${taskId}`),
+  quizDeleteSession: (taskId) => api.delete(`/quiz/sessions/${taskId}`),
+  quizWrongbook: () => api.get('/quiz/wrongbook'),
+
   // F1 简历库：列表（含最近诊断分）/ 详情（预览原文）/ 重命名 / 删除
   listResumes: () => api.get('/resumes/list'),
   getResume: (id) => api.get(`/resumes/${id}`),

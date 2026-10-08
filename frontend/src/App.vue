@@ -280,6 +280,8 @@ const ICONS = {
   doc: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h6M10 17h4"/>',
   book: '<path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0"/><path d="M12 18v3"/>',
+  quiz:
+    '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9.5l1.5 1.5L11 8.5"/><path d="M13.5 10H17"/><path d="M7 15l1.5 1.5L11 14"/><path d="M13.5 15.5H17"/>',
   dashboard:
     '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/>',
 }
@@ -324,6 +326,12 @@ const navItems = computed(() => [
     to: '/app/interview',
     icon: ICONS.mic,
     active: route.path.startsWith('/app/interview'),
+  },
+  {
+    label: '刷题工坊',
+    to: '/app/quiz',
+    icon: ICONS.quiz,
+    active: route.path.startsWith('/app/quiz'),
   },
   {
     label: '诊断历史',

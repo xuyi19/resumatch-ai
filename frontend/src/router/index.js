@@ -20,6 +20,7 @@ export default createRouter({
         { path: 'editor/:taskId', name: 'app-editor', component: () => import('../views/EditorView.vue') },
         { path: 'resumes', name: 'app-resumes', component: () => import('../views/ResumeListView.vue') },
         { path: 'jobs', name: 'app-jobs', component: () => import('../views/JobLibraryView.vue') },
+        { path: 'quiz', name: 'app-quiz', component: () => import('../views/QuizView.vue') },
         { path: 'interview', name: 'app-interview', component: () => import('../views/InterviewView.vue') },
         { path: 'result/:taskId', name: 'app-result', component: () => import('../views/ResultView.vue') },
         { path: 'chat/:taskId', name: 'app-chat', component: () => import('../views/ChatView.vue') },
