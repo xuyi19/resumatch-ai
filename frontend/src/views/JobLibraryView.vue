@@ -13,6 +13,11 @@
         </p>
       </div>
       <div class="flex items-center gap-2">
+        <button @click="importFromClipboard()"
+          class="px-4 py-2 text-xs font-medium rounded-lg border border-accent/50 text-accent
+            hover:bg-accent/10 active:scale-[0.98] transition-all">
+          📋 剪贴板导入
+        </button>
         <button @click="toggleImport()"
           class="px-4 py-2 text-xs font-medium rounded-lg border border-accent/50 text-accent
             hover:bg-accent/10 active:scale-[0.98] transition-all">
@@ -33,6 +38,10 @@
         粘贴一个或多个岗位的混排文本（招聘网站复制的 JD、岗位列表等），AI 自动提取岗位信息，确认后入库。
         不同岗位之间建议用空行分隔，解析更准。
       </p>
+      <!-- M70-A 剪贴板自动读取失败时的手动粘贴引导 -->
+      <div v-if="clipboardHint" class="mb-3 px-4 py-3 rounded-xl text-xs bg-warn/10 border border-warn/40 text-warn">
+        无法自动读取剪贴板，请 Ctrl+V 粘贴到下方输入框
+      </div>
       <textarea v-model="rawImportText" rows="8" maxlength="60000"
         placeholder="例如从 BOSS 直聘批量复制的多个岗位描述，或各处收集的 JD 文本……"
         class="w-full px-3.5 py-3 text-sm bg-inset rounded-lg border border-line resize-y
@@ -82,6 +91,25 @@
           </button>
         </div>
       </div>
+
+      <!-- M70-B 采集书签（bookmarklet）：拖到书签栏，岗位页一键复制文本 -->
+      <details class="mt-4 border-t border-line/60 pt-3">
+        <summary class="text-xs text-ink-faint cursor-pointer hover:text-ink-sub select-none">
+          🚀 安装采集书签（进阶）
+        </summary>
+        <div class="mt-2.5 text-xs text-ink-faint leading-relaxed">
+          <p>
+            从浏览器书签栏一键采集当前岗位页文本：在招聘网站的岗位详情页点击该书签，页面文本会自动复制，
+            回知岗点「📋 剪贴板导入」即可完成建档。
+          </p>
+          <!-- javascript: 书签链接：拖拽到书签栏安装；click.prevent 防止误点执行 -->
+          <a :href="bookmarkletHref" @click.prevent draggable="true"
+            class="inline-block mt-2 px-3.5 py-1.5 text-xs font-medium rounded-lg border border-accent/50
+              text-accent hover:bg-accent/10 transition-colors cursor-grab active:cursor-grabbing select-none">
+            ⇪ 拖我到浏览器书签栏
+          </a>
+        </div>
+      </details>
     </div>
 
     <!-- 添加 / 编辑弹窗（M56 后回炉：原表单块撑满页顶难看难用，改居中 Modal） -->
@@ -115,6 +143,13 @@
             placeholder="粘贴岗位 JD 全文（可从 BOSS / 智联 / 拉勾等平台复制岗位描述）&#10;支持多行输入，换行会原样保留并在岗位卡上显示&#10;JD 越完整，匹配推荐与面试出题越准"
             class="w-full px-3.5 py-3 text-sm bg-inset rounded-lg border border-line resize-y leading-relaxed
               focus:outline-none focus:border-accent placeholder:text-ink-faint transition-colors"></textarea>
+          <!-- M69 岗位链接快存 -->
+          <div class="flex items-center gap-2 mt-2">
+            <span class="text-xs text-ink-faint shrink-0">岗位链接</span>
+            <input v-model="form.url" maxlength="300" placeholder="岗位原链接（BOSS/智联/猎聘/牛客等，可留空）"
+              class="flex-1 min-w-0 px-3 py-2 text-xs bg-inset rounded-lg border border-line
+                focus:outline-none focus:border-accent placeholder:text-ink-faint transition-colors" />
+          </div>
           <div class="flex items-center gap-3 mt-3">
             <button @click="saveForm" :disabled="formSaving"
               class="px-5 py-2 text-xs font-medium rounded-lg bg-accent text-white
@@ -468,6 +503,8 @@
           <!-- 徽标行：薪资 / 来源 / 匹配理由 / 投递状态（直改） -->
           <div class="flex items-center gap-1.5 flex-wrap mb-2.5 min-h-[22px]">
             <span v-if="j.salary" class="px-1.5 py-0.5 rounded text-[11px] bg-ok/10 text-ok font-mono shrink-0">{{ j.salary }}</span>
+            <!-- M69 岗位链接命中招聘平台域名时显示来源徽标 -->
+            <span v-if="urlPlatform(j.url)" class="px-1.5 py-0.5 rounded text-[10px] border border-line text-ink-faint shrink-0">{{ urlPlatform(j.url) }}</span>
             <span class="px-1.5 py-0.5 rounded text-[11px] bg-inset text-ink-faint shrink-0">{{ sourceLabel(j.source) }}</span>
             <span v-if="matchMap[j.id]?.reason" :title="matchMap[j.id].reason"
               class="text-[10px] text-ink-faint truncate max-w-[100px]">{{ matchMap[j.id].reason }}</span>
@@ -493,6 +530,9 @@
             <button @click="interviewWith(j)" class="text-xs text-accent hover:underline shrink-0">🎤 面试</button>
             <button @click="openApply(j)" title="平台深链直达 + AI 投递材料包"
               class="text-xs text-accent hover:underline shrink-0">🚀 投递</button>
+            <!-- M69 原链直达（有链接才显示） -->
+            <a v-if="j.url" :href="j.url" target="_blank" rel="noopener" title="打开岗位原链接"
+              class="text-xs text-accent hover:underline shrink-0">🔗 原链</a>
             <span class="flex-1" />
             <button v-if="!selMode" @click="openEdit(j)" title="编辑岗位"
               class="text-xs text-ink-sub hover:text-accent transition-colors shrink-0">✏️</button>
@@ -526,7 +566,7 @@ const selectedResumeId = ref('')
 const formOpen = ref(false)
 const editingId = ref(null)
 const formSaving = ref(false)
-const form = reactive({ title: '', company: '', city: '', salary: '', jd: '' })
+const form = reactive({ title: '', company: '', city: '', salary: '', jd: '', url: '' })
 
 const matching = ref(false)
 const matchDone = ref(false)
@@ -585,6 +625,21 @@ const CHANNEL_OPTIONS = [
 ]
 const CHANNEL_LABELS = Object.fromEntries(CHANNEL_OPTIONS.map((c) => [c.value, c.label]))
 
+/* ---- M69 岗位链接：域名 → 平台徽标 / 投递渠道推断 ---- */
+const URL_PLATFORM_MAP = [
+  ['zhipin.com', 'BOSS', 'boss'],
+  ['zhaopin.com', '智联', 'zhilian'],
+  ['liepin.com', '猎聘', 'liepin'],
+  ['nowcoder.com', '牛客', 'nowcoder'],
+]
+
+function matchUrlPlatform(url) {
+  const u = (url || '').toLowerCase()
+  return URL_PLATFORM_MAP.find(([domain]) => u.includes(domain)) || null
+}
+const urlPlatform = (url) => matchUrlPlatform(url)?.[1] || ''   // 卡片徽标用
+const urlChannel = (url) => matchUrlPlatform(url)?.[2] || ''    // 投递渠道推断用
+
 const applyJob = ref(null)
 const applyLinks = ref({})
 const linksLoading = ref(false)
@@ -601,7 +656,8 @@ async function openApply(j) {
   kit.cover_letter = ''
   kit.intro_points = []
   applyResumeId.value = selectedResumeId.value || ''
-  applyChannel.value = ''
+  // M69 岗位链接能推断渠道时自动预选（每次打开均为新会话，用户尚未手动选择，可改选）
+  applyChannel.value = urlChannel(j.url)
   try { applyProfile.value = localStorage.getItem(APPLY_PROFILE_KEY) || '' } catch { /* 损坏值兜底 */ }
   linksLoading.value = true
   try {
@@ -864,6 +920,7 @@ function openEdit(j) {
     city: j.city || '',
     salary: j.salary || '',
     jd: j.jd || '',
+    url: j.url || '',  // M69 老数据可能无 url，容错空值
   })
   formOpen.value = true
 }
@@ -875,7 +932,7 @@ function closeForm() {
 }
 
 function resetForm() {
-  Object.assign(form, { title: '', company: '', city: '', salary: '', jd: '' })
+  Object.assign(form, { title: '', company: '', city: '', salary: '', jd: '', url: '' })
 }
 
 async function saveForm() {
@@ -892,6 +949,7 @@ async function saveForm() {
       city: form.city.trim(),
       salary: form.salary.trim(),
       jd: form.jd.trim(),
+      url: form.url.trim(),  // M69 岗位链接快存
     }
     if (editingId.value != null) {
       const res = await api.updateLibraryJob(editingId.value, payload)
@@ -987,6 +1045,7 @@ function toggleImport() {
     rawImportText.value = ''
     parsed.value = []
     parseDegraded.value = false
+    clipboardHint.value = false
   }
 }
 
@@ -995,6 +1054,7 @@ function closeImport() {
   rawImportText.value = ''
   parsed.value = []
   parseDegraded.value = false
+  clipboardHint.value = false
 }
 
 function toggleSelectAll() {
@@ -1048,6 +1108,31 @@ async function importSelected() {
     importing.value = false
   }
 }
+
+/* ---- M70-A 剪贴板导入：读剪贴板 → 填入面板 → 自动解析 ---- */
+const clipboardHint = ref(false)  // 无法自动读取剪贴板时的手动粘贴提示
+
+async function importFromClipboard() {
+  clipboardHint.value = false
+  importOpen.value = true
+  try {
+    const text = await navigator.clipboard.readText()
+    if (text && text.trim()) {
+      rawImportText.value = text
+      parseBatch()  // 读取成功直接解析（内部有 30 字下限校验，太短会提示）
+    } else {
+      clipboardHint.value = true  // 剪贴板为空，引导手动粘贴
+    }
+  } catch {
+    // 权限拒绝 / 非安全上下文等：退回手动粘贴流程
+    clipboardHint.value = true
+  }
+}
+
+/* ---- M70-B 采集书签（bookmarklet）：岗位页文本一键复制，回站「剪贴板导入」入库 ---- */
+// 单行压缩代码；\n 为书签源码中的字面转义（双引号字符串里写 \\n 保留原样），中文原样保留
+const BOOKMARKLET_CODE = "(function(){var t=document.title||'';var u=location.href;var el=document.querySelector('.job-detail,.job-sec-text,.jd,.description,[class*=job-detail],[class*=job-desc],[class*=description]');var txt=el?el.innerText:document.body.innerText;txt=(txt||'').trim().slice(0,8000);var out='岗位：'+t+'\\n链接：'+u+'\\n\\n'+txt;(navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(out):Promise.reject()).then(function(){alert('已复制岗位信息，请回到知岗点「剪贴板导入」')},function(){var ta=document.createElement('textarea');ta.value=out;document.body.appendChild(ta);ta.select();try{document.execCommand('copy')?alert('已复制岗位信息，请回到知岗点「剪贴板导入」'):window.prompt('复制以下岗位信息',out)}catch(e){window.prompt('复制以下岗位信息',out)}document.body.removeChild(ta)})})();"
+const bookmarkletHref = 'javascript:' + encodeURIComponent(BOOKMARKLET_CODE)
 
 /* ---- 示例岗位：一键填充体验完整流程（可删除） ---- */
 const SAMPLE_JOBS = [
