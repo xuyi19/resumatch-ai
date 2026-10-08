@@ -112,6 +112,9 @@ export default {
   batchDeleteLibraryJobs: (ids) => api.post('/jobs/library/batch-delete', { ids }),
   matchLibraryJobs: (data) => api.post('/jobs/library-match', data),
   generateLibraryJobs: (data) => api.post('/jobs/library-generate', data),
+  // M56 投递直达：平台搜索深链 + AI 投递材料包
+  getApplyLinks: (id) => api.get(`/jobs/library/${id}/apply-links`),
+  jobApplyKit: (id, data) => api.post(`/jobs/library/${id}/apply-kit`, data),
 
   // M22 数据与隐私：一键清空本用户全部数据
   clearAllData: () => api.delete('/data'),

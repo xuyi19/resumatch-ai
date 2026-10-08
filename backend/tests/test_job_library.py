@@ -472,3 +472,94 @@ async def test_job_status_owner_isolation(client):
     assert other.status_code == 404
     mine = (await client.get("/api/v1/jobs/library", headers=hd)).json()["items"]
     assert mine[0]["status"] == "wish"  # 未被他人改动
+
+
+# ---------------------------------------------------------------- 投递直达（M56）
+
+
+async def test_apply_links(client):
+    """M56.1 深链端点：四平台链接齐全；他人会话/不存在岗位 404。"""
+    hd = _sid()
+    jid = (await _add(client, hd, [{"title": "Python 后端工程师", "company": "A 科技", "city": "杭州",
+                                    "jd": "深链验证岗位描述。"}])).json()["items"][0]["id"]
+    resp = await client.get(f"/api/v1/jobs/library/{jid}/apply-links", headers=hd)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["job"]["id"] == jid
+    links = body["links"]
+    assert set(links) == {"boss", "zhilian", "liepin", "nowcoder"}
+    assert "city=101210100" in links["boss"]  # 杭州
+    assert "jl=653" in links["zhilian"]
+
+    # owner 隔离
+    assert (await client.get(f"/api/v1/jobs/library/{jid}/apply-links", headers=_sid())).status_code == 404
+    assert (await client.get("/api/v1/jobs/library/999999/apply-links", headers=hd)).status_code == 404
+
+
+async def test_apply_kit_success(client, monkeypatch):
+    """M56.2 材料包：mock call_llm_for_json 返回 ApplyKit，端点透传三段内容。"""
+    import app.api.v1.jobs as jobs_mod
+
+    captured = {}
+
+    async def _fake_kit(prompt, schema, **kw):
+        captured["prompt"] = prompt
+        return jobs_mod.ApplyKit(
+            greeting="您好，看到贵司 Python 后端岗位与我的 FastAPI 经验高度契合，期待沟通。",
+            cover_letter="尊敬的面试官：" + "我具备三年 Python 后端经验。" * 30,
+            intro_points=["三年 Python 后端开发经验", "主导高并发订单系统优化", "", "  "],
+        )
+
+    monkeypatch.setattr(jobs_mod, "call_llm_for_json", _fake_kit)
+    hd = _sid()
+    jid = (await _add(client, hd, [{"title": "Python 后端工程师", "company": "A 科技", "city": "杭州",
+                                    "jd": "要求熟悉 Python、FastAPI，有高并发系统经验。"}])).json()["items"][0]["id"]
+
+    resp = await client.post(
+        f"/api/v1/jobs/library/{jid}/apply-kit",
+        json={"resume_text": RESUME_TEXT, "profile": "期望 25-35K，两周内到岗", "llm_config": {}},
+        headers=hd,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["greeting"].startswith("您好")
+    assert len(body["cover_letter"]) > 100
+    # 空白要点被剔除、超长截断
+    assert body["intro_points"] == ["三年 Python 后端开发经验", "主导高并发订单系统优化"]
+    # prompt 含岗位 JD / 简历 / 档案，且带禁编造约束
+    assert "禁止编造" in captured["prompt"]
+    assert "高并发" in captured["prompt"] and "两周内到岗" in captured["prompt"]
+
+
+async def test_apply_kit_llm_failure(client, monkeypatch):
+    """LLM 异常 → 502（材料宁缺毋假，不降级编造）。"""
+    import app.api.v1.jobs as jobs_mod
+
+    async def _boom(*args, **kwargs):
+        raise RuntimeError("llm unavailable")
+
+    monkeypatch.setattr(jobs_mod, "call_llm_for_json", _boom)
+    hd = _sid()
+    jid = (await _add(client, hd, [{"title": "测试岗", "company": "B 测", "jd": "材料包失败路径验证岗位。"}])).json()["items"][0]["id"]
+    resp = await client.post(
+        f"/api/v1/jobs/library/{jid}/apply-kit", json={"resume_text": RESUME_TEXT}, headers=hd
+    )
+    assert resp.status_code == 502
+
+
+async def test_apply_kit_validations(client):
+    """岗位不存在 404 / 缺简历 400 / 他人岗位 404。"""
+    hd = _sid()
+    resp = await client.post(
+        "/api/v1/jobs/library/999999/apply-kit", json={"resume_text": RESUME_TEXT}, headers=hd
+    )
+    assert resp.status_code == 404
+
+    jid = (await _add(client, hd, [{"title": "校验岗", "company": "C 校", "jd": "参数校验路径验证岗位。"}])).json()["items"][0]["id"]
+    resp = await client.post(f"/api/v1/jobs/library/{jid}/apply-kit", json={}, headers=hd)
+    assert resp.status_code == 400
+
+    resp = await client.post(
+        f"/api/v1/jobs/library/{jid}/apply-kit", json={"resume_text": RESUME_TEXT}, headers=_sid()
+    )
+    assert resp.status_code == 404

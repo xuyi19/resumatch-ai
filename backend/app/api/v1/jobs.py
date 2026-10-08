@@ -18,6 +18,7 @@ from sqlalchemy import select, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.llm import get_llm
+from app.agents.utils import call_llm_for_json
 from app.core.db import get_db
 from app.core.deps import get_owner_id
 from app.models.entities import Resume, SavedJob
@@ -29,6 +30,7 @@ from app.services.job_market import (
     create_provider,
     parse_llm_ranking,
 )
+from app.utils.job_links import build_apply_links
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -648,3 +650,82 @@ async def delete_library_job(
     if res.rowcount == 0:
         raise HTTPException(status_code=404, detail="岗位不存在")
     return {"deleted": res.rowcount}
+
+
+# ============================ M56 投递直达 ============================
+
+
+@router.get("/library/{job_id}/apply-links")
+async def get_apply_links(
+    job_id: int,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """M56.1 平台搜索深链：生成 Boss/智联/猎聘/牛客官方搜索页 URL（不抓取数据、不代提交）。"""
+    job = await db.get(SavedJob, job_id)
+    if not job or job.owner_id != owner_id:
+        raise HTTPException(status_code=404, detail="岗位不存在")
+    return {"job": _job_dict(job), "links": build_apply_links(job.title, job.company, job.city)}
+
+
+class ApplyKit(BaseModel):
+    """call_llm_for_json 结构化输出契约：仅依据简历与档案生成，禁止编造。"""
+
+    greeting: str = Field(description="BOSS 直聘风格招呼语，不超过 100 字")
+    cover_letter: str = Field(description="求职信，300~500 字")
+    intro_points: list[str] = Field(default_factory=list, description="自我介绍要点，3~6 条")
+
+
+class ApplyKitRequest(BaseModel):
+    """M56.2 投递材料包请求：resume_id/resume_text 二选一；profile 为统一投递档案（前端本地存储）。"""
+
+    resume_id: int | None = None
+    resume_text: str | None = Field(default=None, min_length=30, max_length=8000)
+    profile: str | None = Field(default=None, max_length=1000)
+    llm_config: dict | None = None
+
+
+@router.post("/library/{job_id}/apply-kit")
+async def make_apply_kit(
+    job_id: int,
+    req: ApplyKitRequest,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """M56.2 AI 投递材料包：按简历+JD 生成招呼语 / 求职信 / 自我介绍要点。
+
+    LLM 失败直接报错不降级（半自动辅助材料宁缺毋假，禁止编造兜底）。
+    """
+    job = await db.get(SavedJob, job_id)
+    if not job or job.owner_id != owner_id:
+        raise HTTPException(status_code=404, detail="岗位不存在")
+    resume_text = await _resolve_resume_text(req.resume_id, req.resume_text, db, owner_id)
+
+    profile_block = (
+        f"\n候选人投递档案（本人真实填写，优先采用）：\n{req.profile.strip()[:1000]}\n"
+        if (req.profile or "").strip()
+        else ""
+    )
+    prompt = (
+        "你是求职辅导助手。根据候选人简历与目标岗位 JD 生成一份投递材料包。"
+        "硬性要求：只使用简历与档案中真实存在的信息，禁止编造任何经历、技能、数字或公司。\n"
+        "内容为三部分：greeting（BOSS 直聘风格招呼语，不超过 100 字，突出与岗位最相关的"
+        "亮点，语气自然不卑不亢）；cover_letter（求职信 300~500 字：开头点明应聘意向，"
+        "中段用简历中的真实事实论证与岗位的匹配度，结尾表达期待面试）；"
+        "intro_points（自我介绍要点 3~6 条，每条不超过 40 字的短语）。"
+        f"{profile_block}\n目标岗位：{job.title}（{job.company or '公司未知'}，{job.city or '城市未知'}）\n"
+        f"岗位 JD：\n{(job.jd_text or '')[:3000]}\n\n候选人简历：\n{resume_text[:3000]}"
+    )
+    try:
+        kit = await call_llm_for_json(prompt, ApplyKit, temperature=0.5, llm_config=req.llm_config)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"投递材料包生成失败: {e}")
+        raise HTTPException(status_code=502, detail="AI 生成失败，请检查模型配置后重试")
+
+    return {
+        "greeting": kit.greeting.strip()[:200],
+        "cover_letter": kit.cover_letter.strip()[:2500],
+        "intro_points": [p.strip()[:80] for p in kit.intro_points if p.strip()][:6],
+    }

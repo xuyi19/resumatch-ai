@@ -232,6 +232,115 @@
       </Transition>
     </Teleport>
 
+    <!-- M56 投递弹层：平台深链 + AI 材料包 + 标记已投递 -->
+    <Teleport to="body">
+      <div v-if="applyJob" @click.self="closeApply"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40">
+        <div class="bg-panel border border-line rounded-2xl w-full max-w-xl max-h-[88vh] overflow-y-auto
+          p-5 md:p-6 shadow-lg">
+          <div class="flex items-start justify-between gap-3 mb-4">
+            <div class="min-w-0">
+              <div class="text-sm font-semibold truncate">🚀 投递「{{ applyJob.title }}」</div>
+              <div class="text-xs text-ink-faint mt-0.5 truncate">
+                {{ applyJob.company || '公司待定' }}<span v-if="applyJob.city"> · {{ applyJob.city }}</span>
+              </div>
+            </div>
+            <button @click="closeApply" class="text-lg leading-none text-ink-sub hover:text-ink shrink-0">×</button>
+          </div>
+
+          <!-- 平台深链 -->
+          <div class="text-xs font-semibold mb-2">直达平台搜索页</div>
+          <div v-if="linksLoading" class="text-xs text-ink-faint mb-4">生成深链中…</div>
+          <template v-else>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-1.5">
+              <a v-for="(url, key) in applyLinks" :key="key" :href="url" target="_blank" rel="noopener"
+                class="px-3 py-2 text-xs font-medium rounded-lg border border-line text-center text-ink-sub
+                  hover:border-accent hover:text-accent transition-colors">
+                {{ PLATFORM_LABELS[key] || key }}
+              </a>
+            </div>
+            <p class="text-[11px] text-ink-faint mb-4">
+              新窗口打开对应平台的搜索结果，找到岗位后由你手动提交——知岗不代你操作、不接触平台账号。
+            </p>
+          </template>
+
+          <!-- AI 投递材料包 -->
+          <div class="border-t border-line pt-4">
+            <div class="flex items-center gap-2 flex-wrap mb-2.5">
+              <span class="text-xs font-semibold shrink-0">AI 材料包</span>
+              <select v-model="applyResumeId"
+                class="px-2.5 py-1.5 text-xs bg-inset rounded-lg border border-line
+                  focus:outline-none focus:border-accent transition-colors min-w-0 max-w-[200px]">
+                <option value="">选择简历…</option>
+                <option v-for="r in resumes" :key="r.id" :value="r.id">{{ r.filename }}</option>
+              </select>
+              <button @click="genKit" :disabled="kitLoading || !applyResumeId"
+                class="px-3.5 py-1.5 text-xs font-medium rounded-lg bg-accent text-white
+                  hover:bg-accent-hover active:scale-[0.98] transition-all disabled:opacity-40">
+                {{ kitLoading ? 'AI 生成中…' : (kit.greeting || kit.cover_letter ? '重新生成' : '生成材料包') }}
+              </button>
+            </div>
+
+            <details class="mb-3">
+              <summary class="text-[11px] text-ink-faint cursor-pointer hover:text-ink-sub select-none">
+                投递档案（可选）：期望薪资 / 到岗时间等，AI 只引用不编造
+              </summary>
+              <textarea v-model="applyProfile" rows="2" maxlength="1000"
+                placeholder="例如：期望 25-35K，可 2 周内到岗，接受必要出差……"
+                class="w-full mt-1.5 px-3 py-2 text-xs bg-inset rounded-lg border border-line resize-y
+                  focus:outline-none focus:border-accent placeholder:text-ink-faint transition-colors"></textarea>
+            </details>
+
+            <div v-if="kitLoading" class="text-xs text-ink-faint">
+              正在按简历与 JD 生成招呼语 / 自我介绍要点 / 求职信…
+            </div>
+            <template v-else-if="kit.greeting || kit.cover_letter || kit.intro_points.length">
+              <div class="mb-3">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-xs font-medium text-ink-sub">招呼语（BOSS 风格）</span>
+                  <button @click="copyText(kit.greeting, '招呼语已复制')"
+                    class="text-xs text-accent hover:underline shrink-0">📋 复制</button>
+                </div>
+                <p class="text-xs text-ink-sub bg-inset rounded-lg px-3 py-2.5 leading-relaxed whitespace-pre-wrap">
+                  {{ kit.greeting }}</p>
+              </div>
+              <div v-if="kit.intro_points.length" class="mb-3">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-xs font-medium text-ink-sub">自我介绍要点</span>
+                  <button @click="copyText(kit.intro_points.join('\n'), '要点已复制')"
+                    class="text-xs text-accent hover:underline shrink-0">📋 复制</button>
+                </div>
+                <ul class="text-xs text-ink-sub bg-inset rounded-lg px-3 py-2.5 leading-relaxed list-disc pl-6">
+                  <li v-for="(p, i) in kit.intro_points" :key="i">{{ p }}</li>
+                </ul>
+              </div>
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-xs font-medium text-ink-sub">求职信</span>
+                  <button @click="copyText(kit.cover_letter, '求职信已复制')"
+                    class="text-xs text-accent hover:underline shrink-0">📋 复制</button>
+                </div>
+                <p class="text-xs text-ink-sub bg-inset rounded-lg px-3 py-2.5 leading-relaxed whitespace-pre-wrap">
+                  {{ kit.cover_letter }}</p>
+              </div>
+            </template>
+            <p v-else class="text-[11px] text-ink-faint">
+              选一份简历后点「生成材料包」，AI 按简历与 JD 生成招呼语、自我介绍要点和求职信，逐段一键复制。
+            </p>
+          </div>
+
+          <!-- 底部操作 -->
+          <div class="flex items-center justify-between gap-3 mt-5 pt-4 border-t border-line">
+            <button @click="closeApply" class="px-4 py-2 text-xs text-ink-sub hover:text-ink transition-colors">关闭</button>
+            <button v-if="(applyJob.status || 'wish') !== 'applied'" @click="markApplied"
+              class="px-4 py-2 text-xs font-medium rounded-lg border border-accent/50 text-accent
+                hover:bg-accent/10 transition-colors">📨 投出了，标记「已投递」</button>
+            <span v-else class="text-xs text-ok">✓ 已标记「已投递」</span>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- 降级提示 -->
     <div v-if="matchDegraded" class="mb-5 px-4 py-3 rounded-xl text-xs
       bg-warn/10 border border-warn/40 text-warn">
@@ -345,6 +454,8 @@
           <div class="mt-auto flex items-center gap-2.5 pt-3 border-t border-line/60">
             <button @click="diagnoseWith(j)" class="text-xs text-accent hover:underline shrink-0">🩺 诊断</button>
             <button @click="interviewWith(j)" class="text-xs text-accent hover:underline shrink-0">🎤 面试</button>
+            <button @click="openApply(j)" title="平台深链直达 + AI 投递材料包"
+              class="text-xs text-accent hover:underline shrink-0">🚀 投递</button>
             <span class="flex-1" />
             <button v-if="!selMode" @click="openEdit(j)" title="编辑岗位"
               class="text-xs text-ink-sub hover:text-accent transition-colors shrink-0">✏️</button>
@@ -418,6 +529,78 @@ async function batchSetStatus(status) {
   } catch (e) {
     Message.error(e.response?.data?.detail || '批量更新失败')
   }
+}
+
+/* ---- M56 投递直达：平台深链 + AI 材料包 ---- */
+const PLATFORM_LABELS = { boss: 'BOSS 直聘', zhilian: '智联招聘', liepin: '猎聘', nowcoder: '牛客' }
+const APPLY_PROFILE_KEY = 'apply_profile'
+
+const applyJob = ref(null)
+const applyLinks = ref({})
+const linksLoading = ref(false)
+const applyResumeId = ref('')
+const applyProfile = ref('')
+const kitLoading = ref(false)
+const kit = reactive({ greeting: '', cover_letter: '', intro_points: [] })
+
+async function openApply(j) {
+  applyJob.value = j
+  applyLinks.value = {}
+  kit.greeting = ''
+  kit.cover_letter = ''
+  kit.intro_points = []
+  applyResumeId.value = selectedResumeId.value || ''
+  try { applyProfile.value = localStorage.getItem(APPLY_PROFILE_KEY) || '' } catch { /* 损坏值兜底 */ }
+  linksLoading.value = true
+  try {
+    const res = await api.getApplyLinks(j.id)
+    applyLinks.value = res.data.links || {}
+  } catch (e) {
+    Message.error(e.response?.data?.detail || '深链生成失败')
+  } finally {
+    linksLoading.value = false
+  }
+}
+
+function closeApply() {
+  applyJob.value = null
+}
+
+async function genKit() {
+  if (!applyResumeId.value) {
+    Message.warning('先选择一份简历')
+    return
+  }
+  kitLoading.value = true
+  try {
+    try { localStorage.setItem(APPLY_PROFILE_KEY, applyProfile.value.trim()) } catch { /* 忽略 */ }
+    const res = await api.jobApplyKit(applyJob.value.id, {
+      resume_id: Number(applyResumeId.value),
+      profile: applyProfile.value.trim() || null,
+      llm_config: null,
+    })
+    kit.greeting = res.data.greeting || ''
+    kit.cover_letter = res.data.cover_letter || ''
+    kit.intro_points = res.data.intro_points || []
+  } catch (e) {
+    Message.error(e.response?.data?.detail || 'AI 生成失败')
+  } finally {
+    kitLoading.value = false
+  }
+}
+
+async function copyText(text, tip) {
+  try {
+    await navigator.clipboard.writeText(text)
+    Message.success(tip || '已复制到剪贴板')
+  } catch {
+    Message.error('复制失败，请手动选择文本复制')
+  }
+}
+
+async function markApplied() {
+  await setStatus(applyJob.value, 'applied')
+  closeApply()
 }
 
 /* ---- 搜索与筛选（本地过滤，匹配分排序作用于筛选后的子集） ---- */
@@ -842,7 +1025,9 @@ function interviewWith(j) {
 }
 
 function onEscKey(e) {
-  if (e.key === 'Escape' && formOpen.value) closeForm()
+  if (e.key !== 'Escape') return
+  if (applyJob.value) closeApply()
+  else if (formOpen.value) closeForm()
 }
 
 onMounted(() => {
