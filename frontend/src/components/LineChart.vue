@@ -4,7 +4,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue'
-import * as echarts from 'echarts'
+import echarts from '../charts/echarts'
 
 /**
  * 折线趋势图（M38 工作台，复用 RadarChart 的主题取色方式）

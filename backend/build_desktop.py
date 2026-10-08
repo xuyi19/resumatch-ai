@@ -22,10 +22,16 @@ RELEASE = ROOT / "release"
 APP_NAME = "知岗 ResuMatch-AI 桌面版"
 
 # 桌面版必须排除的重依赖（匹配链路已移除，模型/爬虫不再需要）
+# asyncmy: MySQL 异步驱动；应用只用 sqlite+aiosqlite（app/core/config.py），仅
+#   sqlalchemy.dialects.mysql.asyncmy.import_dbapi 里 __import__("asyncmy") 惰性引用
+# cryptography: 环境中无任何包声明依赖（pip Required-by 为空），仅 asyncmy 认证、
+#   pywebview SSL 证书生成（__generate_ssl_cert，try/except ImportError 保护，应用未用
+#   ssl 参数）、requests/urllib3 的 pyopenssl 可选链引用——三条链均不会在运行时触发
 EXCLUDES = [
     "sentence_transformers", "torch", "transformers", "huggingface_hub",
     "tokenizers", "safetensors", "accelerate", "datasets", "numpy",
     "playwright", "pyppeteer", "selenium", "chromedriver",
+    "asyncmy", "cryptography",
 ]
 
 # 纯字符串动态导入，PyInstaller 静态分析看不到，必须显式声明

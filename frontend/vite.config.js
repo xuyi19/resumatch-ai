@@ -5,6 +5,18 @@ export default defineConfig({
   plugins: [vue()],
   // 桌面版与后端同域挂载，用相对 base + hash 路由，无需 SPA 回退
   base: './',
+  build: {
+    rolldownOptions: {
+      output: {
+        // arco 全量引入（~0.9MB）默认被打进 index 主包，拆成独立 chunk 改善缓存与首屏并行加载
+        codeSplitting: {
+          groups: [
+            { name: 'arco', test: /[\\/]node_modules[\\/]@arco-design[\\/]/ },
+          ],
+        },
+      },
+    },
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,

@@ -4,7 +4,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue'
-import * as echarts from 'echarts'
+import echarts from '../charts/echarts'
 
 /**
  * 雷达图（M20 抽取复用：结果页单系列 / 历史对比双系列；M34 支持自定义维度与量程）
