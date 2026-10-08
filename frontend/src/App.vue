@@ -228,7 +228,7 @@
           </ol>
 
           <div class="flex gap-3">
-            <button @click="dismissGuide"
+            <button @click="guide.dismissGuide()"
               class="px-4 py-2.5 rounded-lg text-sm text-ink-sub border border-line
                 hover:bg-inset transition-colors">
               稍后再说
