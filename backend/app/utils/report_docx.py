@@ -306,3 +306,66 @@ def generate_apply_docx(payload: dict) -> bytes:
     buf = io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
+
+
+# 周报指标 key → 展示名（顺序即表格行序；六指标 + 活跃天数）
+_WEEKLY_ROWS = [
+    ("applications", "投递次数"),
+    ("interviews", "模拟面试"),
+    ("quizzes", "刷题练习"),
+    ("diagnoses", "简历诊断"),
+    ("jobs_added", "新增岗位"),
+    ("offers", "Offer 记录"),
+    ("active_days", "活跃天数"),
+]
+
+
+def generate_weekly_docx(week_start: str, week_end: str, highlights: list, metrics: dict) -> bytes:
+    """把周报聚合结果渲染为 docx 字节流（M63，零 LLM 确定性模板）。
+
+    week_start/week_end: "MM-DD"；highlights: 模板文案列表；
+    metrics: 各指标 {value, prev, delta}（六指标 + active_days）。
+    """
+    doc = Document()
+    _style(doc)
+
+    _para(doc, f"知岗 · 求职周报（{week_start} ~ {week_end}）", bold=True, size=20,
+          align=WD_ALIGN_PARAGRAPH.CENTER, space_after=2)
+    _para(doc, f"生成于 {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+          color=_SUB, size=9, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=14)
+
+    # ---- 一、本周亮点 ----
+    doc.add_heading("一、本周亮点", level=1)
+    for line in highlights or []:
+        _para(doc, f"• {line}", space_after=4)
+
+    # ---- 二、数据明细（本周 / 上周 / 变化 三列） ----
+    doc.add_heading("二、数据明细", level=1)
+    table = doc.add_table(rows=1, cols=4)
+    table.style = "Table Grid"
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    headers = ["指标", "本周", "上周", "变化"]
+    for i, h in enumerate(headers):
+        cell = table.rows[0].cells[i]
+        run = cell.paragraphs[0].add_run(h)
+        run.bold = True
+        run.font.color.rgb = _INK
+        _set_cell_shading(cell, "EEF0FF")
+    for key, name in _WEEKLY_ROWS:
+        item = (metrics or {}).get(key) or {}
+        value = item.get("value", 0)
+        prev = item.get("prev", 0)
+        delta = item.get("delta", value - prev)
+        row = table.add_row()
+        row.cells[0].paragraphs[0].add_run(name)
+        row.cells[1].paragraphs[0].add_run(str(value))
+        row.cells[2].paragraphs[0].add_run(str(prev))
+        row.cells[3].paragraphs[0].add_run("持平" if delta == 0 else f"{delta:+d}")
+    doc.add_paragraph()
+
+    _para(doc, "数据来自本机，知岗与你一起冲刺 Offer",
+          color=_SUB, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=0)
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()

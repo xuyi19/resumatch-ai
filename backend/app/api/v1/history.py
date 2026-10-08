@@ -1,8 +1,8 @@
 from urllib.parse import quote
 
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import desc, func, select
@@ -11,9 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.deps import get_owner_id
-from app.models.entities import Conversation, DiagnosisRecord, Resume, SavedJob
+from app.models.entities import Conversation, DiagnosisRecord, Offer, Resume, SavedJob
 from app.utils.export_paths import resolve_save_path
-from app.utils.report_docx import generate_report_docx
+from app.utils.report_docx import generate_report_docx, generate_weekly_docx
 
 router = APIRouter(prefix="/history", tags=["history"])
 
@@ -160,6 +160,215 @@ async def history_stats(
         ][-10:],
         "ongoing_interviews": ongoing_ivs,
     }
+
+
+# ---------- M63 求职周报（零 LLM：确定性聚合 + 模板文案） ----------
+
+# 六个 count 指标（active_days 单独返回，不在此列）
+_WEEKLY_METRICS = ("applications", "jobs_added", "interviews", "quizzes", "diagnoses", "offers")
+
+# 亮点模板：按优先级取有内容的最多 4 条（有内容 = 本周值 > 0）
+_HIGHLIGHT_TPL = (
+    ("applications", "📮 本周投递 {value} 次"),
+    ("interviews", "🎤 完成 {value} 场模拟面试"),
+    ("quizzes", "🧠 刷题 {value} 场"),
+    ("diagnoses", "📄 诊断 {value} 次"),
+    ("active_days", "🗓 活跃 {value} 天"),
+    ("offers", "🎉 新增 {value} 个 Offer 记录"),
+)
+
+_WEEKLY_FALLBACK = "本周还没有记录，从投出一份简历开始吧"
+
+
+def _triplet(value: int, prev: int) -> dict:
+    """单指标环比三元组：本周 / 上周 / 变化（加减差值，不用百分比避免除零）。"""
+    return {"value": value, "prev": prev, "delta": value - prev}
+
+
+def _weekly_highlights(metrics: dict, active_days: dict) -> list[str]:
+    pool = {**metrics, "active_days": active_days}
+    lines: list[str] = []
+    for key, tpl in _HIGHLIGHT_TPL:
+        item = pool[key]
+        if item["value"] <= 0:
+            continue
+        line = tpl.format(value=item["value"])
+        if item["prev"] > 0:
+            # prev=0 时不写环比（上周 0 无对比基准），非 0 带符号；0 差值写持平
+            line += "（与上周持平）" if item["delta"] == 0 else f"（环比 {item['delta']:+d}）"
+        lines.append(line)
+        if len(lines) == 4:
+            break
+    return lines or [_WEEKLY_FALLBACK]
+
+
+async def _week_counts(db: AsyncSession, owner_id: str, start: datetime, end: datetime) -> dict:
+    """单周窗口聚合：六源计数 + 活跃日期并集（数据源与热力图同构 + 刷题 / Offer）。"""
+    applications = await db.scalar(
+        select(func.count(SavedJob.id)).where(
+            SavedJob.owner_id == owner_id,
+            SavedJob.apply_at.is_not(None),
+            SavedJob.apply_at >= start,
+            SavedJob.apply_at < end,
+        )) or 0
+    jobs_added = await db.scalar(
+        select(func.count(SavedJob.id)).where(
+            SavedJob.owner_id == owner_id,
+            SavedJob.created_at >= start,
+            SavedJob.created_at < end,
+        )) or 0
+    interviews = await db.scalar(
+        select(func.count(Conversation.id)).where(
+            Conversation.owner_id == owner_id,
+            Conversation.type == "interview",
+            Conversation.created_at >= start,
+            Conversation.created_at < end,
+        )) or 0
+    quizzes = await db.scalar(
+        select(func.count(Conversation.id)).where(
+            Conversation.owner_id == owner_id,
+            Conversation.type == "quiz",
+            Conversation.created_at >= start,
+            Conversation.created_at < end,
+        )) or 0
+    diagnoses = await db.scalar(
+        select(func.count(DiagnosisRecord.id)).where(
+            DiagnosisRecord.owner_id == owner_id,
+            DiagnosisRecord.created_at >= start,
+            DiagnosisRecord.created_at < end,
+        )) or 0
+    offers = await db.scalar(
+        select(func.count(Offer.id)).where(
+            Offer.owner_id == owner_id,
+            Offer.created_at >= start,
+            Offer.created_at < end,
+        )) or 0
+
+    # 活跃天数：六源日期并集去重（0~7）
+    day_queries = (
+        select(func.date(SavedJob.apply_at)).where(
+            SavedJob.owner_id == owner_id,
+            SavedJob.apply_at.is_not(None),
+            SavedJob.apply_at >= start, SavedJob.apply_at < end),
+        select(func.date(SavedJob.created_at)).where(
+            SavedJob.owner_id == owner_id,
+            SavedJob.created_at >= start, SavedJob.created_at < end),
+        select(func.date(Conversation.created_at)).where(
+            Conversation.owner_id == owner_id,
+            Conversation.type.in_(("interview", "quiz")),
+            Conversation.created_at >= start, Conversation.created_at < end),
+        select(func.date(DiagnosisRecord.created_at)).where(
+            DiagnosisRecord.owner_id == owner_id,
+            DiagnosisRecord.created_at >= start, DiagnosisRecord.created_at < end),
+        select(func.date(Offer.created_at)).where(
+            Offer.owner_id == owner_id,
+            Offer.created_at >= start, Offer.created_at < end),
+    )
+    days: set = set()
+    for q in day_queries:
+        days |= {d for d in (await db.execute(q)).scalars().all() if d}
+
+    return {
+        "applications": applications,
+        "jobs_added": jobs_added,
+        "interviews": interviews,
+        "quizzes": quizzes,
+        "diagnoses": diagnoses,
+        "offers": offers,
+        "active_days": len(days),
+    }
+
+
+async def _weekly_aggregate(db: AsyncSession, owner_id: str, week_offset: int) -> dict:
+    """周报聚合（weekly-report 与 weekly-export 共用）。
+
+    周窗口：本地时区今天往前推 week_offset 周的那一周，周一 00:00 至下周一 00:00
+    （左闭右开）；对比上周同口径算环比。
+    """
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday(), weeks=week_offset)
+    start = datetime.combine(week_start, time.min)
+    end = start + timedelta(days=7)
+    cur = await _week_counts(db, owner_id, start, end)
+    prev = await _week_counts(db, owner_id, start - timedelta(days=7), end - timedelta(days=7))
+    metrics = {k: _triplet(cur[k], prev[k]) for k in _WEEKLY_METRICS}
+    active_days = _triplet(cur["active_days"], prev["active_days"])
+    return {
+        "week_start": week_start.strftime("%m-%d"),
+        "week_end": (week_start + timedelta(days=6)).strftime("%m-%d"),
+        "metrics": metrics,
+        "active_days": active_days,
+        "highlights": _weekly_highlights(metrics, active_days),
+    }
+
+
+@router.get("/weekly-report")
+async def weekly_report(
+    week_offset: int = Query(0, ge=0, le=8),
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """M63 求职周报：本周（week_offset 0）或往前最多 8 周的六源聚合 + 环比 + 模板亮点。
+
+    必须注册在 GET /{task_id} 之前（同 /stats，否则 "weekly-report" 被当 task_id 匹配）。
+    """
+    return await _weekly_aggregate(db, owner_id, week_offset)
+
+
+class WeeklyExportRequest(BaseModel):
+    week_offset: int = 0
+    # 桌面形态专用：非空即触发服务端直写（M71 分类落盘「周报」子目录，路径值不使用）；
+    # 为空走浏览器 blob 下载
+    save_path: str | None = None
+
+
+@router.post("/weekly-export")
+async def weekly_export(
+    req: WeeklyExportRequest,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """M63 周报导出 Word：亮点 + 六指标（本周/上周/变化）表格，零 LLM 确定性模板。
+
+    save_path 为空：浏览器 blob 下载；非空（仅桌面形态）：统一落盘到设置的导出根
+    目录「周报」子目录。两种方式均落 export_history（template=weekly）。
+    """
+    report = await _weekly_aggregate(db, owner_id, req.week_offset)
+    try:
+        data = generate_weekly_docx(
+            report["week_start"], report["week_end"],
+            report["highlights"],
+            {**report["metrics"], "active_days": report["active_days"]},
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"生成失败: {e}")
+
+    filename = f"求职周报_{report['week_start']}_{report['week_end']}.docx"
+
+    # 复用简历导出的历史记录（同为 .docx 产物）
+    from app.api.v1.resume import _record_export
+
+    if req.save_path:
+        # 桌面形态（M71）：save_path 仅作直写标志，按「导出位置」设置分类落盘
+        if settings.APP_MODE == "web":
+            raise HTTPException(status_code=403, detail="网页形态不支持服务端落盘")
+        target = await resolve_save_path("weekly", filename, db, owner_id)
+        try:
+            target.write_bytes(data)
+        except OSError as e:
+            raise HTTPException(status_code=500, detail=f"写入文件失败: {e}")
+        await _record_export(db, owner_id, target.name, str(target), "weekly")
+        return {"saved_to": str(target), "save_path": str(target), "filename": target.name}
+
+    await _record_export(db, owner_id, filename, None, "weekly")
+    quoted = quote(filename)
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quoted}",
+        },
+    )
 
 
 @router.get("")

@@ -32,6 +32,7 @@ _CLASS_DIRS = {
     "interview": "面试报告",
     "diagnosis": "诊断报告",
     "report": "诊断报告",
+    "weekly": "周报",  # M63 求职周报
     "backup": "数据备份",
 }
 

@@ -51,6 +51,14 @@ export default {
   exportReportToPath: (taskId, savePath) =>
     api.post(`/history/${taskId}/export-report`, { save_path: savePath }),
 
+  // M63 求职周报：每周确定性聚合（零 LLM）+ Word 导出（blob；桌面态用 exportWeeklyReportToPath）
+  getWeeklyReport: (weekOffset = 0) =>
+    api.get('/history/weekly-report', { params: { week_offset: weekOffset } }),
+  exportWeeklyReport: (data) => api.post('/history/weekly-export', data, {
+    responseType: 'blob',
+  }),
+  exportWeeklyReportToPath: (data) => api.post('/history/weekly-export', data),
+
   // 一键优化（基于诊断结果生成优化简历，可携带追问回答）
   quickOptimize: (taskId, llmConfig, answers = {}) =>
     api.post(`/optimize/${taskId}`, { answers, llm_config: llmConfig || null }),

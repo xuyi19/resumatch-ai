@@ -224,6 +224,50 @@
         <HeatmapChart :days="stats.activity_heatmap || []" />
       </div>
 
+      <!-- M63 求职周报（接口失败整卡隐藏；接口成功即使全零也显示兜底文案） -->
+      <div v-if="weekly" class="bg-panel border border-line rounded-2xl p-5 mb-8">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-sm font-semibold text-ink">📋 求职周报</h2>
+          <div class="flex items-center gap-2">
+            <button @click="shiftWeek(1)" :disabled="weekOffset >= 8"
+              class="text-xs px-2 py-1 rounded-lg border border-line text-ink-sub
+                hover:border-accent/60 transition-colors
+                disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-line">
+              ‹ {{ weekOffset === 0 ? '上周' : '更早' }}
+            </button>
+            <span class="text-xs text-ink-faint">{{ weekly.week_start }} ~ {{ weekly.week_end }}</span>
+            <button @click="shiftWeek(-1)" :disabled="weekOffset <= 0"
+              class="text-xs px-2 py-1 rounded-lg border border-line text-ink-sub
+                hover:border-accent/60 transition-colors
+                disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-line">
+              ›
+            </button>
+          </div>
+        </div>
+        <!-- 六指标 + 活跃天数：手机 3 列 / sm 6 列 -->
+        <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-4">
+          <div v-for="cell in weeklyCells" :key="cell.key"
+            class="bg-inset/50 rounded-xl px-2 py-2.5 text-center">
+            <div class="text-xs text-ink-faint">{{ cell.icon }} {{ cell.label }}</div>
+            <div class="text-2xl font-semibold font-mono text-ink mt-0.5">{{ cell.value }}</div>
+            <div class="text-[11px] mt-0.5" :class="deltaCls(cell)">{{ deltaText(cell) }}</div>
+          </div>
+        </div>
+        <ul class="mt-4 space-y-1.5">
+          <li v-for="(h, i) in weekly.highlights || []" :key="i" class="text-sm text-ink-sub">{{ h }}</li>
+        </ul>
+        <div class="flex flex-wrap items-center gap-4 mt-4">
+          <button @click="copyWeekly" class="text-xs font-medium text-accent hover:underline transition-colors">
+            📋 一键复制
+          </button>
+          <button @click="exportWeekly" :disabled="exportingWeekly"
+            class="text-xs font-medium text-accent hover:underline transition-colors disabled:opacity-50">
+            📄 导出 Word
+          </button>
+          <span class="text-xs text-ink-faint">投递 / 面试 / 刷题 / 诊断 / Offer 自动汇总</span>
+        </div>
+      </div>
+
       <!-- 最近记录双列 -->
       <div class="grid md:grid-cols-2 gap-5">
         <!-- 最近诊断 -->
@@ -294,7 +338,9 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { Message } from '@arco-design/web-vue'
 import api from '../api'
+import { useAppMode } from '../composables/useAppMode'
 import LoadingBlock from '../components/LoadingBlock.vue'
 import LineChart from '../components/LineChart.vue'
 import HeatmapChart from '../components/HeatmapChart.vue'
@@ -302,6 +348,8 @@ import OnboardingGuide from '../components/OnboardingGuide.vue'
 
 const route = useRoute()
 const router = useRouter()
+// M63 周报导出需要区分桌面态（服务端直写）与网页态（blob 下载）
+const { isDesktop } = useAppMode()
 
 const loading = ref(true)
 const loadError = ref(false)
@@ -419,6 +467,113 @@ function interviewDue(item) {
   return { text: `还有 ${item.days_left} 天`, cls: 'text-ink-faint' }
 }
 
+/* ---- M63 求职周报 ---- */
+// 周报聚合数据：null = 未加载 / 接口失败（整卡隐藏）；接口成功即使全零也显示
+const weekly = ref(null)
+const weekOffset = ref(0)  // 0 = 本周，1 = 上周…最多 8
+const weeklyLoading = ref(false)
+const exportingWeekly = ref(false)
+
+const WEEKLY_CELLS = [
+  { key: 'applications', icon: '📮', label: '投递' },
+  { key: 'interviews', icon: '🎤', label: '面试' },
+  { key: 'quizzes', icon: '🧠', label: '刷题' },
+  { key: 'diagnoses', icon: '📄', label: '诊断' },
+  { key: 'jobs_added', icon: '⭐', label: '入库' },
+  { key: 'offers', icon: '🎉', label: 'Offer' },
+]
+
+const weeklyCells = computed(() => {
+  if (!weekly.value) return []
+  const m = weekly.value.metrics || {}
+  const cells = WEEKLY_CELLS.map((c) => ({ ...c, ...(m[c.key] || {}) }))
+  cells.push({ key: 'active_days', icon: '🗓', label: '活跃天', ...(weekly.value.active_days || {}) })
+  return cells
+})
+
+// 环变小字：prev=0 且本周有值 → 「新增」；+3 绿 / -2 红 / 0 灰「持平」
+function deltaText(c) {
+  if (!c.prev && c.value > 0) return '新增'
+  if (c.delta === 0) return '持平'
+  return c.delta > 0 ? `+${c.delta}` : `${c.delta}`
+}
+function deltaCls(c) {
+  if (c.delta > 0) return 'text-ok'
+  if (c.delta < 0) return 'text-warn'
+  return 'text-ink-faint'
+}
+
+async function loadWeekly() {
+  weeklyLoading.value = true
+  try {
+    const res = await api.getWeeklyReport(weekOffset.value)
+    weekly.value = res.data
+  } catch (e) {
+    console.warn('[dashboard] 周报加载失败', e)
+    weekly.value = null
+  } finally {
+    weeklyLoading.value = false
+  }
+}
+
+async function shiftWeek(d) {
+  const next = weekOffset.value + d
+  if (next < 0 || next > 8) return
+  weekOffset.value = next
+  await loadWeekly()
+}
+
+// 一键复制纯文本：标题行 + 亮点 + 指标表
+const weeklyText = computed(() => {
+  if (!weekly.value) return ''
+  const lines = [
+    `知岗 · 求职周报（${weekly.value.week_start} ~ ${weekly.value.week_end}）`,
+    ...(weekly.value.highlights || []),
+    '',
+  ]
+  for (const c of weeklyCells.value) {
+    lines.push(`${c.icon} ${c.label}\t本周 ${c.value}\t上周 ${c.prev}\t${deltaText(c)}`)
+  }
+  return lines.join('\n')
+})
+
+async function copyWeekly() {
+  try {
+    await navigator.clipboard.writeText(weeklyText.value)
+    Message.success('周报已复制到剪贴板')
+  } catch {
+    Message.error('复制失败，请手动选择文本复制')
+  }
+}
+
+async function exportWeekly() {
+  exportingWeekly.value = true
+  try {
+    // 桌面形态（M71）：统一保存到「导出位置」设置的目录「周报」子目录
+    if (isDesktop.value) {
+      const res = await api.exportWeeklyReportToPath({
+        week_offset: weekOffset.value, save_path: 'auto',
+      })
+      Message.success(`周报已保存到：${res.data?.saved_to || res.data?.save_path || ''}`)
+      return
+    }
+    const res = await api.exportWeeklyReport({ week_offset: weekOffset.value })
+    const url = URL.createObjectURL(new Blob([res.data], {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `求职周报_${weekly.value.week_start}_${weekly.value.week_end}.docx`
+    a.click()
+    URL.revokeObjectURL(url)
+    Message.success('周报已导出（见浏览器下载目录）')
+  } catch (e) {
+    Message.error(e.response?.data?.detail || '导出失败')
+  } finally {
+    exportingWeekly.value = false
+  }
+}
+
 async function loadAll() {
   loading.value = true
   loadError.value = false
@@ -443,6 +598,7 @@ async function loadAll() {
 }
 onMounted(() => {
   loadAll()
+  loadWeekly()  // M63 周报独立加载：失败只隐藏周报卡，不阻断总览
   // M55 首次启动引导：无标记自动弹；?onboarding=1 强制重看（用后即清，防刷新重触发）
   let done = true
   try {
