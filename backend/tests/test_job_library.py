@@ -628,6 +628,81 @@ async def test_apply_kit_validations(client):
     assert resp.status_code == 404
 
 
+async def test_apply_kit_with_star_ids(client, monkeypatch):
+    """M65 素材卡引用：带 star_ids 时 prompt 注入素材块；全无效 404；不传行为不变。"""
+    import app.api.v1.jobs as jobs_mod
+
+    captured = {}
+
+    async def _fake_kit(prompt, schema, **kw):
+        captured["prompt"] = prompt
+        return jobs_mod.ApplyKit(
+            greeting="您好，看到贵司 Python 后端岗位与我的经验契合，期待沟通。",
+            cover_letter="尊敬的面试官：" + "我有高并发订单系统优化经验。" * 30,
+            intro_points=["高并发系统优化实战"],
+        )
+
+    monkeypatch.setattr(jobs_mod, "call_llm_for_json", _fake_kit)
+    hd = _sid()
+    card = (await client.post("/api/v1/star/cards", json={
+        "title": "高并发订单系统优化", "role": "后端负责人", "tags": "Python,FastAPI",
+        "situation": "订单峰值流量激增，核心接口 P99 超过 800ms。",
+        "task": "把 P99 降到 200ms 以内。",
+        "action": "引入本地缓存与读写分离，治理慢 SQL。",
+        "result": "P99 从 800ms 降至 120ms，故障率下降 90%。",
+    }, headers=hd)).json()
+    jid = (await _add(client, hd, [{"title": "Python 后端工程师", "company": "A 科技",
+                                    "jd": "要求熟悉 Python、FastAPI，有高并发系统经验。"}])).json()["items"][0]["id"]
+
+    # ① 带 star_ids：prompt 注入素材块（标题 + 角色/STAR 各段原文），禁编造红线仍在
+    resp = await client.post(
+        f"/api/v1/jobs/library/{jid}/apply-kit",
+        json={"resume_text": RESUME_TEXT, "star_ids": [card["id"]]}, headers=hd,
+    )
+    assert resp.status_code == 200
+    p = captured["prompt"]
+    assert "我的项目素材" in p and "不得扩写编造" in p
+    assert "【高并发订单系统优化】" in p
+    assert "角色：后端负责人" in p
+    assert "情境：订单峰值流量激增" in p and "结果：P99 从 800ms 降至 120ms" in p
+    assert "禁止编造" in p
+
+    # ② star_ids 全无效 → 404；部分无效按命中的卡生成；他人素材卡同样 404（owner 隔离）
+    resp = await client.post(
+        f"/api/v1/jobs/library/{jid}/apply-kit",
+        json={"resume_text": RESUME_TEXT, "star_ids": [999999]}, headers=hd,
+    )
+    assert resp.status_code == 404
+    resp = await client.post(
+        f"/api/v1/jobs/library/{jid}/apply-kit",
+        json={"resume_text": RESUME_TEXT, "star_ids": [card["id"], 999999]}, headers=hd,
+    )
+    assert resp.status_code == 200
+    other = (await client.post(
+        "/api/v1/star/cards", json={"title": "他人素材卡"}, headers=_sid()
+    )).json()
+    resp = await client.post(
+        f"/api/v1/jobs/library/{jid}/apply-kit",
+        json={"resume_text": RESUME_TEXT, "star_ids": [other["id"]]}, headers=hd,
+    )
+    assert resp.status_code == 404
+
+    # ③ 不传 star_ids：prompt 无素材块（回归：行为与 M56.2 一致）
+    resp = await client.post(
+        f"/api/v1/jobs/library/{jid}/apply-kit",
+        json={"resume_text": RESUME_TEXT}, headers=hd,
+    )
+    assert resp.status_code == 200
+    assert "我的项目素材" not in captured["prompt"]
+
+    # 超 5 张卡 → 422（pydantic list max_length）
+    resp = await client.post(
+        f"/api/v1/jobs/library/{jid}/apply-kit",
+        json={"resume_text": RESUME_TEXT, "star_ids": [1, 2, 3, 4, 5, 6]}, headers=hd,
+    )
+    assert resp.status_code == 422
+
+
 # ---------------------------------------------------------------- 邮箱投递通道（M56.3）
 
 

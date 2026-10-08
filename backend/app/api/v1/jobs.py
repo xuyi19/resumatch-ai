@@ -24,7 +24,7 @@ from app.api.v1.settings import get_followup_days
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.deps import get_owner_id
-from app.models.entities import Resume, SavedJob
+from app.models.entities import Resume, SavedJob, StarCard
 from app.services.job_market import (
     MAX_JD_LEN,
     JobItem,
@@ -858,11 +858,15 @@ class ApplyKit(BaseModel):
 
 
 class ApplyKitRequest(BaseModel):
-    """M56.2 投递材料包请求：resume_id/resume_text 二选一；profile 为统一投递档案（前端本地存储）。"""
+    """M56.2 投递材料包请求：resume_id/resume_text 二选一；profile 为统一投递档案（前端本地存储）。
+
+    M65 star_ids：可选引用素材卡（最多 5 张），求职信生成时作为事实依据注入 prompt。
+    """
 
     resume_id: int | None = None
     resume_text: str | None = Field(default=None, min_length=30, max_length=8000)
     profile: str | None = Field(default=None, max_length=1000)
+    star_ids: list[int] = Field(default_factory=list, max_length=5)
     llm_config: dict | None = None
 
 
@@ -882,19 +886,52 @@ async def make_apply_kit(
         raise HTTPException(status_code=404, detail="岗位不存在")
     resume_text = await _resolve_resume_text(req.resume_id, req.resume_text, db, owner_id)
 
+    # M65 素材卡引用：按 owner 过滤查卡（部分无效 id 用命中的卡，全无效 → 404），
+    # 拼成事实依据块只供 cover_letter 引用（greeting/intro_points 口径不变）
+    star_block = ""
+    if req.star_ids:
+        cards = (
+            await db.execute(
+                select(StarCard).where(
+                    StarCard.id.in_(req.star_ids), StarCard.owner_id == owner_id
+                )
+            )
+        ).scalars().all()
+        if not cards:
+            raise HTTPException(status_code=404, detail="引用的素材卡不存在")
+        lines = []
+        for c in cards:
+            segs = [
+                f"{label}：{getattr(c, field)}"
+                for field, label in (("role", "角色"), ("situation", "情境"),
+                                     ("task", "任务"), ("action", "行动"), ("result", "结果"))
+                if getattr(c, field)
+            ]
+            lines.append(f"【{c.title}】" + "；".join(segs))
+        star_block = (
+            "\n我的项目素材（事实依据，只能引用这些内容，不得扩写编造）：\n"
+            + "\n".join(lines) + "\n"
+        )
+
     profile_block = (
         f"\n候选人投递档案（本人真实填写，优先采用）：\n{req.profile.strip()[:1000]}\n"
         if (req.profile or "").strip()
         else ""
     )
+    # 素材卡仅影响求职信中段的论证素材来源（禁编造红线不变，强调按素材原文引用）
+    cover_letter_req = (
+        "cover_letter（求职信 300~500 字：开头点明应聘意向，"
+        "中段用简历中的真实事实论证与岗位的匹配度"
+        + ("，可引用「我的项目素材」中素材卡的真实项目细节" if star_block else "")
+        + "，结尾表达期待面试）；"
+    )
     prompt = (
         "你是求职辅导助手。根据候选人简历与目标岗位 JD 生成一份投递材料包。"
         "硬性要求：只使用简历与档案中真实存在的信息，禁止编造任何经历、技能、数字或公司。\n"
-        "内容为三部分：greeting（BOSS 直聘风格招呼语，不超过 100 字，突出与岗位最相关的"
-        "亮点，语气自然不卑不亢）；cover_letter（求职信 300~500 字：开头点明应聘意向，"
-        "中段用简历中的真实事实论证与岗位的匹配度，结尾表达期待面试）；"
-        "intro_points（自我介绍要点 3~6 条，每条不超过 40 字的短语）。"
-        f"{profile_block}\n目标岗位：{job.title}（{job.company or '公司未知'}，{job.city or '城市未知'}）\n"
+        f"内容为三部分：greeting（BOSS 直聘风格招呼语，不超过 100 字，突出与岗位最相关的"
+        f"亮点，语气自然不卑不亢）；{cover_letter_req}"
+        f"intro_points（自我介绍要点 3~6 条，每条不超过 40 字的短语）。"
+        f"{profile_block}{star_block}\n目标岗位：{job.title}（{job.company or '公司未知'}，{job.city or '城市未知'}）\n"
         f"岗位 JD：\n{(job.jd_text or '')[:3000]}\n\n候选人简历：\n{resume_text[:3000]}"
     )
     try:

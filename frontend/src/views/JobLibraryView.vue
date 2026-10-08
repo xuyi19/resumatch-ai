@@ -347,6 +347,30 @@
               </button>
             </div>
 
+            <!-- M65 引用素材卡（可选）：求职信生成时引用素材卡真实内容，AI 只引用不编造 -->
+            <details class="mb-3">
+              <summary class="text-[11px] text-ink-faint cursor-pointer hover:text-ink-sub select-none">
+                引用素材卡（可选）<span v-if="applyStarIds.length" class="text-accent">：已选 {{ applyStarIds.length }}/5</span>
+              </summary>
+              <div v-if="starLoading" class="mt-1.5 text-[11px] text-ink-faint">素材加载中…</div>
+              <template v-else-if="starCards.length">
+                <div class="mt-1.5 max-h-40 overflow-y-auto space-y-1">
+                  <label v-for="c in starCards" :key="c.id"
+                    class="flex items-center gap-2 px-2.5 py-1.5 text-xs bg-inset rounded-lg border border-line
+                      cursor-pointer hover:border-accent/50 transition-colors">
+                    <input type="checkbox" :value="c.id" v-model="applyStarIds"
+                      :disabled="applyStarIds.length >= 5 && !applyStarIds.includes(c.id)"
+                      class="w-4 h-4 accent-accent shrink-0" />
+                    <span class="truncate min-w-0 flex-1" :title="c.title">{{ c.title }}</span>
+                    <span v-if="c.tags" class="text-[10px] text-ink-faint truncate max-w-[120px]">{{ c.tags }}</span>
+                  </label>
+                </div>
+                <p class="text-[11px] text-ink-faint mt-1">求职信将引用所选素材卡的真实内容，AI 只引用不编造。</p>
+              </template>
+              <p v-else-if="starFailed" class="mt-1.5 text-[11px] text-warn">素材卡加载失败，可关闭弹层后重试。</p>
+              <p v-else class="mt-1.5 text-[11px] text-ink-faint">还没有素材卡，去「素材库」建立你的 STAR 档案。</p>
+            </details>
+
             <details class="mb-3">
               <summary class="text-[11px] text-ink-faint cursor-pointer hover:text-ink-sub select-none">
                 投递档案（可选）：期望薪资 / 到岗时间等，AI 只引用不编造
@@ -749,6 +773,26 @@ const applyChannel = ref('')
 const kitLoading = ref(false)
 const kit = reactive({ greeting: '', cover_letter: '', intro_points: [] })
 
+/* ---- M65 引用素材卡：求职信生成时作为事实依据（后端按 owner 过滤注入 prompt） ---- */
+const starCards = ref([])
+const starLoading = ref(false)
+const starFailed = ref(false)
+const applyStarIds = ref([])
+
+async function loadStarCards() {
+  if (starLoading.value) return
+  starLoading.value = true
+  starFailed.value = false
+  try {
+    const res = await api.listStarCards()
+    starCards.value = res.data.items || []
+  } catch {
+    starFailed.value = true
+  } finally {
+    starLoading.value = false
+  }
+}
+
 async function openApply(j) {
   applyJob.value = j
   applyLinks.value = {}
@@ -758,6 +802,8 @@ async function openApply(j) {
   kcResult.value = null
   kcError.value = ''
   applyResumeId.value = selectedResumeId.value || ''
+  applyStarIds.value = []
+  loadStarCards()  // 每次打开刷新素材卡列表（静默失败，弹层内给提示）
   // M69 岗位链接能推断渠道时自动预选（每次打开均为新会话，用户尚未手动选择，可改选）
   applyChannel.value = urlChannel(j.url)
   try { applyProfile.value = localStorage.getItem(APPLY_PROFILE_KEY) || '' } catch { /* 损坏值兜底 */ }
@@ -787,6 +833,7 @@ async function genKit() {
     const res = await api.jobApplyKit(applyJob.value.id, {
       resume_id: Number(applyResumeId.value),
       profile: applyProfile.value.trim() || null,
+      star_ids: applyStarIds.value,  // M65 引用素材卡：求职信事实依据
       llm_config: null,
     })
     kit.greeting = res.data.greeting || ''

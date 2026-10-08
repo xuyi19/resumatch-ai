@@ -227,6 +227,46 @@
               {{ currentQuestion.hint }}
             </div>
           </details>
+          <!-- M65 我的素材：只读 STAR 素材卡，答题时参考（不注入 LLM，纯给人看） -->
+          <details ref="starBoxRef" class="mb-2.5" @toggle="loadStarCards">
+            <summary class="text-xs text-ink-faint cursor-pointer hover:text-accent
+              transition-colors select-none">
+              ✨ 我的素材<span v-if="starCards.length">（{{ starCards.length }}）</span>
+            </summary>
+            <div class="mt-2 bg-inset border border-line rounded-lg p-2.5 max-h-64 overflow-y-auto space-y-2">
+              <div v-if="starLoading" class="text-xs text-ink-faint px-1">素材加载中…</div>
+              <template v-else-if="starCards.length">
+                <div v-for="c in starCards" :key="c.id" class="bg-panel border border-line rounded-md">
+                  <button type="button" @click="expandedStarId = expandedStarId === c.id ? null : c.id"
+                    class="w-full flex items-center gap-2 px-3 py-2 text-left">
+                    <span class="text-xs font-medium text-ink truncate min-w-0 flex-1">{{ c.title }}</span>
+                    <span class="flex items-center gap-1 shrink-0 min-w-0">
+                      <span v-for="t in starTagsOf(c)" :key="t"
+                        class="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent truncate max-w-[72px]">{{ t }}</span>
+                    </span>
+                    <span class="text-[10px] text-ink-faint shrink-0">{{ expandedStarId === c.id ? '收起 ▴' : '展开 ▾' }}</span>
+                  </button>
+                  <div v-if="expandedStarId === c.id"
+                    class="px-3 pb-3 pt-2 border-t border-line text-xs text-ink-sub leading-relaxed
+                      whitespace-pre-line space-y-1">
+                    <div v-if="c.role"><span class="text-ink-faint">角色：</span>{{ c.role }}</div>
+                    <div v-if="c.situation"><span class="text-ink-faint">情境：</span>{{ c.situation }}</div>
+                    <div v-if="c.task"><span class="text-ink-faint">任务：</span>{{ c.task }}</div>
+                    <div v-if="c.action"><span class="text-ink-faint">行动：</span>{{ c.action }}</div>
+                    <div v-if="c.result"><span class="text-ink-faint">结果：</span>{{ c.result }}</div>
+                    <div class="pt-1">
+                      <button type="button" @click="copyStarCard(c)"
+                        class="text-xs text-accent hover:underline">📋 复制</button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <div v-else-if="starFailed" class="text-xs text-ink-faint px-1">素材加载失败</div>
+              <div v-else class="text-xs text-ink-faint px-1">
+                还没有素材卡，去「素材库」建立你的 STAR 档案
+              </div>
+            </div>
+          </details>
           <textarea v-model="interview.answer" rows="3" :disabled="interview.submitting"
             @keydown.enter.exact.prevent="sendChat(false)"
             placeholder="像真实面试一样作答，可分点展开；面试官可能追问，也可随时补充。回答充分后面试官会带你进入下一题"
@@ -477,6 +517,66 @@ watch(() => interview.chatLog.length, async () => {
   const el = chatBoxRef.value
   if (el) el.scrollTop = el.scrollHeight
 })
+
+// ===== M65 我的素材：只读 STAR 素材卡参考（首次展开时懒加载；不注入 LLM，纯给人看） =====
+const starCards = ref([])
+const starLoading = ref(false)
+const starLoaded = ref(false)
+const starFailed = ref(false)
+const expandedStarId = ref(null)
+const starBoxRef = ref(null)
+
+async function loadStarCards() {
+  const box = starBoxRef.value
+  if (!box || !box.open || starLoaded.value) return
+  starLoaded.value = true
+  starLoading.value = true
+  try {
+    const res = await api.listStarCards()
+    starCards.value = res.data.items || []
+  } catch {
+    // 非核心参考功能：加载失败静默收起，不打扰答题
+    starFailed.value = true
+    box.open = false
+  } finally {
+    starLoading.value = false
+  }
+}
+
+const starTagsOf = (c) =>
+  String(c.tags || '').split(',').map((t) => t.trim()).filter(Boolean)
+
+async function copyStarCard(c) {
+  const lines = [`【${c.title}】`]
+  if (c.role) lines.push(`角色：${c.role}`)
+  const tags = starTagsOf(c)
+  if (tags.length) lines.push(`标签：${tags.join('、')}`)
+  const seg = (label, v) => { if (v) lines.push(`${label}：${v}`) }
+  seg('情境', c.situation)
+  seg('任务', c.task)
+  seg('行动', c.action)
+  seg('结果', c.result)
+  const text = lines.join('\n')
+  try {
+    await navigator.clipboard.writeText(text)
+    Message.success('素材已复制到剪贴板')
+  } catch {
+    // 非安全上下文等降级：execCommand 兜底（同 bookmarklet 惯例）
+    const ta = document.createElement('textarea')
+    ta.value = text
+    document.body.appendChild(ta)
+    ta.select()
+    try {
+      document.execCommand('copy')
+        ? Message.success('素材已复制到剪贴板')
+        : Message.error('复制失败，请手动选择文本复制')
+    } catch {
+      Message.error('复制失败，请手动选择文本复制')
+    } finally {
+      document.body.removeChild(ta)
+    }
+  }
+}
 
 onMounted(() => {
   ensureInterviewLoaded()
