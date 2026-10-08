@@ -260,7 +260,7 @@ const REPO = {
 
 const route = useRoute()
 const router = useRouter()
-const { meta, quotaEnabled } = useAppMode()
+const { meta, loaded: metaLoaded, quotaEnabled } = useAppMode()
 const { resolved, toggle } = useTheme()
 const guide = useKeyGuide()
 
@@ -372,10 +372,13 @@ const themeTitle = computed(() =>
   resolved.value === 'dark' ? '切换到亮色模式' : '切换到暗色模式',
 )
 
-/* ---- 桌面端启动直进工作台（仅启动时一次，不劫持用户回介绍页） ---- */
+/* ---- 桌面端启动直进工作台（仅启动时一次，不劫持用户回介绍页） ----
+ * 必须等 meta 真正加载完（metaLoaded）再判定：初始默认值 app_mode='local'
+ * 会在 router 初始导航 resolve 前（route.path 恒 '/'）抢断 replace，
+ * 把 /#/changelog 等 hash 深链全部吞进诊断页（web 态深链直达同受影响）。 */
 const redirected = ref(false)
 watchEffect(() => {
-  if (meta.value.app_mode && redirected.value === false) {
+  if (metaLoaded.value && meta.value.app_mode && redirected.value === false) {
     redirected.value = true
     if (meta.value.app_mode !== 'web' && route.path === '/') {
       router.replace('/app/analyze')

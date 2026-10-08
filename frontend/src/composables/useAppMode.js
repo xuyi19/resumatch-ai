@@ -27,7 +27,12 @@ async function loadMeta() {
         loaded.value = true
         return meta.value
       })
-      .catch(() => meta.value)  // 拿不到就按桌面版渲染，不影响使用
+      .catch(() => {
+        // 拿不到就按桌面版渲染，不影响使用；loaded 置位让「启动直进工作台」
+        // 等依赖 app_mode 的判定有个确定时点，避免拿初始默认值抢断路由
+        loaded.value = true
+        return meta.value
+      })
       .finally(() => { pending = null })
   }
   return pending
