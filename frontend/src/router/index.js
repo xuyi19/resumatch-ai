@@ -21,6 +21,7 @@ export default createRouter({
         { path: 'resumes', name: 'app-resumes', component: () => import('../views/ResumeListView.vue') },
         { path: 'jobs', name: 'app-jobs', component: () => import('../views/JobLibraryView.vue') },
         { path: 'star', name: 'app-star', component: () => import('../views/StarView.vue') },
+        { path: 'offers', name: 'app-offers', component: () => import('../views/OfferView.vue') },
         { path: 'quiz', name: 'app-quiz', component: () => import('../views/QuizView.vue') },
         { path: 'interview', name: 'app-interview', component: () => import('../views/InterviewView.vue') },
         { path: 'result/:taskId', name: 'app-result', component: () => import('../views/ResultView.vue') },

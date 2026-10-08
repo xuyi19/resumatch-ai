@@ -284,6 +284,8 @@ const ICONS = {
     '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9.5l1.5 1.5L11 8.5"/><path d="M13.5 10H17"/><path d="M7 15l1.5 1.5L11 14"/><path d="M13.5 15.5H17"/>',
   star:
     '<path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>',
+  offer:
+    '<path d="M12 4v16"/><path d="M8 20h8"/><path d="M4 7h16"/><path d="M4 7l-2.5 6M4 7l2.5 6"/><path d="M1.5 13a2.5 2.5 0 005 0"/><path d="M20 7l-2.5 6M20 7l2.5 6"/><path d="M17.5 13a2.5 2.5 0 005 0"/>',
   dashboard:
     '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/>',
 }
@@ -328,6 +330,12 @@ const navItems = computed(() => [
     to: '/app/star',
     icon: ICONS.star,
     active: route.path.startsWith('/app/star'),
+  },
+  {
+    label: 'Offer 比较',
+    to: '/app/offers',
+    icon: ICONS.offer,
+    active: route.path.startsWith('/app/offers'),
   },
   {
     label: '模拟面试',

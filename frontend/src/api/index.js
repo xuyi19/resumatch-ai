@@ -176,6 +176,13 @@ export default {
   deleteStarCard: (id) => api.delete(`/star/cards/${id}`),
   generateStarDraft: (data) => api.post('/star/generate', data),
 
+  // M62 Offer 比较决策器：Offer CRUD + 加权对比（纯本地计算，零 LLM）
+  listOffers: () => api.get('/offers'),
+  createOffer: (data) => api.post('/offers', data),
+  updateOffer: (id, data) => api.put(`/offers/${id}`, data),
+  deleteOffer: (id) => api.delete(`/offers/${id}`),
+  compareOffers: (data) => api.post('/offers/compare', data),
+
   // F1 简历库：列表（含最近诊断分）/ 详情（预览原文）/ 重命名 / 删除
   listResumes: () => api.get('/resumes/list'),
   getResume: (id) => api.get(`/resumes/${id}`),

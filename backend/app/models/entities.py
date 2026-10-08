@@ -171,3 +171,32 @@ class StarCard(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
+
+
+class Offer(Base):
+    """M62 Offer 比较决策器：手握多个 Offer 时的加权量化对比档案。
+
+    评分/结论全部本地确定性计算（零 LLM 调用，红线=不编造）；
+    新表由 Base.metadata.create_all 建全，无需登记 ensure_schema_columns。
+    """
+    __tablename__ = "offers"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    owner_id: Mapped[str] = mapped_column(String(64), default="local", index=True)
+    company: Mapped[str] = mapped_column(String(60))
+    title: Mapped[str] = mapped_column(String(60))
+    city: Mapped[str] = mapped_column(String(20), default="")
+    # 月薪，单位 K 元；年薪包 = monthly_salary * salary_months
+    monthly_salary: Mapped[int] = mapped_column()
+    # 年薪含几个月（12~18）
+    salary_months: Mapped[int] = mapped_column(default=12)
+    commute_minutes: Mapped[int] = mapped_column(default=45)
+    # 五险一金缴纳诚意自评 1=最低 5=全额顶格
+    insurance: Mapped[int] = mapped_column(default=3)
+    development: Mapped[int] = mapped_column(default=3)
+    stability: Mapped[int] = mapped_column(default=3)
+    notes: Mapped[str] = mapped_column(String(500), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
