@@ -2,7 +2,7 @@
   <div class="max-w-6xl mx-auto px-6 md:px-10 py-10 md:py-14 pb-24">
 
     <!-- Hero -->
-    <section class="pb-10 md:pb-14 flex flex-col lg:flex-row items-start lg:items-center gap-10">
+    <section class="pb-10 md:pb-16 flex flex-col lg:flex-row items-center gap-10">
       <div class="flex-1 min-w-0">
       <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md mb-7
         bg-panel border-2 border-ink/80 shadow-[2px_2px_0_0] shadow-ink/25">
@@ -11,13 +11,13 @@
       </div>
 
       <p class="text-sm text-ink-faint font-mono mb-3 tracking-wide">知岗 ResuMatch-AI</p>
-      <h1 class="text-4xl md:text-6xl font-semibold leading-tight mb-6 tracking-tight">
+      <h1 class="text-4xl md:text-6xl font-semibold leading-tight mb-7 tracking-tight">
         <span class="bg-gradient-to-br from-ink via-ink to-accent bg-clip-text text-transparent">
         简历诊断，<br />
         <span class="text-accent">对着岗位改</span>
         </span>
       </h1>
-      <p class="text-base text-ink-sub max-w-2xl leading-relaxed mb-9">
+      <p class="text-base text-ink-sub max-w-2xl leading-relaxed mb-7">
         知岗，意在<strong class="text-ink font-semibold">读懂岗位所求，认清自身所长</strong>。
         一站式求职工作台——以岗位 JD 为标尺，多智能体解析简历与岗位、量化适配度、定位短板；
         从岗位匹配、投递材料包，到模拟面试、笔试刷题与 Offer 比较，覆盖求职全流程。
@@ -63,8 +63,8 @@
     </section>
 
     <!-- 一站式求职闭环 -->
-    <section class="py-8 md:py-10 border-t border-line">
-      <h2 class="text-xl md:text-2xl font-semibold mt-8 mb-1">一站式求职闭环</h2>
+    <section class="py-10 md:py-12 border-t border-line">
+      <h2 class="text-xl md:text-2xl font-semibold mt-2 mb-1">一站式求职闭环</h2>
       <p class="text-xs md:text-sm text-ink-faint mb-8 font-mono">
         // 八个阶段全部站内完成；平台在招岗位以官方搜索深链桥接——不爬取、不代投
       </p>
@@ -77,17 +77,19 @@
             <span class="text-xs font-semibold text-ink leading-tight">{{ j.t }}</span>
             <span class="text-[10px] text-ink-faint">{{ j.d }}</span>
           </div>
-          <span v-if="i < journey.length - 1" class="self-center text-ink-faint text-sm select-none">→</span>
+          <span v-if="i < journey.length - 1"
+            class="self-center text-ink-faint text-sm select-none inline-flex shrink-0 px-1">→</span>
         </template>
       </div>
     </section>
 
     <!-- 功能亮点 -->
-    <section class="py-8 md:py-10 border-t border-line">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+    <section class="py-10 md:py-12 border-t border-line">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-10">
         <div v-for="f in features" :key="f.title"
           class="bg-panel border-2 border-ink/80 rounded-xl p-6 shadow-[3px_3px_0_0] shadow-ink/15
-            hover:-translate-y-1 hover:shadow-[5px_5px_0_0] hover:shadow-ink/25 transition-all duration-150">
+            min-h-[190px] hover:-translate-y-1 hover:shadow-[5px_5px_0_0] hover:shadow-ink/25
+            transition-all duration-150">
           <div class="w-9 h-9 rounded-md bg-accent/10 text-accent
             flex items-center justify-center text-lg mb-4">{{ f.icon }}</div>
           <h3 class="text-base font-semibold mb-2">{{ f.title }}</h3>
@@ -97,8 +99,8 @@
     </section>
 
     <!-- 诊断流水线 -->
-    <section class="py-8 md:py-10 border-t border-line">
-      <h2 class="text-xl md:text-2xl font-semibold mt-8 mb-1">核心引擎：诊断流水线</h2>
+    <section class="py-10 md:py-12 border-t border-line">
+      <h2 class="text-xl md:text-2xl font-semibold mt-2 mb-1">核心引擎：诊断流水线</h2>
       <p class="text-xs md:text-sm text-ink-faint mb-8 font-mono">
         // 解析简历与解析岗位并行执行，省去一次串行等待
       </p>
@@ -125,10 +127,10 @@
     </section>
 
     <!-- 数据 -->
-    <section class="py-8 md:py-10 border-t border-line">
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mt-8">
+    <section class="py-10 md:py-12 border-t border-line">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mt-10">
         <div v-for="s in stats" :key="s.label" class="text-center py-6 rounded-lg
-          bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15">
+          bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/10">
           <div class="text-4xl md:text-5xl font-semibold font-mono text-accent mb-2">
             {{ s.num }}
           </div>
@@ -138,8 +140,8 @@
     </section>
 
     <!-- 形态说明 -->
-    <section class="py-8 md:py-10 border-t border-line">
-      <h2 class="text-lg md:text-xl font-semibold mt-8 mb-6">
+    <section class="py-10 md:py-12 border-t border-line">
+      <h2 class="text-lg md:text-xl font-semibold mt-2 mb-6">
         {{ isWeb ? '关于在线使用' : '关于本机使用' }}
       </h2>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -153,10 +155,11 @@
     </section>
 
     <!-- CTA -->
-    <section class="py-8 md:py-10 border-t border-line">
-      <div class="mt-8 p-10 md:p-14 rounded-xl bg-panel border-2 border-ink/80
+    <section class="py-10 md:py-12 border-t border-line">
+      <div class="mt-10 p-12 md:p-16 rounded-xl bg-panel border-2 border-ink/80
         shadow-[4px_4px_0_0] shadow-ink/20 text-center">
-        <h2 class="text-2xl md:text-4xl font-semibold mb-4">准备好开始你的求职冲刺了吗？</h2>
+        <h2 class="text-3xl md:text-5xl font-semibold mb-5 bg-gradient-to-br from-ink via-ink to-accent
+          bg-clip-text text-transparent">准备好开始你的求职冲刺了吗？</h2>
         <p class="text-sm text-ink-sub mb-8">
           {{ isWeb ? '无需注册，粘贴 JD 即可开始' : '数据只存在本机，随时可查历史记录' }}
         </p>
