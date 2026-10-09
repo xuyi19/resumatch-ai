@@ -295,6 +295,17 @@
           </div>
         </div>
 
+        <!-- 厂商控制台直达（keyUrl 来自 VENDORS 预设） -->
+        <div class="mt-5 flex flex-wrap items-center gap-2">
+          <span class="text-xs text-ink-faint shrink-0">控制台直达：</span>
+          <a v-for="v in keyVendors" :key="v.id" :href="v.keyUrl" target="_blank" rel="noopener"
+            :title="v.note || v.name"
+            class="px-2.5 py-1 rounded-md border border-line text-xs text-ink-sub
+              hover:border-accent hover:text-accent transition-colors">
+            {{ v.name }} ↗
+          </a>
+        </div>
+
         <div class="mt-5 p-3.5 rounded-md text-xs bg-warn/10 border border-warn/30
           text-warn leading-relaxed">
           <strong>提示：</strong>换厂商只需点对应预设按钮再贴新 Key；选「Ollama 本地」可零成本诊断
@@ -532,6 +543,8 @@ const VENDORS = [
 ]
 
 const currentVendor = computed(() => VENDORS.find((v) => v.id === vendorId.value))
+/* 获取 Key 指引卡：可直达控制台的厂商（排除自定义） */
+const keyVendors = VENDORS.filter((v) => v.keyUrl && v.id !== 'custom')
 const currentVendorName = computed(() =>
   currentVendor.value?.id === 'custom' ? '' : currentVendor.value?.name,
 )

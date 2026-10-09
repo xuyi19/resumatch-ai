@@ -18,9 +18,8 @@
       </h1>
       <p class="text-base text-ink-sub max-w-2xl leading-relaxed mb-9">
         知岗，意在<strong class="text-ink font-semibold">读懂岗位所求，认清自身所长</strong>。
-        它是求职者的岗位需求分析师——以岗位 JD 为标尺，多智能体并行解析简历与岗位，
-        量化六维适配度、定位能力短板、挖掘被忽略的亮点，让简历不再是经历的堆砌，
-        而是对岗位需求的有效回应。
+        一站式求职工作台——以岗位 JD 为标尺，多智能体解析简历与岗位、量化适配度、定位短板；
+        从岗位匹配、投递材料包，到模拟面试、笔试刷题与 Offer 比较，覆盖求职全流程。
       </p>
 
       <div class="flex gap-3 flex-wrap">
@@ -58,7 +57,7 @@
 
     <!-- 诊断流水线 -->
     <section class="py-8 md:py-10 border-t border-line">
-      <h2 class="text-xl md:text-2xl font-semibold mt-8 mb-1">诊断流水线</h2>
+      <h2 class="text-xl md:text-2xl font-semibold mt-8 mb-1">核心引擎：诊断流水线</h2>
       <p class="text-xs md:text-sm text-ink-faint mb-8 font-mono">
         // 解析简历与解析岗位并行执行，省去一次串行等待
       </p>
@@ -113,7 +112,7 @@
     <!-- CTA -->
     <section class="py-8 md:py-10 border-t border-line">
       <div class="mt-8 p-10 md:p-14 rounded-lg bg-panel border border-line text-center">
-        <h2 class="text-2xl md:text-4xl font-semibold mb-4">准备好优化你的简历了吗？</h2>
+        <h2 class="text-2xl md:text-4xl font-semibold mb-4">准备好开始你的求职冲刺了吗？</h2>
         <p class="text-sm text-ink-sub mb-8">
           {{ isWeb ? '无需注册，粘贴 JD 即可开始' : '数据只存在本机，随时可查历史记录' }}
         </p>
@@ -146,18 +145,33 @@ const { meta, isWeb, quotaEnabled } = useAppMode()
 const features = [
   {
     icon: '🤖',
-    title: '多智能体诊断',
-    desc: '6 个节点协同：并行解析简历与岗位、六维评分、差距分析、STAR 改写，最后自省精修一轮。',
+    title: '多智能体简历诊断',
+    desc: '6 个节点协同：并行解析简历与岗位、六维评分、差距分析、STAR 改写，流式进度边算边看。',
   },
   {
     icon: '📝',
-    title: '10 套模板导出 Word',
-    desc: '经典、商务、侧栏、学术等 10 套版式，可嵌入证件照，改完一键导出可投递的 Word。',
+    title: '简历工坊',
+    desc: '在线创建简历，14 套版式模板导出 Word，多版本自动留痕可对比，STAR 素材库沉淀项目亮点。',
   },
   {
-    icon: '⚡',
-    title: '实时流式进度',
-    desc: '诊断过程逐节点实时推送，评分与建议边算边看，无需反复刷新等待。',
+    icon: '🎯',
+    title: '岗位库与匹配',
+    desc: 'AI 按简历生成岗位、粘贴文本批量导入建档，选简历一键匹配打分重排，投递状态全程跟踪。',
+  },
+  {
+    icon: '🚀',
+    title: '投递直达',
+    desc: 'Boss / 智联 / 猎聘 / 牛客搜索深链直达，AI 招呼语与求职信材料包，投递前关键词体检。',
+  },
+  {
+    icon: '🎙️',
+    title: '模拟面试与刷题',
+    desc: '多轮追问式模拟面试，量化评分 + 能力雷达 + Word 报告；笔试刷题即时判定，错题本回顾。',
+  },
+  {
+    icon: '📊',
+    title: '数据看板与决策',
+    desc: '投递漏斗、活跃热力图、分数趋势、求职周报，多 Offer 加权比较雷达，助你理性决策。',
   },
 ]
 
@@ -172,8 +186,8 @@ const steps = [
 
 const stats = [
   { num: '6', label: '智能体节点' },
-  { num: '6', label: '评分维度' },
-  { num: '10', label: '导出模板' },
+  { num: '14', label: '导出模板' },
+  { num: '4', label: '平台深链直达' },
   { num: '3', label: '分钟出报告' },
 ]
 

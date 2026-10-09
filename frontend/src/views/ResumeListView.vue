@@ -18,10 +18,15 @@
         <button v-if="selected.size" @click="selected.clear()"
           class="px-3 py-2 text-sm rounded-lg border border-line text-ink-faint
             hover:text-ink transition-colors">取消选择</button>
+        <RouterLink to="/app/analyze" title="在诊断页上传 PDF / DOCX 简历文件"
+          class="px-4 py-2 text-sm font-medium rounded-lg border border-line text-ink-sub
+            hover:border-accent hover:text-accent transition-colors">
+          ⬆ 上传简历
+        </RouterLink>
         <RouterLink to="/app/editor"
           class="px-4 py-2 text-sm font-medium rounded-lg border border-line text-ink-sub
             hover:border-accent hover:text-accent transition-colors">
-          ＋ 新建简历
+          ✏️ 新建简历
         </RouterLink>
       </div>
     </div>
