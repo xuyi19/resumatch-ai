@@ -309,11 +309,122 @@ async def run_baseline_compare(case: dict, llm_config: dict) -> list[dict]:
     return rows
 
 
+# ---------------- LLM-as-judge 评估（论文实验） ----------------
+class _JudgeScore(BaseModel):
+    relevance: float = Field(description="建议与岗位 JD 的相关度 0-10")
+    specificity: float = Field(description="建议具体程度（有量化/可执行）0-10")
+    faithfulness: float = Field(description="改写忠于简历原始经历、未编造 0-10")
+    overall: float = Field(description="改写建议综合质量 0-10")
+    comments: str = Field(default="", description="简要评语（≤50 字）")
+
+
+async def judge_suggestions(case: dict, diagnosis: dict, llm_config: dict,
+                            judge_config: dict | None = None) -> dict:
+    """用强模型当裁判，对每条改写建议打分（4 维度 0-10 + 综合 + 评语）。
+
+    judge_config 可独立指定更强模型（如 gpt-4o-mini / glm-4-plus）；
+    不传则复用主链路 llm_config。"""
+    from app.agents.utils import call_llm_for_json
+
+    suggs = [s for s in (diagnosis.get("suggestions") or []) if isinstance(s, dict)]
+    if not suggs:
+        return {"judge_overall": 0.0, "judge_avg_relevance": 0.0,
+                "judge_avg_specificity": 0.0, "judge_avg_faithfulness": 0.0,
+                "judge_avg_overall": 0.0, "judge_comments": ""}
+
+    suggestions_json = "\n".join(
+        f"[{i + 1}] original: {s.get('original', '')[:80]}\n"
+        f"      rewritten: {s.get('rewritten', '')[:120]}\n"
+        f"      reason: {s.get('reason', '')[:80]}"
+        for i, s in enumerate(suggs)
+    )
+    prompt = (
+        "你是资深的简历评审专家。请对下面的改写建议进行评估，"
+        "每条建议从 4 个维度打分（0-10 整数），并给出一条综合评语。\n"
+        "评分标准：\n"
+        "- relevance：改写内容是否紧扣岗位 JD 的要求\n"
+        "- specificity：改写是否具体、有量化表达、可直接执行\n"
+        "- faithfulness：改写是否忠于简历原始经历，未编造不存在的成就或经历\n"
+        "- overall：综合质量分\n\n"
+        f"【岗位 JD】\n{case['jd'][:500]}\n\n"
+        f"【简历（原始经历摘要）】\n{case['resume'][:500]}\n\n"
+        f"【改写建议】\n{suggestions_json}\n\n"
+        "只输出 JSON，格式："
+        '{"relevance":0-10,"specificity":0-10,"faithfulness":0-10,'
+        '"overall":0-10,"comments":"一条综合评语"}'
+    )
+    cfg = judge_config or llm_config
+    t0 = time.time()
+    try:
+        out = await call_llm_for_json(prompt, _JudgeScore, temperature=0.2, llm_config=cfg)
+        elapsed = time.time() - t0
+        r = {
+            "judge_relevance": float(out.relevance),
+            "judge_specificity": float(out.specificity),
+            "judge_faithfulness": float(out.faithfulness),
+            "judge_overall": float(out.overall),
+            "judge_comments": out.comments,
+            "judge_elapsed": elapsed,
+        }
+    except Exception as e:
+        r = {"judge_error": str(e)[:200]}
+    return r
+
+
+async def run_judge_compare(case: dict, llm_config: dict,
+                             judge_config: dict | None = None) -> list[dict]:
+    """LLM-as-judge：A 完整链路 vs E 全文直塞，各自跑完后交给同一裁判打分。"""
+    from app.agents.utils import call_llm_for_json
+
+    async def _baseline_diag(case, llm_config):
+        out = await call_llm_for_json(
+            "你是资深的 HR。对比简历与 JD，输出 JSON：\n"
+            '{"scores":{"overall":0-100},"gaps":[{"dimension":"","description":""}],'
+            '"suggestions":[{"original":"","rewritten":"","reason":""}]}\n\n'
+            f"【简历】\n{case['resume']}\n\n【岗位 JD】\n{case['jd']}",
+            _BaselineDiag, temperature=0.3, llm_config=llm_config,
+        )
+        return {
+            "scores": {"overall": float((out.scores or {}).get("overall", 0))},
+            "gaps": [g.model_dump() for g in out.gaps],
+            "suggestions": [s.model_dump() for s in out.suggestions],
+        }
+
+    rows = []
+    for plan_name, plan_tag in [("完整链路", "A"), ("全文直塞", "E")]:
+        print(f"  [judge] {plan_tag} {plan_name}：诊断 → 裁判打分")
+        if plan_tag == "A":
+            diag = await run_case(case, llm_config)
+            if "error" in diag:
+                rows.append({"plan": plan_tag, **diag})
+                continue
+            diag_for_judge = await DiagnosisService().diagnose(
+                case["resume"], case["jd"], llm_config=llm_config)
+            diag_dict = {
+                "suggestions": diag_for_judge.get("suggestions") or [],
+                "scores": diag_for_judge.get("scores") or {},
+                "gaps": diag_for_judge.get("gaps") or [],
+            }
+        else:
+            diag_dict = await _baseline_diag(case, llm_config)
+            diag = {"overall": diag_dict["scores"]["overall"], "num_suggestions": len(diag_dict["suggestions"]),
+                    "num_gaps": len(diag_dict["gaps"])}
+        judge_r = await judge_suggestions(case, diag_dict, llm_config, judge_config)
+        rows.append({"plan": plan_tag, "plan_name": plan_name,
+                      **{k: v for k, v in diag.items() if k != "error"}, **judge_r})
+        print(f"    ✓ judge_overall={judge_r.get('judge_overall', 'N/A')} "
+              f"faithfulness={judge_r.get('judge_faithfulness', 'N/A')} "
+              f"comments={judge_r.get('judge_comments', '')[:40]}")
+    return rows
+
+
 async def main():
     ap = argparse.ArgumentParser(description="ResuMatch AI 质量评估")
     ap.add_argument("--runs", type=int, default=2, help="每用例运行次数（默认 2）")
     ap.add_argument("--ablation", action="store_true", help="消融对比模式（完整/无RAG/无refine/在线追问）")
     ap.add_argument("--baseline", action="store_true", help="基线对比模式（完整链路 vs 全文直塞，3 用例各 1 轮）")
+    ap.add_argument("--judge", action="store_true", help="LLM-as-judge：完整 vs 直塞各自跑完后交给同一裁判打分")
+    ap.add_argument("--judge-model", default="", help="裁判模型（可独立于主链路模型，留空则复用 --model）")
     ap.add_argument("--case", type=int, default=1, help="消融用例序号（1-3，默认 1）")
     ap.add_argument("--api-key", default="", help="覆盖 .env 的 LLM Key")
     ap.add_argument("--base-url", default="", help="覆盖 .env 的 base_url")
@@ -321,7 +432,12 @@ async def main():
     ap.add_argument("--out", default="", help="报告路径（默认：消融→docs/消融评估报告.md，稳定性→docs/评估报告.md）")
     args = ap.parse_args()
     docs_dir = Path(__file__).resolve().parents[2] / "docs"
-    default_out = docs_dir / ("消融评估报告.md" if args.ablation else ("基线对比报告.md" if args.baseline else "评估报告.md"))
+    default_out = docs_dir / (
+        "消融评估报告.md" if args.ablation else
+        "基线对比报告.md" if args.baseline else
+        "裁判评估报告.md" if args.judge else
+        "评估报告.md"
+    )
     out_path = Path(args.out) if args.out else default_out
 
     llm_config = {k: v for k, v in {
@@ -407,6 +523,67 @@ async def main():
         report = "\n".join(lines) + "\n"
         out_path.write_text(report, encoding="utf-8")
         print(f"\n基线对比报告已写入 {out_path}")
+        print(report)
+        return
+
+    # ---------------- LLM-as-judge 模式 ----------------
+    if args.judge:
+        judge_config = None
+        if args.judge_model:
+            judge_config = {**llm_config, "model": args.judge_model}
+        jmodel = judge_config.get("model") if judge_config else llm_config.get("model")
+        print(f"LLM-as-judge：{len(CASES)} 用例 × (A 完整链路 + E 全文直塞) → 裁判打分")
+        print(f"  诊断模型：{llm_config.get('model', '默认')}")
+        print(f"  裁判模型：{jmodel}")
+        all_rows = []
+        for case in CASES:
+            print(f"[用例] {case['name']}（期望匹配 {case['expected']}）")
+            all_rows.extend(await run_judge_compare(case, llm_config, judge_config))
+        lines = [
+            "# ResuMatch AI LLM-as-Judge 评估报告",
+            "",
+            f"- 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"- 诊断模型：`{llm_config.get('model', '默认')}`｜裁判模型：`{jmodel}`",
+            f"- 运行：{len(CASES)} 用例 × (A 完整链路 + E 全文直塞) 各 1 轮，裁判按建议质量打分",
+            "- 说明：judge_relevance=改写与 JD 相关度；judge_specificity=具体/可执行/量化；",
+            "  judge_faithfulness=忠于简历未编造（核心指标）；judge_overall=综合质量 0-10",
+            "",
+            "| 用例 | 方案 | overall | judge_relevance | judge_specificity | judge_faithfulness | judge_overall | 评语 |",
+            "|---|---|---|---|---|---|---|---|",
+        ]
+        agg: dict[str, list[dict]] = {}
+        for m in all_rows:
+            plan = m.get("plan", "?")
+            if "judge_error" in m:
+                lines.append(f"| {m.get('name', '?')} | {plan} | {m.get('overall', '-')} | - | - | - | 裁判失败 | - |")
+                continue
+            lines.append(
+                f"| {m.get('name', '?')} | {plan} | {m.get('overall', '-')} "
+                f"| {m.get('judge_relevance', '-')} | {m.get('judge_specificity', '-')} "
+                f"| {m.get('judge_faithfulness', '-')} | {m.get('judge_overall', '-')} "
+                f"| {m.get('judge_comments', '')[:50]} |"
+            )
+            agg.setdefault(plan, []).append(m)
+        lines += ["", "**裁判评分均值汇总**", ""]
+        for plan, rows in agg.items():
+            n = len(rows)
+            valid = [r for r in rows if "judge_error" not in r]
+            if not valid:
+                lines.append(f"- {plan}：全部裁判失败")
+                continue
+            lines.append(
+                f"- {plan}（n={n}）：judge_overall 均值 "
+                f"{statistics.mean(r['judge_overall'] for r in valid):.1f}，"
+                f"faithfulness 均值 "
+                f"{statistics.mean(r['judge_faithfulness'] for r in valid):.1f}，"
+                f"specificity 均值 "
+                f"{statistics.mean(r['judge_specificity'] for r in valid):.1f}，"
+                f"relevance 均值 "
+                f"{statistics.mean(r['judge_relevance'] for r in valid):.1f}"
+            )
+        report = "\n".join(lines) + "\n"
+        out_path.write_text(report, encoding="utf-8")
+        print(f"\n裁判评估报告已写入 {out_path}")
         print(report)
         return
 
