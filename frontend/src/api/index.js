@@ -158,6 +158,51 @@ export default {
   interviewChat: (taskId, content, forceAdvance = false, llmConfig = null) =>
     api.post(`/interview/chat/${taskId}`,
       { content, force_advance: forceAdvance, llm_config: llmConfig }),
+  // 优化⑩ 面试对话流式 SSE：fetch + ReadableStream 渐进读取（axios 浏览器端不支持流式）
+  // hooks: { onDelta(text) 发言增量, onStage(stage) 阶段提示 }；resolve 值为 final 事件
+  // （与 /chat 回包结构一致）；fatal/中断/非 2xx 一律 reject
+  interviewChatStream: async (taskId, content, forceAdvance = false, llmConfig = null, hooks = {}) => {
+    const res = await fetch(`/api/v1/interview/chat-stream/${taskId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content, force_advance: forceAdvance, llm_config: llmConfig || null,
+      }),
+    })
+    if (!res.ok || !res.body) {
+      let detail = `HTTP ${res.status}`
+      try { detail = (await res.json()).detail || detail } catch { /* 非 JSON 错误体保留状态码 */ }
+      throw new Error(detail)
+    }
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buf = ''
+    let final = null
+    let fatal = null
+    const handle = (raw) => {
+      const line = raw.split('\n').find((l) => l.startsWith('data:'))
+      if (!line) return
+      let payload
+      try { payload = JSON.parse(line.slice(5).trim()) } catch { return }
+      if (raw.startsWith('event: fatal')) fatal = payload
+      else if (payload.type === 'final') final = payload
+      else if (payload.type === 'delta' && payload.text) hooks.onDelta?.(payload.text)
+      else if (payload.type === 'stage') hooks.onStage?.(payload.stage)
+    }
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+      let i
+      while ((i = buf.indexOf('\n\n')) >= 0) {
+        handle(buf.slice(0, i))
+        buf = buf.slice(i + 2)
+      }
+    }
+    if (fatal) throw new Error(fatal.detail || '面试官回应失败')
+    if (!final) throw new Error('连接中断，未收到完整回应')
+    return final
+  },
   // M31 独立面试：按简历 + 意向岗位直接开一场面试（无需先诊断）/ 会话列表
   interviewStartFree: (data) => api.post('/interview/start-free', data),
   interviewSessions: () => api.get('/interview/sessions'),

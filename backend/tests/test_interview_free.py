@@ -6,6 +6,8 @@ LLM 调用统一 monkeypatch（不真实调用模型）；重点验证：
 - sessions 列表返回 source 区分
 """
 
+import json
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -277,4 +279,182 @@ async def test_export_interview_report(client):
 
     # 会话不存在 → 404
     res = await client.post("/api/v1/interview/export/iv-notexist")
+    assert res.status_code == 404
+
+
+# ---------------- 优化⑩ 流式 SSE /chat-stream ----------------
+
+class _FakeStreamLLM:
+    """按预设 token 片段流式输出（模拟 langchain astream 的 AIMessageChunk）。"""
+
+    def __init__(self, pieces):
+        self._pieces = pieces
+
+    async def astream(self, _prompt):
+        for p in self._pieces:
+            yield type("Chunk", (), {"content": p})()
+
+
+def _sse_events(text: str) -> list[dict]:
+    """解析 SSE 文本为事件列表（取每个块的 data: 行 JSON；fatal 块带 _fatal 标记）。"""
+    events = []
+    for block in text.split("\n\n"):
+        data_line = next(
+            (l for l in block.split("\n") if l.startswith("data:")), None
+        )
+        if data_line is None:
+            continue
+        payload = json.loads(data_line[5:].strip())
+        if block.startswith("event: fatal"):
+            payload["_fatal"] = True
+        events.append(payload)
+    return events
+
+
+async def _start_free(client) -> str:
+    resume_id = await _upload_resume(client)
+    res = await client.post(
+        "/api/v1/interview/start-free",
+        json={"resume_id": resume_id, "jd_text": JD_TEXT},
+    )
+    assert res.status_code == 200, res.text
+    return res.json()["task_id"]
+
+
+async def test_chat_stream_sse_flow(client, monkeypatch):
+    """流式端点：delta 增量可拼接为 reply；final 与 /chat 回包结构一致；落库一致。"""
+    task_id = await _start_free(client)
+    pieces = ['{"', 'reply', '": "', '好的，', '布隆过滤器是关键。', '", ', '"advance": false}']
+    monkeypatch.setattr(
+        "app.api.v1.interview.get_llm", lambda **kwargs: _FakeStreamLLM(pieces)
+    )
+
+    res = await client.post(
+        f"/api/v1/interview/chat-stream/{task_id}",
+        json={"content": "缓存穿透我用布隆过滤器拦截。"},
+    )
+    assert res.status_code == 200, res.text
+    assert res.headers["content-type"].startswith("text/event-stream")
+
+    events = _sse_events(res.text)
+    assert not any(e.get("_fatal") for e in events)
+    assert events[0]["type"] == "start"
+    deltas = "".join(e["text"] for e in events if e["type"] == "delta")
+    assert deltas == "好的，布隆过滤器是关键。"
+
+    final = events[-1]
+    assert final["type"] == "final"
+    assert final["reply"] == "好的，布隆过滤器是关键。"
+    assert final["advance"] is False
+    assert final["finished"] is False
+    assert final["next_index"] == 0
+    assert final["total"] == 6
+    # 初始 1 条题干 + candidate + interviewer 回应
+    assert len(final["chat_log"]) == 3
+    assert final["chat_log"][-2]["role"] == "candidate"
+    assert final["chat_log"][-1]["role"] == "interviewer"
+
+    # 落库一致：GET 会话回包与 final 相同
+    res = await client.get(f"/api/v1/interview/{task_id}")
+    assert res.json()["chat_log"] == final["chat_log"]
+
+
+async def test_chat_stream_force_advance_and_summary(client, monkeypatch):
+    """强制收尾推进（advance=true 占位文案不入对话流）→ 末题收尾发 stage + 总评。"""
+    task_id = await _start_free(client)
+    monkeypatch.setattr(
+        "app.api.v1.interview.get_llm",
+        lambda **kwargs: _FakeStreamLLM(['{"reply": "答得不错", "advance": true}']),
+    )
+
+    # q1 强制收尾 → 推进 q2
+    res = await client.post(
+        f"/api/v1/interview/chat-stream/{task_id}",
+        json={"content": "（本题回答完毕，请进入下一题）", "force_advance": True},
+    )
+    events = _sse_events(res.text)
+    final = events[-1]
+    assert final["advance"] is True
+    assert final["next_index"] == 1
+    assert final["chat_log"][-1]["qid"] == "q2"
+    assert all("本题回答完毕" not in m["content"] for m in final["chat_log"])
+
+    # q2..q5 各强制收尾一轮
+    for _ in range(4):
+        res = await client.post(
+            f"/api/v1/interview/chat-stream/{task_id}",
+            json={"content": "分点作答完毕。", "force_advance": True},
+        )
+        assert res.status_code == 200, res.text
+
+    # q6 末题收尾：stage=summarizing → final 带 summary，状态落库为 finished
+    res = await client.post(
+        f"/api/v1/interview/chat-stream/{task_id}",
+        json={"content": "最后一题答完。", "force_advance": True},
+    )
+    events = _sse_events(res.text)
+    assert [e["stage"] for e in events if e["type"] == "stage"] == ["summarizing"]
+    final = events[-1]
+    assert final["finished"] is True
+    assert final["summary"]["overall_score"] == 7.5
+    assert final["summary"]["scores"]["q1"] == 7.5
+
+    res = await client.get(f"/api/v1/interview/{task_id}")
+    body = res.json()
+    assert body["status"] == "finished"
+    assert body["summary"]["overall"]
+
+
+async def test_chat_stream_invalid_json_keeps_streamed_reply(client, monkeypatch):
+    """流式输出 JSON 结构中断（如缺右括号）：已流出的发言保留，advance 安全降级 false。"""
+    task_id = await _start_free(client)
+    # 缺收尾 }：整体 JSON 解析失败，但 reply 字符串值已完整流出（可边收边显）
+    monkeypatch.setattr(
+        "app.api.v1.interview.get_llm",
+        lambda **kwargs: _FakeStreamLLM(
+            ['{"reply": "我想说：缓存穿透用布隆过滤器拦截', '", ', '"advance": true']
+        ),
+    )
+
+    res = await client.post(
+        f"/api/v1/interview/chat-stream/{task_id}", json={"content": "请点评"}
+    )
+    assert res.status_code == 200, res.text
+    events = _sse_events(res.text)
+    assert not any(e.get("_fatal") for e in events)
+    final = events[-1]
+    assert final["reply"] == "我想说：缓存穿透用布隆过滤器拦截"
+    assert final["advance"] is False
+    assert final["next_index"] == 0
+
+
+async def test_chat_stream_fallback_on_stream_error(client, monkeypatch):
+    """astream 中途抛错 → 自动降级非流式 call_llm_for_json，未流出部分一次性补发。"""
+    task_id = await _start_free(client)
+
+    class _BoomLLM:
+        async def astream(self, _prompt):
+            yield type("Chunk", (), {"content": '{"reply"'})()
+            raise RuntimeError("连接中断")
+
+    monkeypatch.setattr("app.api.v1.interview.get_llm", lambda **kwargs: _BoomLLM())
+
+    res = await client.post(
+        f"/api/v1/interview/chat-stream/{task_id}", json={"content": "你好"}
+    )
+    assert res.status_code == 200, res.text
+    events = _sse_events(res.text)
+    assert not any(e.get("_fatal") for e in events)
+    final = events[-1]
+    # 降级后取 fake call_llm_for_json 的回应；delta 把未流出部分一次性补齐
+    assert final["reply"] == "好的，这个点先聊到这里"
+    assert "".join(e.get("text", "") for e in events if e["type"] == "delta") == \
+        "好的，这个点先聊到这里"
+
+
+async def test_chat_stream_validates_before_stream(client):
+    """会话不存在：开流前 404（普通 HTTP 错误，而非 SSE fatal）。"""
+    res = await client.post(
+        "/api/v1/interview/chat-stream/iv-notexist", json={"content": "你好"}
+    )
     assert res.status_code == 404

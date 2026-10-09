@@ -14,17 +14,20 @@ M32 多轮自由对话：/interview/chat 让候选人围绕当前题随时发言
 M33 报告导出：/interview/export 把问答记录 + 总评导出 Word（复用诊断报告导出模式）。
 """
 import json
+import re
 import uuid
 from datetime import datetime
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.utils import call_llm_for_json
+from app.agents.llm import get_llm
+from app.agents.utils import _extract_first_json, call_llm_for_json
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.deps import get_owner_id
@@ -445,17 +448,13 @@ def _chat_history_text(log: list, limit: int = 40) -> str:
     ) or "（对话刚开始）"
 
 
-@router.post("/chat/{task_id}")
-async def chat_reply(
-    task_id: str,
-    req: ChatMessage,
-    db: AsyncSession = Depends(get_db),
-    owner_id: str = Depends(get_owner_id),
+async def _prepare_chat(
+    db: AsyncSession, task_id: str, owner_id: str, req: ChatMessage
 ):
-    """M32 多轮自由对话：候选人围绕当前题自由发言，面试官自然回应（可追问/可补充）。
+    """chat 与 chat-stream 共用的前置校验 + prompt 组装（校验失败抛 HTTPException）。
 
-    LLM 判断 advance：本题回答充分则推进 current_index（末题出总评），否则留在本题继续聊。
-    本题全部候选人发言在收尾时合并落入 answers[qid]。
+    返回 (conv, log, questions, idx, prompt, resume_text, jd_text, user_content)；
+    user_content 为候选人原始发言（force_advance 时仅作触发信号，不入对话流）。
     """
     _rec, resume_text, jd_text, _diag = await _load_context(task_id, db, owner_id)
 
@@ -477,13 +476,15 @@ async def chat_reply(
     idx = conv.current_index if isinstance(conv.current_index, int) else 0
     idx = max(0, min(idx, len(questions) - 1))
     q = questions[idx]
-    content = req.content.strip()
+    user_content = req.content.strip()
     if req.force_advance:
         # 「本题回答完毕」按钮：前端占位文案仅作触发信号，不落入对话流/答案
         # （否则「（本题回答完毕…）」会被合并进 answers 参与总评，污染内容）
         content = "（候选人表示本题回答完毕或跳过）"
-    elif not content:
+    elif not user_content:
         raise HTTPException(400, "发言不能为空")
+    else:
+        content = user_content
 
     log = _chat_base_log(conv)
     force_note = (
@@ -491,28 +492,32 @@ async def chat_reply(
         if req.force_advance
         else ""
     )
-    try:
-        turn = await call_llm_for_json(
-            CHAT_PROMPT.format(
-                resume_text=resume_text[:4000], jd_text=jd_text[:2500],
-                total=len(questions), idx=idx + 1, category=q["category"],
-                questions="\n".join(
-                    f"{i + 1}. [{x['category']}] {x['question']}"
-                    for i, x in enumerate(questions)
-                ),
-                question=q["question"], focus=q.get("focus") or "综合能力",
-                hint=q.get("hint") or "无",
-                chat_history=_chat_history_text(log),
-                content=content[:2000],
-            ) + force_note,
-            ChatTurn, temperature=0.7, llm_config=req.llm_config,
-        )
-    except Exception as e:
-        logger.exception("面试官回应失败")
-        raise HTTPException(500, f"面试官回应失败: {e}")
+    prompt = CHAT_PROMPT.format(
+        resume_text=resume_text[:4000], jd_text=jd_text[:2500],
+        total=len(questions), idx=idx + 1, category=q["category"],
+        questions="\n".join(
+            f"{i + 1}. [{x['category']}] {x['question']}"
+            for i, x in enumerate(questions)
+        ),
+        question=q["question"], focus=q.get("focus") or "综合能力",
+        hint=q.get("hint") or "无",
+        chat_history=_chat_history_text(log),
+        content=content[:2000],
+    ) + force_note
+    return conv, log, questions, idx, prompt, resume_text, jd_text, user_content
 
-    if not req.force_advance:
-        log.append({"role": "candidate", "qid": q["id"], "content": content})
+
+def _apply_turn(conv: Conversation, log: list, questions: list, idx: int,
+                user_content: str, turn: ChatTurn, force_advance: bool) -> tuple[dict, bool]:
+    """turn 落库 + advance 推进（chat 与 chat-stream 共用）。
+
+    返回 (payload, need_summary)。need_summary=True 表示末题收尾、总评待生成
+    （流式版要先发 stage 事件再调 LLM，故拆出）。payload 结构与 /chat 回包一致；
+    conv.answers / current_index / status / chat_log 已更新，commit 由调用方负责。
+    """
+    q = questions[idx]
+    if not force_advance:
+        log.append({"role": "candidate", "qid": q["id"], "content": user_content})
     log.append({"role": "interviewer", "qid": q["id"], "content": turn.reply})
 
     payload = {
@@ -524,6 +529,7 @@ async def chat_reply(
         "summary": None,
         "chat_log": log,
     }
+    need_summary = False
 
     if turn.advance:
         # 本题收尾：本题内候选人全部发言合并为该题作答记录（供总评/历史摘要用）
@@ -538,28 +544,258 @@ async def chat_reply(
         payload["next_index"] = idx + 1
 
         if idx + 1 >= len(questions):
-            try:
-                summary = await call_llm_for_json(
-                    SUMMARY_PROMPT.format(
-                        resume_text=resume_text[:4000], jd_text=jd_text[:2500],
-                        history=_history_text(questions, answers),
-                    ),
-                    InterviewSummary, temperature=0.5, llm_config=req.llm_config,
-                )
-                conv.optimized_resume = summary.model_dump()
-                payload["summary"] = summary.model_dump()
-            except Exception as e:
-                logger.exception("面试总评失败")
-                payload["summary_error"] = str(e)[:200]
             conv.status = "finished"
             payload["finished"] = True
+            need_summary = True
         else:
             nxt = questions[idx + 1]
             log.append({"role": "interviewer", "qid": nxt["id"], "content": nxt["question"]})
 
     conv.chat_log = json.dumps(log, ensure_ascii=False)
+    return payload, need_summary
+
+
+async def _gen_summary(conv: Conversation, payload: dict, resume_text: str,
+                       jd_text: str, questions: list, llm_cfg: dict | None) -> None:
+    """末题总评：生成并落 optimized_resume；失败只标 summary_error，不中断收尾。"""
+    try:
+        summary = await call_llm_for_json(
+            SUMMARY_PROMPT.format(
+                resume_text=resume_text[:4000], jd_text=jd_text[:2500],
+                history=_history_text(questions, conv.answers or {}),
+            ),
+            InterviewSummary, temperature=0.5, llm_config=llm_cfg,
+        )
+        conv.optimized_resume = summary.model_dump()
+        payload["summary"] = summary.model_dump()
+    except Exception as e:
+        logger.exception("面试总评失败")
+        payload["summary_error"] = str(e)[:200]
+
+
+@router.post("/chat/{task_id}")
+async def chat_reply(
+    task_id: str,
+    req: ChatMessage,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """M32 多轮自由对话：候选人围绕当前题自由发言，面试官自然回应（可追问/可补充）。
+
+    LLM 判断 advance：本题回答充分则推进 current_index（末题出总评），否则留在本题继续聊。
+    本题全部候选人发言在收尾时合并落入 answers[qid]。
+    """
+    conv, log, questions, idx, prompt, resume_text, jd_text, user_content = await _prepare_chat(
+        db, task_id, owner_id, req
+    )
+    try:
+        turn = await call_llm_for_json(prompt, ChatTurn, temperature=0.7, llm_config=req.llm_config)
+    except Exception as e:
+        logger.exception("面试官回应失败")
+        raise HTTPException(500, f"面试官回应失败: {e}")
+
+    payload, need_summary = _apply_turn(
+        conv, log, questions, idx, user_content, turn, req.force_advance
+    )
+    if need_summary:
+        await _gen_summary(conv, payload, resume_text, jd_text, questions, req.llm_config)
     await db.commit()
     return payload
+
+
+# ---------------- 优化⑩ 流式 SSE /chat-stream ----------------
+
+def _sse(payload: dict) -> str:
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+def _sse_fatal(detail: str) -> str:
+    return f"event: fatal\ndata: {json.dumps({'detail': detail}, ensure_ascii=False)}\n\n"
+
+
+class _JsonFieldStream:
+    """从 LLM token 流中增量解码指定字符串字段的值（SSE 渐进渲染用）。
+
+    流式 chat 要求模型输出 {"reply": "...", "advance": false}，reply 是首个键且值为
+    字符串：token 到达即可边收边解码 reply。这里只做宽松的「边收边显」，不校验整体
+    JSON；流结束后仍按完整文本走 _extract_first_json 严格解析（_parse_chat_turn）。
+    模型跑偏（无 JSON、键序不符、```json 前缀）时安全退化：增量文本为空或不完整，
+    由调用方兜底，不影响落库正确性。
+    """
+
+    _ESC = {"n": "\n", "t": "\t", "r": "\r", '"': '"',
+            "\\": "\\", "/": "/", "b": "\b", "f": "\f"}
+
+    def __init__(self, field: str):
+        self._field = field
+        self._chars: list[str] = []
+        self._state = "before"  # before→key_open→key→colon→val_open→value→done
+        self._key: list[str] = []
+        self._esc = False
+        self._uni = ""          # \uXXXX 四位十六进制缓冲
+
+    @property
+    def text(self) -> str:
+        return "".join(self._chars)
+
+    def feed(self, chunk: str) -> None:
+        for ch in chunk:
+            self._step(ch)
+
+    def _step(self, ch: str) -> None:
+        st = self._state
+        if st == "before":            # 忽略 ```json 等 JSON 前缀
+            if ch == "{":
+                self._state = "key_open"
+        elif st == "key_open":        # 等待键名起始引号（跳过空白）
+            if ch == '"':
+                self._state = "key"
+                self._key = []
+        elif st == "key":             # 读键名；非目标键即放弃增量（不影响最终解析）
+            if self._esc:
+                self._key.append(ch)
+                self._esc = False
+            elif ch == "\\":
+                self._esc = True
+            elif ch == '"':
+                self._state = "colon" if "".join(self._key) == self._field else "done"
+            else:
+                self._key.append(ch)
+        elif st == "colon":           # 等待冒号
+            if ch == ":":
+                self._state = "val_open"
+            elif not ch.isspace():
+                self._state = "done"
+        elif st == "val_open":        # 等待值起始引号
+            if ch == '"':
+                self._state = "value"
+            elif not ch.isspace():
+                self._state = "done"
+        elif st == "value":           # 流式解码字符串值
+            if self._uni:
+                self._uni += ch
+                if len(self._uni) == 4:
+                    try:
+                        self._chars.append(chr(int(self._uni, 16)))
+                    except ValueError:
+                        pass
+                    self._uni = ""
+            elif self._esc:
+                self._esc = False
+                if ch == "u":
+                    self._uni = ""
+                else:
+                    self._chars.append(self._ESC.get(ch, ch))
+            elif ch == "\\":
+                self._esc = True
+            elif ch == '"':
+                self._state = "done"
+            else:
+                self._chars.append(ch)
+        # done：后续 token 不再消费
+
+
+def _parse_chat_turn(raw: str, streamed_reply: str) -> ChatTurn:
+    """流式结束后按完整输出严格解析为 ChatTurn。
+
+    JSON 不合法但已有流式发言时安全降级：保留文本、advance=False 留在本题
+    （候选人可点「本题回答完毕」推进）；完全无发言则抛错走非流式降级。
+    """
+    content = raw.strip()
+    if content.startswith("```"):
+        content = re.sub(r"^```(?:json)?\s*", "", content)
+        content = re.sub(r"\s*```$", "", content)
+    extracted = _extract_first_json(content)
+    if extracted:
+        try:
+            return ChatTurn.model_validate(json.loads(extracted))
+        except Exception as e:
+            logger.warning(f"面试流式回应 JSON 校验失败: {e}")
+    if streamed_reply.strip():
+        return ChatTurn(reply=streamed_reply.strip(), advance=False)
+    raise RuntimeError("响应中未找到合法 JSON")
+
+
+@router.post("/chat-stream/{task_id}")
+async def chat_reply_stream(
+    task_id: str,
+    req: ChatMessage,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """优化⑩ 流式版多轮对话：面试官回应 token 级 SSE 渐进推送（首字延迟从整段 3~8s 降至首 token）。
+
+    事件序列（均以 data: 帧下发；异常用 event: fatal）：
+    - {"type": "start", "qid": ..., "index": ...}  会话锚点（流式气泡挂到当前题）
+    - {"type": "delta", "text": ...}               面试官发言增量
+    - {"type": "stage", "stage": "summarizing"}    末题收尾，正在生成总评
+    - {"type": "final", ...}                       与 /chat 回包结构完全一致，前端以此为准
+    会话校验失败在开流前抛 HTTPException；LLM 流式失败自动降级非流式重试一次，
+    仍失败才发 fatal。落库/推进逻辑与 /chat 完全一致（复用 _prepare_chat/_apply_turn）。
+    """
+    conv, log, questions, idx, prompt, resume_text, jd_text, user_content = await _prepare_chat(
+        db, task_id, owner_id, req
+    )
+
+    async def event_gen():
+        yield _sse({"type": "start", "qid": questions[idx]["id"], "index": idx})
+
+        raw_parts: list[str] = []
+        field = _JsonFieldStream("reply")
+        sent = 0
+        try:
+            cfg = req.llm_config or {}
+            llm = get_llm(temperature=0.7, api_key=cfg.get("api_key"),
+                          base_url=cfg.get("base_url"), model=cfg.get("model"))
+            async for chunk in llm.astream(prompt):
+                piece = chunk.content if isinstance(getattr(chunk, "content", None), str) else ""
+                if not piece:
+                    continue
+                raw_parts.append(piece)
+                field.feed(piece)
+                text = field.text
+                if len(text) > sent:
+                    yield _sse({"type": "delta", "text": text[sent:]})
+                    sent = len(text)
+            turn = _parse_chat_turn("".join(raw_parts), field.text)
+        except Exception as e:
+            # 流式失败降级：非流式重试一次（复用 call_llm_for_json 的重试与校验）
+            logger.warning(f"面试流式回应失败，降级非流式: {e}")
+            try:
+                turn = await call_llm_for_json(
+                    prompt, ChatTurn, temperature=0.7, llm_config=req.llm_config,
+                )
+            except Exception as e2:
+                logger.exception("面试官回应失败")
+                yield _sse_fatal(f"面试官回应失败: {e2}")
+                return
+            if len(turn.reply) > sent:  # 未流出的部分一次性补齐（已流出部分不重复）
+                yield _sse({"type": "delta", "text": turn.reply[sent:]})
+
+        payload, need_summary = _apply_turn(
+            conv, log, questions, idx, user_content, turn, req.force_advance
+        )
+        if need_summary:
+            yield _sse({"type": "stage", "stage": "summarizing"})
+            await _gen_summary(conv, payload, resume_text, jd_text, questions, req.llm_config)
+
+        try:
+            await db.commit()  # 先落库再发 final，保证前端拿到 final 时状态已持久
+        except Exception as e:
+            logger.exception("面试对话落库失败")
+            yield _sse_fatal(f"落库失败: {e}")
+            return
+        yield _sse({"type": "final", **payload})
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 def _history_text(questions: list, answers: dict) -> str:

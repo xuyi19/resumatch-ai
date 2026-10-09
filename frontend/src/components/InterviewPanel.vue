@@ -210,11 +210,13 @@
               </div>
             </div>
           </div>
-          <!-- 思考中指示 -->
-          <div v-if="interview.submitting" class="flex items-center gap-2 pl-10">
+          <!-- 思考中指示：流式开始后隐藏（气泡已渐进渲染）；总评阶段恢复显示 -->
+          <div v-if="interview.submitting && (!interview.replying || interview.summarizing)"
+            class="flex items-center gap-2 pl-10">
             <span class="w-7 h-7 rounded-md bg-accent/15 text-accent flex items-center
               justify-center text-sm shrink-0">🧑‍💼</span>
-            <span class="text-xs text-ink-faint">面试官正在思考…</span>
+            <span class="text-xs text-ink-faint">
+              {{ interview.summarizing ? '面试结束，正在生成总评…' : '面试官正在思考…' }}</span>
           </div>
         </div>
 
@@ -326,6 +328,8 @@ const interview = reactive({
   summary: null,     // 总评 {overall, overall_score?, scores?, strengths, weaknesses, suggestions}
   answer: '',        // 当前输入
   submitting: false,
+  replying: false,   // 优化⑩ 流式中（首个 delta 后 true，隐藏「思考中」指示）
+  summarizing: false, // 优化⑩ 末题收尾生成总评中
   loaded: false,     // 已从后端恢复过（避免重复请求）
   restoring: false,  // 会话恢复请求进行中
   restoreError: false, // 恢复失败（服务不可达等）——显式展示并允许重试
@@ -426,33 +430,61 @@ function retryRestore() {
 }
 
 // ===== M32 多轮自由对话：随时发言，面试官回应并判断是否收尾进下一题 =====
+// 优化⑩：走 SSE 流式（token 级渐进渲染）；流式不可用/失败时自动降级非流式端点
 async function sendChat(forceAdvance = false) {
   if (interview.submitting) return
   const content = forceAdvance ? '（本题回答完毕，请进入下一题）' : interview.answer.trim()
   if (!content) return
   interview.submitting = true
-  // 乐观 UI：自己的消息立即上屏（LLM 回应常需数十秒，避免「点了没反应」）；失败回滚
-  const optimistic = forceAdvance ? null : {
-    role: 'candidate', qid: interview.plan[interview.currentIndex]?.id, content,
-  }
+  interview.replying = false
+  interview.summarizing = false
+  // 乐观 UI：自己的消息立即上屏（LLM 回应常需数十秒，避免「点了没反应」）
+  const qid = interview.plan[interview.currentIndex]?.id
+  const optimistic = forceAdvance ? null : { role: 'candidate', qid, content }
   if (optimistic) {
     interview.chatLog = [...interview.chatLog, optimistic]
     interview.answer = ''
   }
+  // 流式占位：首个 delta 到达时挂上面试官气泡，token 渐进填充（reactive 保证增量可触发渲染）
+  const pending = reactive({ role: 'interviewer', qid, content: '' })
+  let streaming = false
+  const applyFinal = (d = {}) => {
+    interview.chatLog = d.chat_log || interview.chatLog
+    interview.currentIndex = d.next_index ?? interview.currentIndex
+    if (d.summary) interview.summary = d.summary
+    if (d.finished) Message.success('模拟面试完成，已生成总评')
+  }
   try {
-    const res = await api.interviewChat(props.taskId, content, forceAdvance, _llmCfg())
-    interview.chatLog = res.data.chat_log || []
-    interview.currentIndex = res.data.next_index ?? interview.currentIndex
-    if (res.data.summary) interview.summary = res.data.summary
-    if (res.data.finished) Message.success('模拟面试完成，已生成总评')
+    const final = await api.interviewChatStream(props.taskId, content, forceAdvance, _llmCfg(), {
+      onDelta(text) {
+        if (!streaming) {
+          streaming = true
+          interview.replying = true
+          interview.chatLog = [...interview.chatLog, pending]
+        }
+        pending.content += text
+        nextTick(scrollChatBottom)
+      },
+      onStage(stage) {
+        if (stage === 'summarizing') interview.summarizing = true
+      },
+    })
+    applyFinal(final)
   } catch (e) {
-    if (optimistic) {
-      interview.chatLog = interview.chatLog.filter(m => m !== optimistic)
-      interview.answer = content  // 恢复输入，避免丢字
+    // 降级：非流式端点重试一次（落库逻辑一致；流式失败时后端未提交，不会重复）
+    try {
+      const res = await api.interviewChat(props.taskId, content, forceAdvance, _llmCfg())
+      applyFinal(res.data)
+    } catch (e2) {
+      // 回滚乐观消息与流式占位气泡；恢复输入避免丢字
+      interview.chatLog = interview.chatLog.filter((m) => m !== optimistic && m !== pending)
+      if (optimistic) interview.answer = content
+      Message.error(e2.response?.data?.detail || e2.message || '发送失败')
     }
-    Message.error(e.response?.data?.detail || '发送失败')
   } finally {
     interview.submitting = false
+    interview.replying = false
+    interview.summarizing = false
   }
 }
 
@@ -510,12 +542,15 @@ async function exportReport() {
   }
 }
 
-// 聊天流自动滚动到底部
+// 聊天流自动滚动到底部（流式增量与新消息共用）
 const chatBoxRef = ref(null)
-watch(() => interview.chatLog.length, async () => {
-  await nextTick()
+function scrollChatBottom() {
   const el = chatBoxRef.value
   if (el) el.scrollTop = el.scrollHeight
+}
+watch(() => interview.chatLog.length, async () => {
+  await nextTick()
+  scrollChatBottom()
 })
 
 // ===== M65 我的素材：只读 STAR 素材卡参考（首次展开时懒加载；不注入 LLM，纯给人看） =====
