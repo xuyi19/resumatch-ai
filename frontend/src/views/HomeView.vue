@@ -2,9 +2,10 @@
   <div class="max-w-6xl mx-auto px-6 md:px-10 py-10 md:py-14 pb-24">
 
     <!-- Hero -->
-    <section class="pb-10 md:pb-14">
+    <section class="pb-10 md:pb-14 flex flex-col lg:flex-row items-start lg:items-center gap-10">
+      <div class="flex-1 min-w-0">
       <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md mb-7
-        bg-panel border border-line">
+        bg-panel border-2 border-ink/80 shadow-[2px_2px_0_0] shadow-ink/25">
         <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
         <span class="text-xs font-medium text-ink-sub font-mono">{{ badgeText }}</span>
       </div>
@@ -24,20 +25,60 @@
 
       <div class="flex gap-3 flex-wrap">
         <RouterLink to="/app/analyze"
-          class="px-6 py-3 text-sm font-medium rounded-lg bg-accent text-white
-            hover:bg-accent-hover active:scale-[0.98] transition-all duration-150">
+          class="px-6 py-3 text-sm font-medium rounded-lg bg-accent text-white border-2 border-ink/80
+            shadow-[3px_3px_0_0] shadow-ink/30 hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0]
+            active:translate-y-0 active:shadow-[2px_2px_0_0] transition-all duration-150">
           开始诊断
         </RouterLink>
         <RouterLink to="/guide"
-          class="px-6 py-3 text-sm font-medium rounded-lg bg-panel border border-line
-            text-ink hover:border-accent hover:text-accent transition-colors duration-150">
+          class="px-6 py-3 text-sm font-medium rounded-lg bg-panel border-2 border-ink/80
+            shadow-[3px_3px_0_0] shadow-ink/15 text-ink hover:-translate-y-0.5 hover:text-accent
+            hover:shadow-[4px_4px_0_0] active:translate-y-0 active:shadow-[2px_2px_0_0]
+            transition-all duration-150">
           📖 使用说明
         </RouterLink>
         <RouterLink to="/app/editor"
-          class="px-6 py-3 text-sm font-medium rounded-lg bg-panel border border-line
-            text-ink hover:border-accent hover:text-accent transition-colors duration-150">
+          class="px-6 py-3 text-sm font-medium rounded-lg bg-panel border-2 border-ink/80
+            shadow-[3px_3px_0_0] shadow-ink/15 text-ink hover:-translate-y-0.5 hover:text-accent
+            hover:shadow-[4px_4px_0_0] active:translate-y-0 active:shadow-[2px_2px_0_0]
+            transition-all duration-150">
           免费创建简历
         </RouterLink>
+      </div>
+      </div>
+
+      <!-- 品牌视觉：靶心 + 命中之矢（知字从矢） -->
+      <div class="hidden lg:flex items-center justify-center shrink-0 w-80 xl:w-96 self-center">
+        <svg viewBox="0 0 200 200" class="w-full max-w-[300px] text-accent" fill="none" aria-hidden="true">
+          <circle cx="100" cy="100" r="88" stroke="currentColor" stroke-width="2" opacity="0.2" />
+          <circle cx="100" cy="100" r="60" stroke="currentColor" stroke-width="2" opacity="0.45" />
+          <circle cx="100" cy="100" r="32" stroke="currentColor" stroke-width="2.5" />
+          <circle cx="100" cy="100" r="7" fill="currentColor" />
+          <line x1="184" y1="16" x2="108" y2="92" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" />
+          <path d="M108 92 L120 87 L113 80 Z" fill="currentColor" />
+          <path d="M184 16 L170 20 M184 16 L180 30" stroke="currentColor" stroke-width="2.5"
+            stroke-linecap="round" opacity="0.7" />
+        </svg>
+      </div>
+    </section>
+
+    <!-- 一站式求职闭环 -->
+    <section class="py-8 md:py-10 border-t border-line">
+      <h2 class="text-xl md:text-2xl font-semibold mt-8 mb-1">一站式求职闭环</h2>
+      <p class="text-xs md:text-sm text-ink-faint mb-8 font-mono">
+        // 八个阶段全部站内完成；平台在招岗位以官方搜索深链桥接——不爬取、不代投
+      </p>
+
+      <div class="flex flex-wrap items-stretch gap-2.5 mt-8">
+        <template v-for="(j, i) in journey" :key="j.t">
+          <div class="flex flex-col justify-center px-3.5 py-2.5 rounded-lg bg-panel
+            border-2 border-ink/80 shadow-[2px_2px_0_0] shadow-ink/15 min-w-[104px]">
+            <span class="text-[10px] font-mono text-accent font-semibold">{{ String(i + 1).padStart(2, '0') }}</span>
+            <span class="text-xs font-semibold text-ink leading-tight">{{ j.t }}</span>
+            <span class="text-[10px] text-ink-faint">{{ j.d }}</span>
+          </div>
+          <span v-if="i < journey.length - 1" class="self-center text-ink-faint text-sm select-none">→</span>
+        </template>
       </div>
     </section>
 
@@ -45,8 +86,8 @@
     <section class="py-8 md:py-10 border-t border-line">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
         <div v-for="f in features" :key="f.title"
-          class="bg-panel border border-line rounded-lg p-6
-            hover:border-accent/50 transition-colors duration-150">
+          class="bg-panel border-2 border-ink/80 rounded-xl p-6 shadow-[3px_3px_0_0] shadow-ink/15
+            hover:-translate-y-1 hover:shadow-[5px_5px_0_0] hover:shadow-ink/25 transition-all duration-150">
           <div class="w-9 h-9 rounded-md bg-accent/10 text-accent
             flex items-center justify-center text-lg mb-4">{{ f.icon }}</div>
           <h3 class="text-base font-semibold mb-2">{{ f.title }}</h3>
@@ -64,7 +105,8 @@
 
       <ol class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <li v-for="(s, i) in steps" :key="s.title"
-          class="flex gap-3.5 items-start rounded-lg p-4 bg-panel border border-line">
+          class="flex gap-3.5 items-start rounded-lg p-4 bg-panel border-2 border-ink/80
+            shadow-[2px_2px_0_0] shadow-ink/10">
           <span class="w-7 h-7 shrink-0 rounded-md flex items-center justify-center
             text-xs font-semibold font-mono bg-accent/10 text-accent">
             {{ String(i + 1).padStart(2, '0') }}
@@ -86,7 +128,7 @@
     <section class="py-8 md:py-10 border-t border-line">
       <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mt-8">
         <div v-for="s in stats" :key="s.label" class="text-center py-6 rounded-lg
-          bg-panel border border-line">
+          bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15">
           <div class="text-4xl md:text-5xl font-semibold font-mono text-accent mb-2">
             {{ s.num }}
           </div>
@@ -101,7 +143,8 @@
         {{ isWeb ? '关于在线使用' : '关于本机使用' }}
       </h2>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div v-for="n in notes" :key="n.title" class="p-5 rounded-lg bg-panel border border-line">
+        <div v-for="n in notes" :key="n.title" class="p-5 rounded-lg bg-panel border-2 border-ink/80
+          shadow-[2px_2px_0_0] shadow-ink/10">
           <div class="text-lg mb-2">{{ n.icon }}</div>
           <div class="text-sm font-medium mb-1">{{ n.title }}</div>
           <p class="text-xs text-ink-sub leading-relaxed">{{ n.desc }}</p>
@@ -111,7 +154,8 @@
 
     <!-- CTA -->
     <section class="py-8 md:py-10 border-t border-line">
-      <div class="mt-8 p-10 md:p-14 rounded-lg bg-panel border border-line text-center">
+      <div class="mt-8 p-10 md:p-14 rounded-xl bg-panel border-2 border-ink/80
+        shadow-[4px_4px_0_0] shadow-ink/20 text-center">
         <h2 class="text-2xl md:text-4xl font-semibold mb-4">准备好开始你的求职冲刺了吗？</h2>
         <p class="text-sm text-ink-sub mb-8">
           {{ isWeb ? '无需注册，粘贴 JD 即可开始' : '数据只存在本机，随时可查历史记录' }}
@@ -119,13 +163,15 @@
         <div class="flex gap-3 justify-center flex-wrap">
           <RouterLink to="/app/analyze"
             class="inline-block px-8 py-3 text-sm font-medium rounded-lg bg-accent text-white
-              hover:bg-accent-hover active:scale-[0.98] transition-all duration-150">
+              border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/30 hover:-translate-y-0.5
+              active:translate-y-0 active:shadow-[2px_2px_0_0] transition-all duration-150">
             立即开始
           </RouterLink>
           <RouterLink to="/changelog"
             class="inline-block px-8 py-3 text-sm font-medium rounded-lg
-              bg-panel border border-line text-ink hover:border-accent hover:text-accent
-              transition-colors duration-150">
+              bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 text-ink
+              hover:-translate-y-0.5 hover:text-accent active:translate-y-0
+              active:shadow-[2px_2px_0_0] transition-all duration-150">
             查看更新日志
           </RouterLink>
         </div>
@@ -189,6 +235,17 @@ const stats = [
   { num: '14', label: '导出模板' },
   { num: '4', label: '平台深链直达' },
   { num: '3', label: '分钟出报告' },
+]
+
+const journey = [
+  { t: '简历准备', d: '编辑器 / 上传' },
+  { t: '简历诊断', d: '六维量化' },
+  { t: '岗位匹配', d: '打分重排' },
+  { t: '投递直达', d: '深链+材料包' },
+  { t: '笔试刷题', d: '错题本' },
+  { t: '模拟面试', d: '评分雷达' },
+  { t: 'Offer 比较', d: '加权决策' },
+  { t: '数据复盘', d: '漏斗周报' },
 ]
 
 const badgeText = computed(() =>
