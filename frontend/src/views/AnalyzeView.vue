@@ -623,6 +623,8 @@ function applyQueryJd() {
     jdText.value = jd
     saveRecentJd(jd)
     Message.success('已填入岗位 JD，可继续编辑后开始诊断')
+    // 用后即清（对齐 focus/onboarding 清 query 惯例，防刷新重复预填）
+    router.replace({ query: { ...route.query, jd: undefined } })
   }
 }
 

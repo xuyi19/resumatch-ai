@@ -326,7 +326,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import { renderAsync } from 'docx-preview'
@@ -893,7 +893,15 @@ onMounted(() => {
   renderDocxPreview()
   // M50：诊断报告「应用」来的改写建议待应用清单
   checkApplyQueue()
+  window.addEventListener('keydown', onGlobalKey)
 })
+
+// Esc 关闭导出历史弹层（Teleport 到 body，@keydown.esc 不可靠——同 SettingsView 惯例）
+function onGlobalKey(e) {
+  if (e.key === 'Escape' && showHistory.value) showHistory.value = false
+}
+
+onUnmounted(() => window.removeEventListener('keydown', onGlobalKey))
 
 /* ---- M50 改写建议一键采纳：从诊断报告跳转过来时应用待应用清单 ---- */
 const APPLY_QUEUE_KEY = 'editor_apply_queue'

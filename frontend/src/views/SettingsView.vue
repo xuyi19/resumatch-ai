@@ -574,7 +574,13 @@ function saveSettings() {
     Message.warning('请填写 API Key')
     return
   }
-  localStorage.setItem('llm_config', JSON.stringify({ ...form }))
+  try {
+    localStorage.setItem('llm_config', JSON.stringify({ ...form }))
+  } catch (e) {
+    // 隐私模式 / 存储不可用时给出明确反馈，而非静默抛错
+    Message.error('本机存储不可用，配置未能保存')
+    return
+  }
   Message.success('配置已保存')
   testResult.value = { success: true, message: '✓ 配置已保存到本机' }
   showApiModal.value = false
@@ -583,7 +589,7 @@ function saveSettings() {
 }
 
 function clearSettings() {
-  localStorage.removeItem('llm_config')
+  try { localStorage.removeItem('llm_config') } catch (e) { /* 清理失败不阻断表单重置 */ }
   form.api_key = ''
   form.base_url = ''
   form.model = ''
