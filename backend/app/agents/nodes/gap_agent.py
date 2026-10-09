@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 
 from app.agents.state import DiagnosisState
-from app.agents.utils import call_llm_for_json
+from app.agents.utils import call_llm_for_json, embed_jd_text
 from app.core.evidence import filter_valid_ids, render_pool, retrieval_pool
 
 
@@ -69,7 +69,7 @@ async def run(state: DiagnosisState) -> dict:
         result = await call_llm_for_json(
             PROMPT.format(
                 resume_text=state["resume_text"],
-                jd_text=state.get("jd_text", "（未提供）"),
+                jd_text=embed_jd_text(state.get("jd_text", "（未提供）")),
                 job_analysis=state.get("job_analysis") or "（未提供）",
                 parsed=state.get("parsed", {}),
                 scores=state.get("scores", {}),

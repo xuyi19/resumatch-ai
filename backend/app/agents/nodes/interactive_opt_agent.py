@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from app.agents.utils import call_llm_for_json
+from app.agents.utils import call_llm_for_json, embed_jd_text
 
 
 class InterviewQuestion(BaseModel):
@@ -57,7 +57,7 @@ async def generate_questions(
     result = await call_llm_for_json(
         PROMPT.format(
             resume_text=resume_text,
-            jd_text=jd_text,
+            jd_text=embed_jd_text(jd_text),
             gaps=gaps,
         ),
         QuestionList,

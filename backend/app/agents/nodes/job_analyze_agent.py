@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 
 from app.agents.state import DiagnosisState
-from app.agents.utils import call_llm_for_json
+from app.agents.utils import call_llm_for_json, embed_jd_text
 
 
 class JobRequirement(BaseModel):
@@ -57,7 +57,7 @@ async def run(state: DiagnosisState) -> dict:
 
     try:
         result = await call_llm_for_json(
-            PROMPT.format(jd_text=jd_text),
+            PROMPT.format(jd_text=embed_jd_text(jd_text)),
             JobAnalysis,
             temperature=0.2,
             llm_config=state.get("llm_config"),

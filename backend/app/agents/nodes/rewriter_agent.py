@@ -3,7 +3,7 @@ import json
 from pydantic import BaseModel, Field
 
 from app.agents.state import DiagnosisState
-from app.agents.utils import call_llm_for_json
+from app.agents.utils import call_llm_for_json, embed_jd_text
 
 
 class Suggestion(BaseModel):
@@ -60,7 +60,7 @@ async def run(state: DiagnosisState) -> dict:
         result = await call_llm_for_json(
             PROMPT.format(
                 resume_text=state["resume_text"],
-                jd_text=state.get("jd_text", "（未提供）"),
+                jd_text=embed_jd_text(state.get("jd_text", "（未提供）")),
                 job_analysis=state.get("job_analysis") or "（未提供）",
                 scores=state.get("scores", {}),
                 gaps=state.get("gaps", []),
@@ -121,7 +121,7 @@ async def refine(state: DiagnosisState) -> dict:
         result = await call_llm_for_json(
             REFINE_PROMPT.format(
                 resume_text=state["resume_text"],
-                jd_text=state.get("jd_text", "（未提供）"),
+                jd_text=embed_jd_text(state.get("jd_text", "（未提供）")),
                 suggestions=json.dumps(suggestions, ensure_ascii=False, indent=2),
                 overall_advice=state.get("overall_advice", ""),
             ),

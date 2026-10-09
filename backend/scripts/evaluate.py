@@ -5,10 +5,11 @@
     python scripts/evaluate.py                     # 稳定性：3 用例 × 2 次
     python scripts/evaluate.py --ablation          # 消融对比：4 变体 × 用例1
     python scripts/evaluate.py --ablation --case 2 # 指定消融用例
+    python scripts/evaluate.py --baseline          # 基线对比：完整链路 vs 全文直塞（3 用例各 1 轮）
     python scripts/evaluate.py --api-key sk-xxx --model deepseek-chat
 
-产出：docs/ 下独立评估报告（评分均值/标准差、改写覆盖度、证据引用覆盖/推断率、消融表）；
-      历史结果已并入 docs/ResuMatch-AI-技术说明文档.md 第 13 章
+产出：docs/ 下独立评估报告（评分均值/标准差、改写覆盖度、证据引用覆盖/推断率、消融表、
+      基线对比表）；历史结果已并入 docs/ResuMatch-AI-技术说明文档.md 第 13 章
 
 说明：语义匹配采用轻量词面重叠指标（不引入 embedding/torch，
 避免桌面版体积膨胀；LLM 链路本身即语义匹配主通道）。
@@ -23,6 +24,8 @@ from contextlib import ExitStack
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
+
+from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -233,10 +236,84 @@ async def run_ablation(case: dict, llm_config: dict) -> list[dict]:
     return rows
 
 
+# ---------------- 基线对比（论文实验）：完整链路 vs 全文直塞 ----------------
+# E 变体 = 单次 LLM 调用、简历 JD 全文直塞、无证据接地/追问/精修，
+# 等价于「把简历丢给通用 ChatGPT 让它评价」的典型用法。
+
+class _BaselineGap(BaseModel):
+    dimension: str
+    description: str
+
+
+class _BaselineSugg(BaseModel):
+    original: str = ""
+    rewritten: str
+    reason: str = ""
+
+
+class _BaselineDiag(BaseModel):
+    scores: dict[str, float]
+    gaps: list[_BaselineGap] = []
+    suggestions: list[_BaselineSugg] = []
+
+
+async def run_baseline_once(case: dict, llm_config: dict) -> dict:
+    """全文直塞基线：单次调用产出与主链路同构的结果 dict，复用同一套指标。"""
+    from app.agents.utils import call_llm_for_json
+
+    prompt = (
+        "你是资深的 HR 与简历顾问。请对比下面的简历与岗位 JD，评估简历与该岗位的匹配程度，"
+        "指出差距并给出简历改写建议。只输出 JSON，不要输出其它文字，格式：\n"
+        '{"scores": {"overall": 0-100 的整体匹配分}, '
+        '"gaps": [{"dimension": "差距维度", "description": "差距描述"}], '
+        '"suggestions": [{"original": "简历原文片段", "rewritten": "改写后的表述", "reason": "改写理由"}]}\n\n'
+        f"【简历】\n{case['resume']}\n\n【岗位 JD】\n{case['jd']}"
+    )
+    t0 = time.time()
+    out = await call_llm_for_json(prompt, _BaselineDiag, temperature=0.3, llm_config=llm_config)
+    elapsed = time.time() - t0
+    r = {
+        "scores": {"overall": float((out.scores or {}).get("overall", 0))},
+        "gaps": [g.model_dump() for g in out.gaps],
+        "suggestions": [s.model_dump() for s in out.suggestions],
+    }
+    return {
+        "overall": r["scores"]["overall"],
+        "num_gaps": len(r["gaps"]),
+        "elapsed": elapsed,
+        **_rewrite_metrics(r, case["jd"]),
+        **_evidence_metrics(r),
+    }
+
+
+async def run_baseline_compare(case: dict, llm_config: dict) -> list[dict]:
+    """基线对比：A 完整链路 vs E 全文直塞，各跑一次。"""
+    rows = []
+    print(f"  [基线] A 完整链路（RAG+追问+refine）...")
+    r_full = await run_case(case, llm_config)
+    if "error" in r_full:
+        print(f"    ✗ 失败：{r_full['error'][:120]}")
+        rows.append({"name": case["name"], "plan": "A 完整链路", "error": r_full["error"]})
+    else:
+        rows.append({"name": case["name"], "plan": "A 完整链路", **r_full})
+        print(f"    ✓ overall={r_full['overall']} 引用率={r_full['gap_cited_ratio'] * 100:.0f}%")
+
+    print(f"  [基线] E 全文直塞（单次调用，无接地）...")
+    r_base = await run_baseline_once(case, llm_config)
+    if "error" in r_base:
+        print(f"    ✗ 失败：{r_base['error'][:120]}")
+        rows.append({"name": case["name"], "plan": "E 全文直塞", "error": r_base["error"]})
+    else:
+        rows.append({"name": case["name"], "plan": "E 全文直塞", **r_base})
+        print(f"    ✓ overall={r_base['overall']} 引用率={r_base['gap_cited_ratio'] * 100:.0f}%")
+    return rows
+
+
 async def main():
     ap = argparse.ArgumentParser(description="ResuMatch AI 质量评估")
     ap.add_argument("--runs", type=int, default=2, help="每用例运行次数（默认 2）")
     ap.add_argument("--ablation", action="store_true", help="消融对比模式（完整/无RAG/无refine/在线追问）")
+    ap.add_argument("--baseline", action="store_true", help="基线对比模式（完整链路 vs 全文直塞，3 用例各 1 轮）")
     ap.add_argument("--case", type=int, default=1, help="消融用例序号（1-3，默认 1）")
     ap.add_argument("--api-key", default="", help="覆盖 .env 的 LLM Key")
     ap.add_argument("--base-url", default="", help="覆盖 .env 的 base_url")
@@ -244,7 +321,7 @@ async def main():
     ap.add_argument("--out", default="", help="报告路径（默认：消融→docs/消融评估报告.md，稳定性→docs/评估报告.md）")
     args = ap.parse_args()
     docs_dir = Path(__file__).resolve().parents[2] / "docs"
-    default_out = docs_dir / ("消融评估报告.md" if args.ablation else "评估报告.md")
+    default_out = docs_dir / ("消融评估报告.md" if args.ablation else ("基线对比报告.md" if args.baseline else "评估报告.md"))
     out_path = Path(args.out) if args.out else default_out
 
     llm_config = {k: v for k, v in {
@@ -285,6 +362,52 @@ async def main():
         out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         print(f"\n消融报告已写入 {out_path}")
         print("\n".join(lines))
+        return
+
+    # ---------------- 基线模式：完整链路 vs 全文直塞 ----------------
+    if args.baseline:
+        print(f"基线对比：{len(CASES)} 用例 × (完整链路 + 全文直塞)（模型 {llm_config.get('model', '默认')}）")
+        all_rows = []
+        for case in CASES:
+            print(f"[用例] {case['name']}（期望匹配 {case['expected']}）")
+            all_rows.extend(await run_baseline_compare(case, llm_config))
+        lines = [
+            "# ResuMatch AI 基线对比报告",
+            "",
+            f"- 时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"- 模型：`{llm_config.get('model', '默认')}`｜运行：{len(CASES)} 用例 × (A 完整链路 + E 全文直塞) 各 1 轮",
+            "- 说明：E 全文直塞 = 单次 LLM 调用、简历 JD 全文直塞、无证据接地/动态追问/自省精修，",
+            "  等价于「把简历丢给通用对话模型评价」的典型用法；引用率/带据率指标口径与消融报告一致。",
+            "",
+            "| 用例 | 方案 | overall | 差距数 | 引用率 | 推断率 | 建议数 | 建议带据率 | 量化占比 | JD 关键词命中 | 耗时(s) |",
+            "|---|---|---|---|---|---|---|---|---|---|---|",
+        ]
+        agg: dict[str, list[float]] = {}
+        for m in all_rows:
+            if "error" in m:
+                lines.append(f"| {m['name']} | {m['plan']} | 失败 | - | - | - | - | - | - | - | - |")
+                continue
+            lines.append(
+                f"| {m['name']} | {m['plan']} | {m['overall']} | {m['num_gaps']} "
+                f"| {m['gap_cited_ratio'] * 100:.0f}% | {m['gap_inferred_ratio'] * 100:.0f}% "
+                f"| {m['num_suggestions']} | {m['sugg_evidence_ratio'] * 100:.0f}% "
+                f"| {m['quantified_ratio'] * 100:.0f}% "
+                f"| {m['jd_keyword_coverage'] * 100:.0f}% | {m['elapsed']:.0f} |"
+            )
+            agg.setdefault(m["plan"], []).append(m)
+        lines += ["", "**汇总（均值）**", ""]
+        for plan, rows in agg.items():
+            n = len(rows)
+            lines.append(
+                f"- {plan}：overall 均值 {statistics.mean(r['overall'] for r in rows):.1f}，"
+                f"引用率均值 {statistics.mean(r['gap_cited_ratio'] for r in rows) * 100:.0f}%，"
+                f"建议带据率均值 {statistics.mean(r['sugg_evidence_ratio'] for r in rows) * 100:.0f}%"
+                + (f"（n={n}）" if n > 1 else "（样本量小，仅示意；论文正式数据请扩大标注集）")
+            )
+        report = "\n".join(lines) + "\n"
+        out_path.write_text(report, encoding="utf-8")
+        print(f"\n基线对比报告已写入 {out_path}")
+        print(report)
         return
 
     print(f"评估开始：{len(CASES)} 用例 × {args.runs} 次（模型 {llm_config.get('model', '默认')}）")
