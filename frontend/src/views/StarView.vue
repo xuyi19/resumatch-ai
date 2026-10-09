@@ -30,8 +30,8 @@
     <Teleport to="body">
       <div v-if="genOpen" @click.self="closeGen"
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40">
-        <div class="bg-panel border border-line rounded-2xl w-full max-w-2xl max-h-[88vh]
-          overflow-y-auto p-5 md:p-6 shadow-lg">
+        <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-2xl w-full max-w-2xl max-h-[88vh]
+          overflow-y-auto p-5 md:p-6">
           <div class="sticky top-0 z-10 bg-panel flex items-center justify-between gap-3 mb-3">
             <div class="text-sm font-semibold">✨ AI 生成素材草稿</div>
             <button @click="closeGen"
@@ -65,8 +65,8 @@
     <Teleport to="body">
       <div v-if="formOpen" @click.self="closeForm"
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40">
-        <div class="bg-panel border border-line rounded-2xl w-full max-w-2xl max-h-[88vh]
-          overflow-y-auto p-5 md:p-6 shadow-lg">
+        <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-2xl w-full max-w-2xl max-h-[88vh]
+          overflow-y-auto p-5 md:p-6">
           <div class="sticky top-0 z-10 bg-panel flex items-center justify-between gap-3 mb-4">
             <div class="text-sm font-semibold">
               {{ editingId != null ? '✏️ 编辑素材' : '＋ 新建素材' }}
@@ -118,7 +118,7 @@
 
     <template v-else>
       <!-- 空态 -->
-      <div v-if="!cards.length" class="bg-panel rounded-2xl p-12 text-center">
+      <div v-if="!cards.length" class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-2xl p-12 text-center">
         <div class="text-4xl mb-4">✨</div>
         <div class="text-lg font-semibold mb-2">还没有素材卡</div>
         <p class="text-sm text-ink-sub max-w-md mx-auto">
@@ -138,8 +138,8 @@
       <!-- 卡片网格 -->
       <div v-else class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div v-for="c in cards" :key="c.id"
-          class="bg-panel border border-line rounded-lg p-5 flex flex-col
-            hover:border-accent/50 hover:shadow-md transition-all">
+          class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5 flex flex-col
+            hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0] hover:shadow-ink/25 transition-all">
           <!-- 头部：标题 + 角色 + 更新时间 -->
           <div class="flex items-start gap-2 mb-2">
             <div class="min-w-0 flex-1">

@@ -31,7 +31,7 @@
       </div>
 
       <!-- 发起面试 -->
-      <div class="bg-panel border border-line rounded-lg p-6 md:p-8 mb-10 max-w-3xl mx-auto">
+      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-6 md:p-8 mb-10 max-w-3xl mx-auto">
         <div class="space-y-5">
           <div>
             <label class="block text-xs font-medium text-ink-sub mb-2">选择简历</label>
@@ -104,7 +104,7 @@
         </div>
 
         <div v-if="!sessions.length && !loadingSessions"
-          class="bg-panel border border-line rounded-lg p-10 text-center">
+          class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-10 text-center">
           <div class="text-3xl mb-3">🎤</div>
           <div class="text-sm font-medium text-ink mb-1.5">还没有面试记录</div>
           <p class="text-xs text-ink-faint max-w-xs mx-auto leading-relaxed">
@@ -114,8 +114,8 @@
 
         <div v-else class="space-y-3">
           <div v-for="s in sessions" :key="s.task_id"
-            class="bg-panel border border-line rounded-lg p-5 cursor-pointer
-              hover:border-accent transition-colors group"
+            class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5 cursor-pointer
+              hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0] hover:shadow-ink/25 transition-all group"
             @click="resumeSession(s.task_id)">
             <div class="flex items-center gap-2.5 mb-2 flex-wrap">
               <span class="text-xs px-2 py-0.5 rounded-md"

@@ -22,7 +22,7 @@
         </div>
       </div>
 
-      <div class="bg-panel border border-line rounded-lg p-6 mb-6">
+      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-6 mb-6">
         <div class="flex items-center justify-between mb-3">
           <span class="text-xs font-medium text-ink-sub">整体进度</span>
           <span class="text-sm font-semibold text-accent font-mono">{{ progress }}%</span>
@@ -33,7 +33,7 @@
         </div>
       </div>
 
-      <div class="bg-panel border border-line rounded-lg p-6 mb-6">
+      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-6 mb-6">
         <div class="space-y-3">
           <div v-for="(s, i) in stages" :key="i"
                class="flex items-center gap-3 transition-all duration-300">
@@ -55,7 +55,7 @@
         </div>
       </div>
 
-      <div class="bg-panel border border-line rounded-lg p-6">
+      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-6">
         <div class="flex items-center justify-between mb-4">
           <span class="text-xs font-medium text-ink-sub">实时日志</span>
           <span class="w-2 h-2 rounded-full bg-accent animate-pulse"></span>
@@ -87,7 +87,7 @@
 
       <div class="space-y-4">
         <div v-for="(q, i) in clarifyQuestions" :key="q.id || i"
-             class="bg-panel border border-line rounded-lg p-6">
+             class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-6">
           <div class="text-xs font-semibold text-accent mb-2">
             追问 {{ i + 1 }}<span v-if="q.gap"> · 针对：{{ q.gap }}</span>
           </div>
@@ -211,7 +211,7 @@
       <!-- ============ Tab 1: 诊断报告 ============ -->
       <div v-show="activeTab === 'diagnosis'" class="space-y-6">
 
-        <div id="sec-scores" class="bg-panel border border-line rounded-lg p-8">
+        <div id="sec-scores" class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-8">
           <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-center">
             <div class="text-center md:text-left">
               <div class="text-xs font-medium text-ink-sub uppercase tracking-wider mb-1">综合评分</div>
@@ -231,21 +231,21 @@
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div class="lg:col-span-2 bg-panel border border-line rounded-lg p-6">
+          <div class="lg:col-span-2 bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-6">
             <h2 class="text-base font-semibold text-ink mb-4">六维评分</h2>
             <div style="height:360px">
               <RadarChart :series="radarSeries" />
             </div>
           </div>
 
-          <div class="bg-panel border border-line rounded-lg p-6">
+          <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-6">
             <h2 class="text-base font-semibold text-ink mb-4">综合评价</h2>
             <p class="text-sm text-ink-sub leading-relaxed">{{ overallComment }}</p>
           </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div id="sec-strengths" class="bg-panel border border-line rounded-lg p-6">
+          <div id="sec-strengths" class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-6">
             <div class="flex items-center gap-3 mb-4">
               <div class="w-8 h-8 rounded-lg bg-ok/10 flex items-center justify-center text-ok">✓
               </div>
@@ -260,7 +260,7 @@
             </ul>
           </div>
 
-          <div id="sec-gaps" class="bg-panel border border-line rounded-lg p-6">
+          <div id="sec-gaps" class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-6">
             <div class="flex items-center gap-3 mb-4">
               <div class="w-8 h-8 rounded-lg bg-warn/10 flex items-center justify-center text-warn">△
               </div>
@@ -312,7 +312,7 @@
           </div>
         </div>
 
-        <div id="sec-suggestions" class="bg-panel border border-line rounded-lg p-6">
+        <div id="sec-suggestions" class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-6">
           <div class="flex items-center justify-between mb-4">
             <h2 class="text-base font-semibold text-ink">改写建议</h2>
             <!-- M50 一键采纳：队列非空时显示入口 -->
@@ -353,7 +353,7 @@
       <div v-show="activeTab === 'optimize'">
 
         <div v-if="!optimizedResume && !optimizing"
-             class="bg-panel border border-line rounded-lg p-12">
+             class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-12">
           <div class="text-center mb-10">
             <div class="inline-flex items-center justify-center w-20 h-20 rounded-lg mb-6
               bg-inset border border-line">
@@ -393,7 +393,7 @@
         </div>
 
         <div v-else-if="optimizing"
-             class="bg-panel border border-line rounded-lg p-16 text-center">
+             class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-16 text-center">
           <div class="inline-block relative mb-8">
             <div class="w-16 h-16 rounded-lg bg-inset border border-line"></div>
             <div
@@ -436,7 +436,7 @@
             </div>
           </div>
 
-          <div class="bg-panel border border-line rounded-lg p-6">
+          <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-6">
             <div class="text-xs font-medium text-ink-sub mb-3">选择模板</div>
             <div class="flex gap-2 flex-wrap">
               <button v-for="t in templates" :key="t.key"
@@ -493,7 +493,7 @@
     <div v-else-if="status === 'failed'" class="max-w-2xl mx-auto mt-12">
 
       <!-- B1：部分结果保留——显示已完成节点产出，支持留在本页断点重试 -->
-      <div v-if="partialResult" class="bg-panel border border-line rounded-lg p-6 mb-6">
+      <div v-if="partialResult" class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-6 mb-6">
         <div class="flex items-center gap-3 mb-4">
           <div class="w-8 h-8 rounded-lg bg-warn/10 flex items-center justify-center text-warn">!
           </div>

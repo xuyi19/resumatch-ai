@@ -11,14 +11,14 @@
       </div>
 
       <div v-if="loadingSession"
-        class="max-w-3xl mx-auto bg-panel border border-line rounded-lg p-10 text-center
+        class="max-w-3xl mx-auto bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-10 text-center
           text-sm text-ink-faint">加载中…</div>
 
       <div v-else class="max-w-3xl mx-auto">
 
         <!-- 得分战报卡（交卷后） -->
         <div v-if="report"
-          class="bg-panel border border-line rounded-lg p-6 md:p-8 mb-6 text-center">
+          class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-6 md:p-8 mb-6 text-center">
           <div class="text-xs text-ink-sub mb-3">本场战报 · {{ direction || '未填方向' }}</div>
           <div class="flex items-end justify-center gap-2 mb-2">
             <span class="text-5xl font-bold leading-none bg-gradient-to-r from-accent to-accent-hover
@@ -40,7 +40,7 @@
         <!-- 逐题卡片 -->
         <div class="space-y-4 mb-8">
           <div v-for="(q, qi) in quizQuestions" :key="q.id"
-            class="bg-panel border border-line rounded-lg p-5">
+            class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5">
             <div class="flex items-start gap-2.5 mb-3">
               <span class="text-xs font-mono text-ink-faint mt-0.5 shrink-0">{{ qi + 1 }}.</span>
               <p class="text-sm text-ink leading-relaxed flex-1">{{ q.stem }}</p>
@@ -130,7 +130,7 @@
       </div>
 
       <!-- 发起刷题 -->
-      <div class="bg-panel border border-line rounded-lg p-6 md:p-8 mb-10 max-w-3xl mx-auto">
+      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-6 md:p-8 mb-10 max-w-3xl mx-auto">
         <div class="space-y-5">
           <div>
             <label class="block text-xs font-medium text-ink-sub mb-2">岗位方向 <span class="text-warn">*</span></label>
@@ -207,7 +207,7 @@
         </div>
 
         <div v-if="!sessions.length && !loadingSessions"
-          class="bg-panel border border-line rounded-lg p-10 text-center">
+          class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-10 text-center">
           <div class="text-3xl mb-3">📝</div>
           <div class="text-sm font-medium text-ink mb-1.5">还没有练习记录</div>
           <p class="text-xs text-ink-faint max-w-xs mx-auto leading-relaxed">
@@ -217,8 +217,8 @@
 
         <div v-else class="space-y-3">
           <div v-for="s in sessions" :key="s.task_id"
-            class="bg-panel border border-line rounded-lg p-5 cursor-pointer
-              hover:border-accent transition-colors group"
+            class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5 cursor-pointer
+              hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0] hover:shadow-ink/25 transition-all group"
             @click="enterSession(s.task_id)">
             <div class="flex items-center gap-2.5 flex-wrap">
               <span class="text-xs px-2 py-0.5 rounded-md bg-accent/10 text-accent">
@@ -257,13 +257,13 @@
 
         <div v-if="wrongOpen">
           <div v-if="!wrongItems.length"
-            class="bg-panel border border-line rounded-lg p-8 text-center">
+            class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-8 text-center">
             <div class="text-2xl mb-2">🎉</div>
             <p class="text-xs text-ink-faint">暂无错题——继续保持！</p>
           </div>
           <div v-else class="space-y-3">
             <div v-for="w in wrongItems" :key="w.task_id + '-' + w.qid"
-              class="bg-panel border border-line rounded-lg p-5">
+              class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5">
               <div class="flex items-center gap-2 mb-2 flex-wrap">
                 <span class="text-xs px-2 py-0.5 rounded-md bg-bad/10 text-bad">
                   {{ qtypeLabel(w.qtype) }}

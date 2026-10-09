@@ -61,8 +61,8 @@
 
         <!-- 统计小卡 -->
         <button v-for="card in cards" :key="card.label" @click="card.to && $router.push(card.to)"
-          class="bg-panel border border-line rounded-2xl p-5 text-left hover:border-accent/50
-            hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200 group">
+          class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/10 rounded-2xl p-5 text-left
+            hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0] hover:shadow-ink/25 transition-all duration-200 group">
           <div class="text-xs text-ink-faint mb-2 flex items-center gap-1.5">
             <span class="text-sm">{{ card.icon }}</span>{{ card.label }}
           </div>
@@ -76,7 +76,7 @@
 
       <!-- 空态引导 -->
       <div v-if="!stats.diagnosis_total && !stats.resume_count"
-        class="bg-panel border border-line rounded-2xl p-12 text-center mb-8">
+        class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-2xl p-12 text-center mb-8">
         <div class="text-4xl mb-4">🧭</div>
         <div class="text-lg font-semibold text-ink mb-2">从一份简历开始</div>
         <p class="text-sm text-ink-sub max-w-md mx-auto">
@@ -134,13 +134,13 @@
       <!-- M38 分数趋势双列 -->
       <div v-if="diagTrendPoints.length || ivTrendPoints.length"
         class="grid md:grid-cols-2 gap-5 mb-8">
-        <div class="bg-panel border border-line rounded-2xl p-5">
+        <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-2xl p-5">
           <h2 class="text-sm font-semibold text-ink mb-4">📈 诊断分数趋势</h2>
           <div class="h-48">
             <LineChart :points="diagTrendPoints" :max="100" />
           </div>
         </div>
-        <div class="bg-panel border border-line rounded-2xl p-5">
+        <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-2xl p-5">
           <h2 class="text-sm font-semibold text-ink mb-4">🎤 面试分数趋势</h2>
           <div class="h-48">
             <LineChart :points="ivTrendPoints" :max="10" />
@@ -149,7 +149,7 @@
       </div>
 
       <!-- M56.4 投递漏斗 -->
-      <div v-if="stats.saved_jobs_count" class="bg-panel border border-line rounded-2xl p-5 mb-8">
+      <div v-if="stats.saved_jobs_count" class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-2xl p-5 mb-8">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-sm font-semibold text-ink">📮 投递漏斗</h2>
           <button @click="$router.push('/app/jobs')"
@@ -169,7 +169,7 @@
 
       <!-- M60 求职跟进：applied 逾期提醒 + 面试日程（状态流转后自动消失，无 dismiss） -->
       <div v-if="followups.stale_applies.length || followups.upcoming_interviews.length"
-        class="bg-panel border border-line rounded-2xl p-5 mb-8">
+        class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-2xl p-5 mb-8">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-sm font-semibold text-ink">📌 求职跟进</h2>
           <span class="text-xs text-ink-faint">投递 {{ followups.days }} 天未流转提醒</span>
@@ -216,7 +216,7 @@
       </div>
 
       <!-- M53 活跃热力图 -->
-      <div v-if="hasActivity" class="bg-panel border border-line rounded-2xl p-5 mb-8">
+      <div v-if="hasActivity" class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-2xl p-5 mb-8">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-sm font-semibold text-ink">🔥 活跃热力图</h2>
           <span class="text-xs text-ink-faint">近 90 天 · 诊断 / 面试 / 投递</span>
@@ -225,7 +225,7 @@
       </div>
 
       <!-- M63 求职周报（接口失败整卡隐藏；接口成功即使全零也显示兜底文案） -->
-      <div v-if="weekly" class="bg-panel border border-line rounded-2xl p-5 mb-8">
+      <div v-if="weekly" class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-2xl p-5 mb-8">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <h2 class="text-sm font-semibold text-ink">📋 求职周报</h2>
           <div class="flex items-center gap-2">
@@ -271,7 +271,7 @@
       <!-- 最近记录双列 -->
       <div class="grid md:grid-cols-2 gap-5">
         <!-- 最近诊断 -->
-        <div class="bg-panel border border-line rounded-2xl p-5">
+        <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-2xl p-5">
           <div class="flex items-center justify-between mb-4">
             <h2 class="text-sm font-semibold text-ink">🩺 最近诊断</h2>
             <button @click="$router.push('/app/history')"
@@ -298,7 +298,7 @@
         </div>
 
         <!-- 最近面试 -->
-        <div class="bg-panel border border-line rounded-2xl p-5">
+        <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-2xl p-5">
           <div class="flex items-center justify-between mb-4">
             <h2 class="text-sm font-semibold text-ink">🎤 最近面试</h2>
             <button @click="$router.push('/app/interview')"

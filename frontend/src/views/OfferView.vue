@@ -34,8 +34,8 @@
     <Teleport to="body">
       <div v-if="formOpen" @click.self="closeForm"
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40">
-        <div class="bg-panel border border-line rounded-2xl w-full max-w-2xl max-h-[88vh]
-          overflow-y-auto p-5 md:p-6 shadow-lg">
+        <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-2xl w-full max-w-2xl max-h-[88vh]
+          overflow-y-auto p-5 md:p-6">
           <div class="flex items-center justify-between gap-3 mb-4">
             <div class="text-sm font-semibold">
               {{ editingId != null ? '✏️ 编辑 Offer' : '＋ 录入 Offer' }}
@@ -134,7 +134,7 @@
 
       <template v-else>
         <!-- 对比结果区（出现在卡片网格上方） -->
-        <div v-if="compareResult" class="bg-panel border border-line rounded-2xl p-5 mb-6 shadow-sm">
+        <div v-if="compareResult" class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-2xl p-5 mb-6">
           <div class="flex items-center justify-between gap-3 mb-3">
             <div class="text-sm font-semibold">⚖️ 对比结果</div>
             <button @click="compareResult = null"
@@ -179,8 +179,9 @@
         <!-- 卡片网格 -->
         <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div v-for="o in offers" :key="o.id"
-            class="bg-panel border rounded-lg p-5 flex flex-col transition-all hover:shadow-md"
-            :class="isSelected(o.id) ? 'border-accent ring-2 ring-accent/60' : 'border-line hover:border-accent/50'">
+            class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5 flex flex-col
+              hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0] hover:shadow-ink/25 transition-all"
+            :class="isSelected(o.id) ? 'ring-2 ring-accent/60 border-accent/60' : ''">
             <!-- 头部：勾选框 + 公司·岗位 + 更新时间 -->
             <div class="flex items-start gap-2 mb-2">
               <button @click="toggleSelect(o)" :title="isSelected(o.id) ? '取消勾选' : '勾选加入对比'"

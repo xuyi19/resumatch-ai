@@ -19,7 +19,7 @@
       </div>
 
       <!-- 状态卡片（紧凑入口，配置表单收进弹窗） -->
-      <div class="bg-panel border border-line rounded-lg p-5">
+      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5">
         <div class="flex items-center justify-between gap-4">
           <div class="flex items-center gap-3.5 min-w-0">
             <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
@@ -60,8 +60,8 @@
           class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40"
           @click.self="showApiModal = false"
           @keydown.esc="showApiModal = false">
-          <div class="w-full max-w-lg max-h-[88vh] overflow-y-auto bg-panel border border-line
-            rounded-xl shadow-[6px_6px_0_rgba(0,0,0,0.08)] p-5">
+          <div class="w-full max-w-lg max-h-[88vh] overflow-y-auto bg-panel border-2 border-ink/80
+            rounded-xl shadow-[3px_3px_0_0] shadow-ink/20 p-5">
             <div class="flex items-center justify-between mb-4">
               <h2 class="text-base font-semibold">API 配置</h2>
               <button @click="showApiModal = false"
@@ -196,7 +196,7 @@
       </Teleport>
 
       <!-- M19：招聘数据源（岗位一键获取/推荐） -->
-      <div class="bg-panel border border-line rounded-lg p-5 md:p-7">
+      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-5 md:p-7">
         <h2 class="text-base font-semibold mb-1">
           招聘数据源
           <span class="text-xs text-ink-faint font-normal">（分析页「一键获取岗位」的数据来源）</span>
@@ -276,7 +276,7 @@
       </div>
 
       <!-- 获取 Key 指引 -->
-      <div class="bg-panel border border-line rounded-lg p-5 md:p-7">
+      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-5 md:p-7">
         <h2 class="text-base font-semibold mb-4">获取 Key 三步指引</h2>
         <div class="space-y-3.5 text-sm text-ink-sub leading-relaxed">
           <div class="flex gap-3">
@@ -314,7 +314,7 @@
       </div>
 
       <!-- M22 C1 数据与隐私 -->
-      <div class="bg-panel border border-line rounded-lg p-5 md:p-7">
+      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-5 md:p-7">
         <h2 class="text-base font-semibold mb-2">数据与隐私</h2>
         <p class="text-sm text-ink-sub leading-relaxed mb-4">
           简历与诊断数据全部保存在你自己的电脑上（程序目录 data/ 下，SQLite 本地库），
@@ -335,7 +335,7 @@
       </div>
 
       <!-- M59 数据备份与恢复 -->
-      <div class="bg-panel border border-line rounded-lg p-5 md:p-7">
+      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-5 md:p-7">
         <h2 class="text-base font-semibold mb-2">💾 数据备份</h2>
         <p class="text-sm text-ink-sub leading-relaxed mb-4">
           一键导出全部本地数据的 JSON 快照，用于备份或换机迁移；导入以新增方式合并，
@@ -375,7 +375,7 @@
       </div>
 
       <!-- M71 导出位置 -->
-      <div class="bg-panel border border-line rounded-lg p-5 md:p-7">
+      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-5 md:p-7">
         <h2 class="text-base font-semibold mb-2">📁 导出位置</h2>
         <p v-if="isWeb" class="text-sm text-ink-sub leading-relaxed mb-4">
           网页版文件直接下载到浏览器下载目录，无需设置；下面的配置仅桌面版生效。
@@ -423,7 +423,7 @@
       </div>
 
       <!-- M60 跟进提醒 -->
-      <div class="bg-panel border border-line rounded-lg p-5 md:p-7">
+      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-5 md:p-7">
         <h2 class="text-base font-semibold mb-2">🔔 跟进提醒</h2>
         <p class="text-sm text-ink-sub leading-relaxed mb-4">
           岗位标记「已投递」后超过下面的天数仍停留在「已投递」状态，工作台会出现「📌 求职跟进」提醒；

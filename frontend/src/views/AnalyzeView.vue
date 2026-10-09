@@ -19,7 +19,7 @@
       </div>
 
       <!-- ============ 左栏：简历 ============ -->
-      <section class="bg-panel border border-line rounded-lg p-5 md:p-6">
+      <section class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-5 md:p-6">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-sm font-semibold flex items-center gap-2">
             <span class="w-5 h-5 rounded bg-gradient-to-br from-accent to-accent-hover text-white
@@ -73,7 +73,7 @@
       </section>
 
       <!-- ============ 右栏：JD + 提交 ============ -->
-      <section class="bg-panel border border-line rounded-lg p-5 md:p-6
+      <section class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-5 md:p-6
         flex flex-col lg:sticky lg:top-6">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-sm font-semibold flex items-center gap-2">

@@ -22,7 +22,7 @@
         <template v-else-if="beforeRec && afterRec">
           <!-- 概览卡：综合分 / 差距条数变化 -->
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div class="bg-panel border border-line rounded-lg p-5">
+            <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/10 rounded-lg p-5">
               <div class="text-xs text-ink-sub uppercase tracking-wider mb-2">综合分变化</div>
               <div class="flex items-baseline gap-3 font-mono">
                 <span class="text-xl text-ink-faint">{{ beforeScore ?? '—' }}</span>
@@ -39,7 +39,7 @@
                 {{ afterRec.keyword || '未命名岗位' }} · {{ formatTime(afterRec.created_at) }}
               </div>
             </div>
-            <div class="bg-panel border border-line rounded-lg p-5">
+            <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/10 rounded-lg p-5">
               <div class="text-xs text-ink-sub uppercase tracking-wider mb-2">差距条数变化</div>
               <div class="flex items-baseline gap-3 font-mono">
                 <span class="text-xl text-ink-faint">{{ beforeGaps.length }}</span>
@@ -53,7 +53,7 @@
               </div>
               <div class="text-xs text-ink-faint mt-2">负数（减少）通常意味着改进</div>
             </div>
-            <div class="bg-panel border border-line rounded-lg p-5">
+            <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/10 rounded-lg p-5">
               <div class="text-xs text-ink-sub uppercase tracking-wider mb-2">简历 / 记录</div>
               <div class="text-sm text-ink mb-1 truncate">
                 {{ beforeRec.resume_name || afterRec.resume_name || '未命名简历' }}
@@ -65,7 +65,7 @@
           </div>
 
           <!-- 雷达叠加 -->
-          <div class="bg-panel border border-line rounded-lg p-6 mb-6">
+          <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-6 mb-6">
             <h2 class="text-base font-semibold text-ink mb-4">六维雷达叠加</h2>
             <div style="height: 400px">
               <RadarChart :series="compareRadarSeries" />
@@ -73,7 +73,7 @@
           </div>
 
           <!-- F4 差距对照：Before 中用户标记「已解决」的条目（报告页打勾，localStorage）绿色高亮 -->
-          <div class="bg-panel border border-line rounded-lg p-6 mb-6">
+          <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-6 mb-6">
             <div class="flex items-center gap-2 mb-4">
               <h2 class="text-base font-semibold text-ink">差距对照</h2>
               <span v-if="beforeDoneCount" class="text-xs px-2 py-0.5 rounded-md bg-ok/10 text-ok">
@@ -116,7 +116,7 @@
 
           <!-- 建议对照 -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="bg-panel border border-line rounded-lg p-5">
+            <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5">
               <div class="text-xs font-medium text-ink-sub uppercase tracking-wider mb-3">
                 Before · 改写建议（{{ beforeSuggestions.length }} 条）
               </div>
@@ -129,7 +129,7 @@
                 <li v-if="!beforeSuggestions.length" class="text-sm text-ink-faint">无建议</li>
               </ul>
             </div>
-            <div class="bg-panel border border-line rounded-lg p-5">
+            <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5">
               <div class="text-xs font-medium text-accent uppercase tracking-wider mb-3">
                 After · 改写建议（{{ afterSuggestions.length }} 条）
               </div>
@@ -161,7 +161,7 @@
           <p class="text-sm text-ink-sub">查看过往的诊断任务，点击查看可恢复完整结果</p>
         </div>
 
-        <div class="bg-panel border border-line rounded-lg p-6">
+        <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-6">
 
           <!-- 工具行：状态筛选 + 排序 + 搜索 + 对比 -->
           <div class="flex items-center gap-2 flex-wrap mb-4">

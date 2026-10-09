@@ -16,7 +16,7 @@
       </div>
 
       <!-- 进度条 -->
-      <div v-if="total > 0 && !finished" class="mb-6 bg-panel border border-line rounded-lg p-4">
+      <div v-if="total > 0 && !finished" class="mb-6 bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-4">
         <div class="flex items-center justify-between mb-2">
           <span class="text-xs text-ink-sub">进度</span>
           <span class="text-sm font-semibold text-accent font-mono">
@@ -30,7 +30,7 @@
       </div>
 
       <!-- 对话区 -->
-      <div class="bg-panel border border-line rounded-lg p-6">
+      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-6">
 
         <!-- 加载中 -->
         <LoadingBlock v-if="loading" :text="loadingMsg" />
@@ -119,7 +119,7 @@
       <div v-if="diff" class="mt-8 space-y-4">
         <div class="text-lg font-semibold text-ink mb-4">优化对比</div>
         <div v-for="(field, key) in diff" :key="key"
-             class="bg-panel border border-line rounded-lg p-5">
+             class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5">
           <div class="text-sm font-semibold text-ink-sub mb-3">{{ fieldLabel(key) }}</div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>

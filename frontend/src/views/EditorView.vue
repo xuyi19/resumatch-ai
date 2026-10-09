@@ -67,7 +67,7 @@
         <div class="space-y-4 editor-panel">
 
           <!-- F3 简历快速体检：纯规则实时检查 -->
-          <div class="bg-panel border border-line rounded-lg p-5">
+          <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5">
             <div class="flex items-center justify-between mb-3">
               <div class="flex items-center gap-2">
                 <span class="text-base">🩺</span>
@@ -90,7 +90,7 @@
           </div>
 
           <!-- 基本信息 -->
-          <div class="bg-panel border border-line rounded-lg p-5">
+          <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5">
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center gap-2">
                 <span class="text-base">👤</span>
@@ -151,7 +151,7 @@
           </div>
 
           <!-- 教育背景 -->
-          <div class="bg-panel border border-line rounded-lg p-5">
+          <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5">
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center gap-2">
                 <span class="text-base">🎓</span>
@@ -176,7 +176,7 @@
           </div>
 
           <!-- 工作经历 -->
-          <div class="bg-panel border border-line rounded-lg p-5">
+          <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5">
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center gap-2">
                 <span class="text-base">💼</span>
@@ -200,7 +200,7 @@
           </div>
 
           <!-- 项目经历 -->
-          <div class="bg-panel border border-line rounded-lg p-5">
+          <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5">
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center gap-2">
                 <span class="text-base">📦</span>
@@ -224,7 +224,7 @@
           </div>
 
           <!-- 技能 -->
-          <div class="bg-panel border border-line rounded-lg p-5">
+          <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5">
             <div class="flex items-center gap-2 mb-4">
               <span class="text-base">⚡</span>
               <span class="text-sm font-semibold text-ink">专业技能</span>
@@ -242,7 +242,7 @@
           </div>
 
           <!-- 证书 -->
-          <div class="bg-panel border border-line rounded-lg p-5">
+          <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5">
             <div class="flex items-center gap-2 mb-4">
               <span class="text-base">🏆</span>
               <span class="text-sm font-semibold text-ink">证书荣誉</span>
@@ -287,7 +287,7 @@
   <Teleport to="body">
     <div v-if="showHistory" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/40"
       @click.self="showHistory = false">
-      <div class="w-[560px] max-w-[92vw] max-h-[70vh] flex flex-col rounded-lg bg-panel border border-line shadow-xl">
+      <div class="w-[560px] max-w-[92vw] max-h-[70vh] flex flex-col rounded-lg bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20">
         <div class="flex items-center justify-between px-5 py-4 border-b border-line">
           <h3 class="text-base font-semibold text-ink">导出历史</h3>
           <button @click="showHistory = false" class="text-ink-sub hover:text-ink text-lg leading-none transition-colors">✕</button>

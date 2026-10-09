@@ -44,8 +44,8 @@
 
     <div v-else class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
       <div v-for="r in items" :key="r.id"
-        class="bg-panel border border-line rounded-lg p-5 flex flex-col hover:border-accent/50
-          transition-colors group">
+        class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5 flex flex-col
+          hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0] hover:shadow-ink/25 transition-all group">
         <!-- 名称 + 分数 -->
         <div class="flex items-start gap-3 mb-3">
           <input type="checkbox" :checked="selected.has(r.id)"

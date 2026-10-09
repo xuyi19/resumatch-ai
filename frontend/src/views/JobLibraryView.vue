@@ -35,8 +35,8 @@
     <Teleport to="body">
       <div v-if="importOpen" @click.self="closeImport"
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40">
-        <div class="bg-panel border border-line rounded-2xl w-full max-w-2xl max-h-[88vh]
-          overflow-y-auto p-5 md:p-6 shadow-lg">
+        <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-2xl w-full max-w-2xl max-h-[88vh]
+          overflow-y-auto p-5 md:p-6">
           <div class="flex items-center justify-between gap-3 mb-3">
             <div class="text-sm font-semibold">⇪ 批量导入岗位</div>
             <button @click="closeImport"
@@ -128,8 +128,8 @@
     <Teleport to="body">
       <div v-if="formOpen" @click.self="closeForm"
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40">
-        <div class="bg-panel border border-line rounded-2xl w-full max-w-2xl max-h-[88vh]
-          overflow-y-auto p-5 md:p-6 shadow-lg">
+        <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-2xl w-full max-w-2xl max-h-[88vh]
+          overflow-y-auto p-5 md:p-6">
           <div class="flex items-center justify-between gap-3 mb-4">
             <div class="text-sm font-semibold">
               {{ editingId != null ? '✏️ 编辑岗位' : '＋ 添加岗位' }}
@@ -302,8 +302,8 @@
     <Teleport to="body">
       <div v-if="applyJob" @click.self="closeApply"
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40">
-        <div class="bg-panel border border-line rounded-2xl w-full max-w-xl max-h-[88vh] overflow-y-auto
-          p-5 md:p-6 shadow-lg">
+        <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-2xl w-full max-w-xl max-h-[88vh] overflow-y-auto
+          p-5 md:p-6">
           <div class="flex items-start justify-between gap-3 mb-4">
             <div class="min-w-0">
               <div class="text-sm font-semibold truncate">🚀 投递「{{ applyJob.title }}」</div>
@@ -586,8 +586,8 @@
       <!-- M51+ 网格卡片布局（对齐简历库）：同屏容量与信息可读性平衡 -->
       <div v-else class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div v-for="j in displayJobs" :key="j.id" :id="`job-card-${j.id}`"
-          class="bg-panel border border-line rounded-lg p-5 flex flex-col hover:border-accent/50
-            hover:shadow-md transition-all"
+          class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5 flex flex-col
+            hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0] hover:shadow-ink/25 transition-all"
           :class="[
             selMode && selIds.has(j.id) && 'ring-2 ring-accent/50 border-accent/40',
             focusJobId === j.id && 'ring-2 ring-accent border-accent/60',
