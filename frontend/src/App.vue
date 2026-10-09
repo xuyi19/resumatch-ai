@@ -404,8 +404,12 @@ const redirected = ref(false)
 watchEffect(() => {
   if (metaLoaded.value && meta.value.app_mode && redirected.value === false) {
     redirected.value = true
-    if (meta.value.app_mode !== 'web' && route.path === '/') {
-      router.replace('/app/analyze')
+    if (meta.value.app_mode !== 'web') {
+      // 仅等 meta 不够：/meta 响应可能早于路由初始导航 resolve，此时 route.path
+      // 仍是起始 '/'，会把 /#/app/dashboard 等深链误吞进诊断页——等 router ready 再判定
+      router.isReady().then(() => {
+        if (route.path === '/') router.replace('/app/analyze')
+      })
     }
   }
 })

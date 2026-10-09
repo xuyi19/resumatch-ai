@@ -209,10 +209,22 @@
                   <span class="block text-xs text-ink-faint">{{ fmtInterviewDate(iv.next_interview_at) }}</span>
                 </span>
                 <span class="text-xs shrink-0" :class="interviewDue(iv).cls">{{ interviewDue(iv).text }}</span>
+                <button @click="goFollowUp(iv.id)"
+                  class="text-xs font-medium text-ink-sub hover:text-accent shrink-0 transition-colors">调整</button>
               </div>
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- 优化⑪ 面试日程月历：全量日程整月一览（数据同 followups，点击条目跳岗位库调整） -->
+      <div v-if="followups.upcoming_interviews_all?.length"
+        class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-2xl p-5 mb-8">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-semibold text-ink">📅 面试日程</h2>
+          <span class="text-xs text-ink-faint">整月一览 · 在岗位编辑弹窗维护</span>
+        </div>
+        <InterviewCalendar :interviews="followups.upcoming_interviews_all" @open="goFollowUp" />
       </div>
 
       <!-- M53 活跃热力图 -->
@@ -345,6 +357,7 @@ import LoadingBlock from '../components/LoadingBlock.vue'
 import LineChart from '../components/LineChart.vue'
 import HeatmapChart from '../components/HeatmapChart.vue'
 import OnboardingGuide from '../components/OnboardingGuide.vue'
+import InterviewCalendar from '../components/InterviewCalendar.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -367,7 +380,7 @@ const stats = ref({
 const recentDiags = ref([])
 const recentInterviews = ref([])
 // M60 求职跟进：逾期 applied + 面试日程（接口失败回退空态，整卡隐藏不阻断总览）
-const followups = ref({ days: 7, stale_applies: [], upcoming_interviews: [] })
+const followups = ref({ days: 7, stale_applies: [], upcoming_interviews: [], upcoming_interviews_all: [] })
 
 const today = new Date().toLocaleDateString('zh-CN', {
   year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',

@@ -775,6 +775,8 @@ async def delete_library_job(
 
 # 提醒列表上限（工作台卡片空间有限，全量去岗位库看）
 _FOLLOWUP_CAP = 10
+# 月历全量日程上限（优化⑪）：正常求职远达不到，纯防御
+_FOLLOWUP_ALL_CAP = 100
 
 
 @router.get("/followups")
@@ -830,6 +832,8 @@ async def list_followups(
         "days": days,
         "stale_applies": stale_applies[:_FOLLOWUP_CAP],
         "upcoming_interviews": upcoming[:_FOLLOWUP_CAP],
+        # 面试日程月历（优化⑪）需要全量日程不被 10 条截断；防御性上限防极端数据撑爆响应
+        "upcoming_interviews_all": upcoming[:_FOLLOWUP_ALL_CAP],
     }
 
 

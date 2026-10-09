@@ -173,6 +173,23 @@ async def test_upcoming_interviews(client):
     item = next(u for u in items if u["id"] == jid)
     assert item["days_left"] == 1 and item["status"] == "applied"
 
+    # 优化⑪ 月历全量字段：与列表同源同序，只是不吃 10 条截断
+    all_ids = [u["id"] for u in body["upcoming_interviews_all"]]
+    assert all_ids == ids
+
+
+async def test_upcoming_interviews_cap(client):
+    """列表字段 cap 10；月历全量字段 11 条不截断（优化⑪）。"""
+    hd = _sid()
+    owner = hd["X-Session-Id"]
+    for i in range(11):
+        await _seed(owner, title=f"日程岗{i}", status="interviewing",
+                    next_interview_at=datetime.now() + timedelta(days=i + 1))
+
+    body = (await client.get("/api/v1/jobs/followups", headers=hd)).json()
+    assert len(body["upcoming_interviews"]) == 10
+    assert len(body["upcoming_interviews_all"]) == 11
+
 
 # ---------------------------------------------------------------- owner 隔离
 
