@@ -21,7 +21,7 @@ def get_llm(
     final_model = model or settings.LLM_MODEL
 
     if not final_key:
-        raise ValueError("未配置 LLM API Key，请在设置中填写，或联系管理员")
+        raise ValueError("未配置 LLM API Key，请在「设置」页填写后重试")
 
     cache_key = (final_key, final_base, final_model, temperature)
     if cache_key in _LLM_CACHE:

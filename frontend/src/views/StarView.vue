@@ -32,7 +32,7 @@
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40">
         <div class="bg-panel border border-line rounded-2xl w-full max-w-2xl max-h-[88vh]
           overflow-y-auto p-5 md:p-6 shadow-lg">
-          <div class="flex items-center justify-between gap-3 mb-3">
+          <div class="sticky top-0 z-10 bg-panel flex items-center justify-between gap-3 mb-3">
             <div class="text-sm font-semibold">✨ AI 生成素材草稿</div>
             <button @click="closeGen"
               class="text-lg leading-none text-ink-sub hover:text-ink shrink-0">×</button>
@@ -67,7 +67,7 @@
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40">
         <div class="bg-panel border border-line rounded-2xl w-full max-w-2xl max-h-[88vh]
           overflow-y-auto p-5 md:p-6 shadow-lg">
-          <div class="flex items-center justify-between gap-3 mb-4">
+          <div class="sticky top-0 z-10 bg-panel flex items-center justify-between gap-3 mb-4">
             <div class="text-sm font-semibold">
               {{ editingId != null ? '✏️ 编辑素材' : '＋ 新建素材' }}
               <span class="ml-2 text-xs font-normal text-ink-faint">带 * 必填，其余可留空</span>
@@ -380,7 +380,12 @@ async function runGenerate() {
     formOpen.value = true
     Message.success('草稿已生成，请核对修改后保存')
   } catch (e) {
-    Message.error(e.response?.data?.detail || 'AI 生成失败')
+    const detail = e.response?.data?.detail || ''
+    Message.error(
+      /未配置|API Key/.test(detail)
+        ? '尚未配置 AI 服务：请到「设置」页配置 API Key 后重试'
+        : (detail || 'AI 生成失败')
+    )
   } finally {
     generating.value = false
   }
