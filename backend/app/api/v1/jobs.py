@@ -837,6 +837,140 @@ async def list_followups(
     }
 
 
+# ============================ M72 求职归因 ============================
+
+# 归因最低样本：投递数低于此只给「积累期」提示，不做转化率归因（单用户噪声大，诚实优先）
+_ATTR_SAMPLE_MIN = 5
+_SEVERITY_RANK = {"high": 0, "medium": 1, "info": 2, "ok": 3}
+
+
+@router.get("/attribution")
+async def job_attribution(
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """M72 求职归因：投递漏斗转化率 + 规则归因假设（工作台「🧭 求职归因」卡数据源）。
+
+    口径（在响应与假设文案中如实标注，不做玄学预测）：
+    - 已投递 = 曾投过：apply_at 落过时间，或当前状态在 applied/interviewing/offer；
+      含投后已结束（closed）——被拒也是投递事实；wish→closed 未投不计；
+    - 进入面试 = 当前状态在 interviewing/offer（状态机只存现值，closed 岗位是否
+      面过无从回溯，不计数，面试卡点假设文案里如实说明）；
+    - 约面率 = 进入面试 / 已投递；Offer 率 = offer / (interviewing + offer)；
+    - 停滞 = 仍停留 applied 且距首次投递 >= N 天（与 /followups 同口径，M60）；
+    - 归因只产「假设 + 建议动作」，按严重度排序最多 4 条。
+    """
+    days = await get_followup_days(db, owner_id)
+    today = datetime.now().date()
+    rows = (
+        await db.execute(select(SavedJob).where(SavedJob.owner_id == owner_id))
+    ).scalars().all()
+
+    applied = interviewing = offer = closed_after_apply = wish = 0
+    stale_days: list[int] = []
+    for r in rows:
+        st = r.status or "wish"
+        if st == "wish":
+            wish += 1
+        # 曾投过：apply_at 落过时间（历史事实），或状态仍在投递后链路里
+        if not (r.apply_at or st in ("applied", "interviewing", "offer")):
+            continue
+        applied += 1
+        if st == "closed":
+            closed_after_apply += 1
+        elif st in ("interviewing", "offer"):
+            interviewing += 1
+            if st == "offer":
+                offer += 1
+        elif st == "applied" and r.apply_at:
+            d = (today - r.apply_at.date()).days
+            if d >= days:
+                stale_days.append(d)
+
+    interview_pool = interviewing  # 含 offer（offer 也曾进面）
+    interview_rate = round(interview_pool / applied, 3) if applied else None
+    offer_rate = round(offer / interview_pool, 3) if interview_pool else None
+    stale_count = len(stale_days)
+    stale_avg = round(sum(stale_days) / stale_count, 1) if stale_count else None
+
+    hypotheses: list[dict] = []
+
+    def _add(hid: str, severity: str, title: str, detail: str, *actions: tuple[str, str]):
+        hypotheses.append({
+            "id": hid,
+            "severity": severity,
+            "title": title,
+            "detail": detail,
+            "actions": [{"label": label, "to": to} for label, to in actions],
+        })
+
+    def _pct(v: float | None) -> str:
+        return f"{round(v * 100)}%" if v is not None else "—"
+
+    if applied < _ATTR_SAMPLE_MIN:
+        _add(
+            "building_sample", "info", "样本积累期",
+            f"已投递 {applied} 份，这个量级的转化率波动很大，归因暂不可靠——先把岗位库投起来，攒够 {_ATTR_SAMPLE_MIN} 份再看诊断。",
+            ("去岗位库投递", "/app/jobs"),
+        )
+    else:
+        if interview_rate < 0.10:
+            _add(
+                "resume_weak", "high", "简历/匹配卡点（强信号）",
+                f"投出 {applied} 份仅 {interview_pool} 份进面（约面率 {_pct(interview_rate)}），问题更可能出在简历与岗位的匹配上，而不是面试表现——优先打磨简历与投递针对性。",
+                ("做一次简历诊断", "/app/analyze"), ("对照 JD 看差距", "/app/jobs"),
+            )
+        elif interview_rate < 0.25:
+            _add(
+                "resume_weak_soft", "medium", "简历还有打磨空间",
+                f"约面率 {_pct(interview_rate)} 处于偏下水平（常见水平约 25%+），可针对高频投递方向做一次定向诊断与关键词补齐。",
+                ("做一次简历诊断", "/app/analyze"), ("投递前体检", "/app/jobs"),
+            )
+    if interview_pool >= 3 and offer == 0:
+        _add(
+            "interview_weak", "high", "面试环节卡点",
+            f"进入面试 {interview_pool} 家暂未转化 Offer（已结束岗位是否面过无法回溯，未计入）——投递端反而不差，把精力放在面试准备与复盘上。",
+            ("模拟面试复盘", "/app/interview"), ("刷题补短板", "/app/quiz"),
+        )
+    if stale_count >= 3:
+        _add(
+            "stale_followup", "medium", "投递跟进掉队",
+            f"{stale_count} 条投递超 {days} 天无流转（平均 {stale_avg} 天）——在途的先推进一步，比新增投递更划算。",
+            ("去岗位库跟进", "/app/jobs"),
+        )
+    if wish >= 10 and applied < wish * 0.3:
+        _add(
+            "wish_hoard", "info", "只收藏不投递",
+            f"岗位库躺着 {wish} 个「想投」，实际只投出 {applied} 份——用投递前体检筛一遍，把收藏变成动作。",
+            ("去岗位库筛选", "/app/jobs"),
+        )
+    if offer >= 1:
+        _add(
+            "positive", "ok", "已有 Offer 入袋",
+            f"恭喜，已拿到 {offer} 个 Offer——把成功路径沉淀下来（哪类岗位、哪版简历、哪轮面试），下一个 Offer 复制它。",
+            ("复盘成功路径", "/app/history"), ("Offer 比一比", "/app/offers"),
+        )
+
+    hypotheses.sort(key=lambda h: _SEVERITY_RANK.get(h["severity"], 9))
+    return {
+        "days": days,
+        "funnel": {
+            "applied": applied,
+            "interviewing": interviewing,
+            "offer": offer,
+            "closed_after_apply": closed_after_apply,
+            "wish": wish,
+        },
+        "rates": {
+            "interview_rate": interview_rate,
+            "offer_rate": offer_rate,
+            "stale_count": stale_count,
+            "stale_avg_days": stale_avg,
+        },
+        "hypotheses": hypotheses[:4],
+    }
+
+
 # ============================ M56 投递直达 ============================
 
 

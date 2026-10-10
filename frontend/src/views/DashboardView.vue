@@ -227,6 +227,50 @@
         <InterviewCalendar :interviews="followups.upcoming_interviews_all" @open="goFollowUp" />
       </div>
 
+      <!-- M72 求职归因：转化漏斗 + 规则归因假设（回答「卡在哪」，无投递整卡隐藏） -->
+      <div v-if="attr.funnel.applied > 0"
+        class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-2xl p-5 mb-8">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-semibold text-ink">🧭 求职归因</h2>
+          <span class="text-xs text-ink-faint">投递漏斗转化 · 回答「卡在哪」</span>
+        </div>
+        <!-- 三级转化漏斗（卡内数字 = 该级数量；转化率 = 上一级 → 本级） -->
+        <div class="grid grid-cols-3 gap-2 mb-4">
+          <div v-for="s in attrStages" :key="s.key"
+            class="text-center rounded-2xl border border-line bg-inset/50 py-3">
+            <div class="text-2xl font-semibold font-mono" :class="s.color">{{ s.count }}</div>
+            <div class="text-xs text-ink-faint mt-1">{{ s.label }}</div>
+            <div class="text-xs mt-0.5 font-medium" :class="s.rate == null ? 'text-ink-faint' : 'text-ink-sub'">
+              {{ s.rate == null ? '—' : `转化 ${attrPct(s.rate)}` }}
+            </div>
+          </div>
+        </div>
+        <div v-if="attr.rates.stale_count"
+          class="text-xs text-warn mb-4">
+          ⏳ {{ attr.rates.stale_count }} 条投递超 {{ attr.days }} 天未流转（平均 {{ Math.round(attr.rates.stale_avg_days) }} 天）
+        </div>
+        <!-- 归因假设：后端规则产「假设 + 建议动作」，按严重度排序 -->
+        <div class="space-y-2.5">
+          <div v-for="h in attr.hypotheses" :key="h.id"
+            class="rounded-2xl border px-4 py-3" :class="attrSeverityCls[h.severity]">
+            <div class="flex items-start gap-2.5">
+              <span class="mt-1.5 w-2 h-2 rounded-full shrink-0" :class="attrSeverityDot[h.severity]"></span>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium text-ink">{{ h.title }}</div>
+                <div class="text-xs text-ink-sub mt-1 leading-relaxed">{{ h.detail }}</div>
+                <div v-if="h.actions?.length" class="flex flex-wrap gap-2 mt-2.5">
+                  <button v-for="a in h.actions" :key="a.label" @click="$router.push(a.to)"
+                    class="text-xs font-medium px-3 py-1.5 rounded-md border transition-colors
+                      bg-panel border-line-strong text-ink-sub hover:text-accent hover:border-accent">
+                    {{ a.label }} →
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- M53 活跃热力图 -->
       <div v-if="hasActivity" class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-2xl p-5 mb-8">
         <div class="flex items-center justify-between mb-4">
@@ -381,6 +425,34 @@ const recentDiags = ref([])
 const recentInterviews = ref([])
 // M60 求职跟进：逾期 applied + 面试日程（接口失败回退空态，整卡隐藏不阻断总览）
 const followups = ref({ days: 7, stale_applies: [], upcoming_interviews: [], upcoming_interviews_all: [] })
+
+// M72 求职归因：漏斗转化 + 规则归因假设（接口失败回退空态，无投递整卡隐藏）
+const attr = ref({
+  days: 7,
+  funnel: { applied: 0, interviewing: 0, offer: 0, closed_after_apply: 0, wish: 0 },
+  rates: { interview_rate: null, offer_rate: null, stale_count: 0, stale_avg_days: null },
+  hypotheses: [],
+})
+// 三级转化漏斗：卡内 rate = 上一级 → 本级转化率（投递级无上一级，显示 —）
+const attrStages = computed(() => {
+  const f = attr.value.funnel
+  const r = attr.value.rates
+  return [
+    { key: 'applied', label: '已投递', count: f.applied, rate: null, color: 'text-accent' },
+    { key: 'interviewing', label: '进入面试', count: f.interviewing, rate: r.interview_rate, color: 'text-warn' },
+    { key: 'offer', label: 'Offer', count: f.offer, rate: r.offer_rate, color: 'text-ok' },
+  ]
+})
+const attrSeverityCls = {
+  high: 'border-bad/30 bg-bad/5',
+  medium: 'border-warn/30 bg-warn/5',
+  info: 'border-line bg-inset/50',
+  ok: 'border-ok/30 bg-ok/5',
+}
+const attrSeverityDot = { high: 'bg-bad', medium: 'bg-warn', info: 'bg-ink-faint', ok: 'bg-ok' }
+function attrPct(v) {
+  return Math.round(v * 100) + '%'
+}
 
 const today = new Date().toLocaleDateString('zh-CN', {
   year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
@@ -591,17 +663,19 @@ async function loadAll() {
   loading.value = true
   loadError.value = false
   try {
-    // 统计 + 最近诊断 + 最近面试 + 跟进聚合 四路并发（跟进失败不阻断总览）
-    const [statsRes, histRes, ivRes, fuRes] = await Promise.all([
+    // 统计 + 最近诊断 + 最近面试 + 跟进聚合 + 求职归因 五路并发（后两路失败不阻断总览）
+    const [statsRes, histRes, ivRes, fuRes, atRes] = await Promise.all([
       api.getStats(),
       api.getHistory({ limit: 5 }),
       api.interviewSessions(),
       api.getFollowups().catch(() => null),
+      api.getJobAttribution().catch(() => null),
     ])
     stats.value = statsRes.data
     recentDiags.value = histRes.data.items || []
     recentInterviews.value = (ivRes.data.items || []).slice(0, 5)
     if (fuRes?.data) followups.value = fuRes.data
+    if (atRes?.data) attr.value = atRes.data
   } catch (e) {
     console.warn('[dashboard] 统计加载失败', e)
     loadError.value = true
