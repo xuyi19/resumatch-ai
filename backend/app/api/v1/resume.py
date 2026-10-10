@@ -17,6 +17,7 @@ from app.models.entities import Resume
 from app.services.resume_service import ResumeService
 from app.utils.docx_generator import generate_resume_docx
 from app.utils.export_paths import resolve_save_path
+from app.utils.pdf_generator import generate_resume_pdf
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
 
@@ -501,40 +502,36 @@ async def _record_export(
     await db.commit()
 
 
-@router.post("/export-docx")
-async def export_docx(
-    req: ExportDocxRequest,
-    db: AsyncSession = Depends(get_db),
-    owner_id: str = Depends(get_owner_id),
+def _resolve_photo(photo_id: str | None) -> Path | None:
+    """证件照 id → 落盘路径（魔数白名单上传产物）；未传返回 None。"""
+    if not photo_id:
+        return None
+    if not _PHOTO_NAME_RE.match(photo_id):
+        raise HTTPException(status_code=404, detail="照片不存在")
+    found = next(
+        (p for p in _photo_dir().glob(f"{photo_id}.*") if p.is_file()), None
+    )
+    if not found:
+        raise HTTPException(status_code=404, detail="照片不存在")
+    return found
+
+
+async def _deliver_export(
+    db: AsyncSession,
+    owner_id: str,
+    data: bytes,
+    filename: str,
+    template: str,
+    save_path: str | None,
+    media_type: str,
 ):
-    """把优化后的简历导出为 Word 文件（可选嵌入证件照）。
+    """导出产物双形态投递（export-docx / export-pdf 共用）。
 
     save_path 为空：浏览器 blob 下载（网页形态主路径），记录导出历史（无路径）。
-    save_path 非空（仅桌面形态）：M71 统一落盘到设置的导出根目录「简历」子目录，
-    返回 JSON（saved_to/save_path 为实际保存路径）。
+    save_path 非空（仅桌面形态）：M71 统一落盘到设置的导出根目录并按类型
+    分类归档，返回 JSON（saved_to/save_path 为实际保存路径）。
     """
-    photo_path = None
-    if req.photo_id:
-        if not _PHOTO_NAME_RE.match(req.photo_id):
-            raise HTTPException(status_code=404, detail="照片不存在")
-        found = next(
-            (p for p in _photo_dir().glob(f"{req.photo_id}.*") if p.is_file()), None
-        )
-        if not found:
-            raise HTTPException(status_code=404, detail="照片不存在")
-        photo_path = found
-
-    try:
-        data = generate_resume_docx(
-            req.optimized_resume, template=req.template, photo_path=photo_path
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"生成失败: {e}")
-
-    filename = "优化后的简历.docx"
-
-    if req.save_path:
-        # 桌面形态（M71）：save_path 仅作直写标志，按「导出位置」设置分类落盘
+    if save_path:
         if settings.APP_MODE == "web":
             raise HTTPException(status_code=403, detail="网页形态不支持服务端落盘")
         target = await resolve_save_path("resume", filename, db, owner_id)
@@ -542,15 +539,58 @@ async def export_docx(
             target.write_bytes(data)
         except OSError as e:
             raise HTTPException(status_code=500, detail=f"写入文件失败: {e}")
-        await _record_export(db, owner_id, target.name, str(target), req.template)
+        await _record_export(db, owner_id, target.name, str(target), template)
         return {"saved_to": str(target), "save_path": str(target), "filename": target.name}
 
-    await _record_export(db, owner_id, filename, None, req.template)
+    await _record_export(db, owner_id, filename, None, template)
     quoted = quote(filename)
     return Response(
         content=data,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        media_type=media_type,
         headers={
             "Content-Disposition": f"attachment; filename*=UTF-8''{quoted}",
         },
+    )
+
+
+@router.post("/export-docx")
+async def export_docx(
+    req: ExportDocxRequest,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """把优化后的简历导出为 Word 文件（可选嵌入证件照）。"""
+    photo_path = _resolve_photo(req.photo_id)
+    try:
+        data = generate_resume_docx(
+            req.optimized_resume, template=req.template, photo_path=photo_path
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"生成失败: {e}")
+
+    return await _deliver_export(
+        db, owner_id, data, "优化后的简历.docx", req.template,
+        req.save_path,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+
+
+@router.post("/export-pdf")
+async def export_pdf(
+    req: ExportDocxRequest,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """把优化后的简历导出为 PDF 文件（pymupdf 内置 CJK，模板色板与 Word 一致）。"""
+    photo_path = _resolve_photo(req.photo_id)
+    try:
+        data = generate_resume_pdf(
+            req.optimized_resume, template=req.template, photo_path=photo_path
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"生成失败: {e}")
+
+    return await _deliver_export(
+        db, owner_id, data, "优化后的简历.pdf", req.template,
+        req.save_path, "application/pdf",
     )

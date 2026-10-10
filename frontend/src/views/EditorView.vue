@@ -50,11 +50,11 @@
               🗂 导出历史
             </button>
 
-            <button @click="downloadPdf"
+            <button @click="downloadPdf" :disabled="downloadingPdf"
               class="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg
                 bg-accent text-white hover:bg-accent-hover
-                transition-colors">
-              🖨 下载 PDF
+                disabled:opacity-50 transition-colors">
+              🖨 {{ downloadingPdf ? '生成中...' : '下载 PDF' }}
             </button>
           </div>
         </div>
@@ -275,14 +275,6 @@
 
   </div>
 
-  <!-- 打印专用区域：优先直印 docx 预览 DOM（打印=预览=导出三者一致），失败回落 HTML 模板 -->
-  <Teleport to="body">
-    <div class="print-root">
-      <div v-if="printHtml" v-html="printHtml"></div>
-      <ResumePreview v-else :data="data" :template="currentTemplate" :photo-url="photoUrl" />
-    </div>
-  </Teleport>
-
   <!-- 导出历史弹层 -->
   <Teleport to="body">
     <div v-if="showHistory" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/40"
@@ -326,14 +318,13 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import { renderAsync } from 'docx-preview'
 import api from '../api'
 import { useAppMode } from '../composables/useAppMode'
 import { checkResume } from '../utils/checker'
-import ResumePreview from '../components/ResumePreview.vue'
 import EmptyState from '../components/EmptyState.vue'
 import LoadingBlock from '../components/LoadingBlock.vue'
 
@@ -349,6 +340,7 @@ const SESSION_KEY = `resume_optimized_${taskId || 'blank'}`
 
 const currentTemplate = ref('classic')
 const downloading = ref(false)
+const downloadingPdf = ref(false)
 
 // ---- F1：保存到简历库（结构化编辑数据 → 纯文本入库，可从简历库直接发起诊断） ----
 const savingToLibrary = ref(false)
@@ -437,7 +429,6 @@ let previewTimer = null
 // ---- 导出（双形态）+ 导出历史 ----
 // 桌面形态：原生「另存为」选路径 → 服务端直写（保存位置明确）
 // 网页形态：浏览器 blob 下载（下载目录由浏览器管理）
-const printHtml = ref('')          // PDF 打印内容：docx 预览 DOM 快照
 const showHistory = ref(false)
 const historyItems = ref([])
 const historyLoading = ref(false)
@@ -737,15 +728,40 @@ function addSkill() {
   newSkill.value = ''
 }
 
-function downloadPdf() {
-  // 直印 docx 预览 DOM：打印输出与预览/导出的 Word 版式完全一致（含照片、分页）。
-  // 预览尚未就绪时回落 ResumePreview HTML 模板。
-  printHtml.value = docxBox.value?.innerHTML || ''
-  setTimeout(async () => {
-    window.print()
-    await nextTick()
-    setTimeout(() => { printHtml.value = '' }, 300)
-  }, 150)
+async function downloadPdf() {
+  // 服务端生成真 PDF 文件（与 Word 同一份数据/模板色板），取代旧打印方案
+  downloadingPdf.value = true
+  const payload = {
+    optimized_resume: buildWordData(),
+    template: currentTemplate.value,
+    photo_id: photoId.value || undefined,
+  }
+  try {
+    // 桌面形态（M71）：统一保存到「导出位置」设置的目录并分类归档
+    if (isDesktop.value) {
+      const res = await api.exportPdfToPath({ ...payload, save_path: 'auto' })
+      Message.success(`已保存到：${res.data?.saved_to || res.data?.save_path || ''}`)
+      return
+    }
+    // 网页形态：浏览器 blob 下载
+    const res = await api.exportPdf(payload)
+    const blob = new Blob([res.data], { type: 'application/pdf' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${data.value.name || '简历'}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    Message.success('PDF 已下载（见浏览器下载目录）')
+  } catch (e) {
+    const detail = e?.response?.data?.detail || e.message
+    console.error(e)
+    Message.error('导出失败：' + detail)
+  } finally {
+    downloadingPdf.value = false
+  }
 }
 
 // 编辑器数据 → Word 生成器入参（预览与导出共用同一份转换，保证版式一致）
@@ -978,55 +994,5 @@ function applyQueue(queue) {
 }
 .docx-preview-box .docx-wrapper > section.docx {
   margin-bottom: 16px;
-}
-
-.print-root {
-  display: none;
-}
-
-@media print {
-  @page { size: A4; margin: 0; }
-
-  body > * { display: none !important; }
-  body > .print-root { display: block !important; position: static !important; width: 100% !important; }
-
-  html, body {
-    background: #ffffff !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-
-  .print-root,
-  .print-root * {
-    box-shadow: none !important;
-    border-radius: 0 !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  .print-root .page {
-    width: 210mm !important;
-    min-height: 297mm !important;
-    margin: 0 auto !important;
-    padding: 15mm 15mm !important;
-  }
-
-  .print-root .page.is-sidebar {
-    padding: 0 !important;
-  }
-
-  .print-root .r-section,
-  .print-root .r-item {
-    page-break-inside: avoid;
-  }
-
-  /* docx 预览 DOM 直印适配：去灰底/阴影，按 Word 分页原样输出 */
-  .print-root .docx-wrapper {
-    background: #ffffff !important;
-    padding: 0 !important;
-  }
-  .print-root .docx-wrapper > section.docx {
-    margin: 0 auto !important;
-  }
 }
 </style>

@@ -79,6 +79,12 @@ export default {
   // Word 导出（桌面形态：save_path 由原生另存为对话框选定，服务端直写）
   exportDocxToPath: (data) => api.post('/resumes/export-docx', data),
 
+  // PDF 导出（服务端生成真 PDF 文件，入参与 Word 相同）
+  exportPdf: (data) => api.post('/resumes/export-pdf', data, {
+    responseType: 'blob',
+  }),
+  exportPdfToPath: (data) => api.post('/resumes/export-pdf', data),
+
   // 导出历史（桌面态含保存路径，可打开所在位置）
   listExportHistory: () => api.get('/resumes/export-history'),
   deleteExportHistory: (id) => api.delete(`/resumes/export-history/${id}`),
