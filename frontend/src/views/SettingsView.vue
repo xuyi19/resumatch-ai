@@ -275,84 +275,27 @@
           <div class="h-px flex-1 bg-line"></div>
         </div>
 
-        <!-- M19：招聘数据源（岗位一键获取/推荐） -->
+        <!-- M19：招聘数据源（M30 后两源均零配置，瘦身为单行开关，点击即存） -->
         <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-5 md:p-7">
-          <h2 class="text-base font-semibold mb-1">
-            招聘数据源
-            <span class="text-xs text-ink-faint font-normal">（分析页「一键获取岗位」的数据来源）</span>
-          </h2>
-          <p class="text-xs text-ink-faint mb-5">接入方式与模型 API 一致：选预设 → 贴 Key → 测试 → 保存</p>
-
-          <div>
-            <label class="text-xs font-medium text-ink-sub block mb-2.5">数据源预设</label>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <button v-for="s in JOB_SOURCES" :key="s.id" @click="applyJobSource(s)"
-                class="px-2 py-2 text-xs font-medium rounded-md border transition-colors"
-                :class="jobProvider === s.id
-                  ? 'bg-accent/10 border-accent/50 text-accent'
-                  : 'bg-inset border-line text-ink-sub hover:text-ink hover:border-line-strong'">
-                {{ s.name }}
-              </button>
-            </div>
-            <div v-if="currentJobSource" class="flex items-center gap-3 mt-2.5 text-xs flex-wrap">
-              <span class="text-ink-faint">{{ currentJobSource.note }}</span>
-              <a v-if="currentJobSource.keyUrl" :href="currentJobSource.keyUrl" target="_blank"
-                rel="noopener" class="text-accent hover:underline">
-                {{ currentJobSource.keyUrlText }}
-              </a>
-            </div>
-          </div>
-
-          <div v-if="currentJobSource?.needId" class="mt-4">
-            <label class="text-xs font-medium text-ink-sub block mb-2.5">
-              {{ currentJobSource.idLabel }} <span class="text-bad">*</span>
-            </label>
-            <input v-model="jobForm.api_id" type="text" placeholder="App ID"
-              class="w-full px-3.5 py-2.5 text-sm bg-inset rounded-md border border-line
-                font-mono focus:outline-none focus:border-accent transition-colors" />
-          </div>
-
-          <div v-if="currentJobSource?.keyLabel" class="mt-4">
-            <label class="text-xs font-medium text-ink-sub block mb-2.5">
-              {{ currentJobSource.keyLabel }} <span class="text-bad">*</span>
-            </label>
-            <input v-model="jobForm.api_key" type="password" :placeholder="currentJobSource.keyPlaceholder"
-              class="w-full px-3.5 py-2.5 text-sm bg-inset rounded-md border border-line
-                font-mono focus:outline-none focus:border-accent transition-colors" />
-            <div class="text-xs text-ink-faint mt-1.5">
-              仅保存在本机 localStorage，不会上传服务器
-            </div>
-          </div>
-
-          <div v-if="jobTestResult" class="mt-4 p-3.5 rounded-md text-sm border"
-            :class="jobTestResult.success
-              ? 'bg-ok/10 text-ok border-ok/30'
-              : 'bg-bad/10 text-bad border-bad/30'">
-            <div>{{ jobTestResult.message }}</div>
-            <div v-if="jobTestResult.raw" class="text-xs opacity-70 mt-1.5 font-mono break-all">
-              {{ jobTestResult.raw }}
-            </div>
-          </div>
-
-          <div class="flex flex-wrap gap-2.5 mt-5">
-            <button @click="clearJobSource"
-              class="px-4 py-2.5 text-sm font-medium rounded-md text-ink-sub
-                border border-line hover:border-bad/50 hover:text-bad transition-colors">
-              清空
-            </button>
-            <button @click="testJob" :disabled="jobTesting || currentJobSource?.id === 'mock'"
-              class="px-4 py-2.5 text-sm font-medium rounded-md text-ink
-                border border-line-strong hover:border-accent hover:text-accent
-                disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-              {{ jobTesting ? '测试中…' : '测试连接' }}
-            </button>
-            <button @click="saveJobSourceCfg" :disabled="!jobSourceReady"
-              class="flex-1 min-w-[120px] px-4 py-2.5 text-sm font-medium rounded-md
-                bg-accent text-white hover:bg-accent-hover
-                disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-              保存配置
+          <h2 class="text-base font-semibold mb-2">🌐 招聘数据源</h2>
+          <p class="text-sm text-ink-sub leading-relaxed mb-4">
+            分析页「一键获取岗位」的岗位来源。两个内置源都无需任何 Key，点击即保存生效。
+          </p>
+          <div class="inline-flex rounded-md border border-line-strong overflow-hidden">
+            <button v-for="(s, i) in JOB_SOURCES" :key="s.id" @click="applyJobSource(s)"
+              class="px-4 py-2 text-sm font-medium transition-colors"
+              :class="[
+                i > 0 ? 'border-l border-line' : '',
+                jobProvider === s.id
+                  ? 'bg-accent text-white'
+                  : 'bg-panel text-ink-sub hover:text-ink hover:bg-inset',
+              ]">
+              {{ s.name }}
             </button>
           </div>
+          <p class="text-xs text-ink-faint mt-2.5 leading-relaxed">
+            当前：{{ currentJobSource?.name }}——{{ currentJobSource?.note }}
+          </p>
         </div>
       </section>
 
@@ -760,12 +703,9 @@ function onGlobalKey(e) {
   if (e.key === 'Escape' && showApiModal.value) showApiModal.value = false
 }
 
-/* ================================ M19：招聘数据源 ================================ */
+/* ================================ M19：招聘数据源（M30 后两源零配置，单行开关） ================================ */
 
-const jobForm = reactive({ api_key: '', api_id: '' })
 const jobProvider = ref('mock')
-const jobTesting = ref(false)
-const jobTestResult = ref(null)
 
 // M22 C1：清空全部数据（二次确认）
 const clearingData = ref(false)
@@ -793,71 +733,17 @@ function confirmClearData() {
 
 const currentJobSource = computed(() => JOB_SOURCES.find((s) => s.id === jobProvider.value))
 
-const jobSourceReady = computed(() => {
-  const s = currentJobSource.value
-  if (!s) return false
-  // mock / ai 无需任何 Key
-  if (s.id === 'mock' || s.id === 'ai') return true
-  if (s.needId && !jobForm.api_id.trim()) return false
-  return !!jobForm.api_key.trim()
-})
-
 function loadJobSourceCfg() {
   const cfg = loadJobSource()
   jobProvider.value = JOB_SOURCES.some((s) => s.id === cfg.provider) ? cfg.provider : 'mock'
-  jobForm.api_key = cfg.api_key || ''
-  jobForm.api_id = cfg.api_id || ''
 }
 
 function applyJobSource(s) {
+  if (jobProvider.value === s.id) return
   jobProvider.value = s.id
-  jobTestResult.value = null
-}
-
-function saveJobSourceCfg() {
-  if (!jobSourceReady.value) {
-    Message.warning('请补全数据源所需信息')
-    return
-  }
-  saveJobSource({
-    provider: jobProvider.value,
-    api_key: jobForm.api_key.trim(),
-    api_id: jobForm.api_id.trim(),
-  })
-  jobTestResult.value = { success: true, message: '✓ 数据源已保存，回到分析页即可一键获取岗位' }
-}
-
-function clearJobSource() {
-  saveJobSource({ provider: 'mock', api_key: '', api_id: '' })
-  jobProvider.value = 'mock'
-  jobForm.api_key = ''
-  jobForm.api_id = ''
-  jobTestResult.value = null
-}
-
-async function testJob() {
-  jobTesting.value = true
-  jobTestResult.value = null
-  let llmCfg = {}
-  try { llmCfg = JSON.parse(localStorage.getItem('llm_config') || '{}') } catch (e) {}
-  try {
-    const res = await api.testJobProvider({
-      provider: jobProvider.value,
-      api_key: jobForm.api_key.trim(),
-      api_id: jobForm.api_id.trim(),
-      llm_config: llmCfg,
-    })
-    jobTestResult.value = res.data.success
-      ? { success: true, message: `✓ 连接成功（${res.data.provider}），获取到 ${res.data.sample_count} 条岗位${res.data.note ? ` · ${res.data.note}` : ''}` }
-      : { success: false, message: `✗ ${res.data.error}`, raw: res.data.raw }
-  } catch (e) {
-    jobTestResult.value = {
-      success: false,
-      message: '✗ 测试失败：' + (e.response?.data?.detail || e.message),
-    }
-  } finally {
-    jobTesting.value = false
-  }
+  // 保留历史 cfg 里的 api_key/api_id（当前内置源用不到，向后兼容不丢数据）
+  saveJobSource({ ...loadJobSource(), provider: s.id })
+  Message.success(`岗位来源已切换：${s.name}`)
 }
 
 /* ================================ M59：数据备份与恢复 ================================ */

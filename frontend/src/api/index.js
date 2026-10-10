@@ -114,12 +114,11 @@ export default {
   getFollowupDays: () => api.get('/settings/followup-days'),
   setFollowupDays: (days) => api.put('/settings/followup-days', { days }),
 
-  // M19 岗位市场：一键获取岗位 + 按简历推荐 + 数据源测试
+  // M19 岗位市场：一键获取岗位 + 按简历推荐
   searchJobs: (data) => api.post('/jobs/search', data),
   recommendJobs: (data) => api.post('/jobs/recommend', data),
   // M30 手动导入公司比对推荐（用户录入目标公司，与简历匹配排序）
   importMatchJobs: (data) => api.post('/jobs/import-match', data),
-  testJobProvider: (config) => api.post('/settings/test-job', config),
   // M45 岗位库：自管理岗位 CRUD + 库×简历批量匹配推荐
   listLibraryJobs: () => api.get('/jobs/library'),
   addLibraryJobs: (items, source = 'manual', skipDuplicates = false) =>
