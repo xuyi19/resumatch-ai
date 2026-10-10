@@ -281,15 +281,12 @@
           <p class="text-sm text-ink-sub leading-relaxed mb-4">
             分析页「一键获取岗位」的岗位来源。两个内置源都无需任何 Key，点击即保存生效。
           </p>
-          <div class="inline-flex rounded-md border border-line-strong overflow-hidden">
-            <button v-for="(s, i) in JOB_SOURCES" :key="s.id" @click="applyJobSource(s)"
-              class="px-4 py-2 text-sm font-medium transition-colors"
-              :class="[
-                i > 0 ? 'border-l border-line' : '',
-                jobProvider === s.id
-                  ? 'bg-accent text-white'
-                  : 'bg-panel text-ink-sub hover:text-ink hover:bg-inset',
-              ]">
+          <div class="flex flex-wrap gap-2">
+            <button v-for="s in JOB_SOURCES" :key="s.id" @click="applyJobSource(s)"
+              class="px-4 py-2 text-sm font-medium rounded-md border transition-colors"
+              :class="jobProvider === s.id
+                ? 'bg-accent/10 border-accent/50 text-accent'
+                : 'bg-inset border-line text-ink-sub hover:text-ink hover:border-line-strong'">
               {{ s.name }}
             </button>
           </div>
