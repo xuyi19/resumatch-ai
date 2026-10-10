@@ -1,15 +1,30 @@
 <template>
   <div class="max-w-4xl mx-auto px-6 md:px-10 py-8 md:py-10">
 
-    <div class="mb-8">
+    <div class="mb-6">
       <h1 class="text-2xl font-semibold tracking-tight mb-1.5">
         <span class="bg-gradient-to-r from-ink to-accent bg-clip-text text-transparent">设置</span>
       </h1>
       <div class="h-0.5 w-14 rounded-full bg-gradient-to-r from-accent to-accent-hover/0"></div>
-      <p class="text-sm text-ink-sub">配置大模型 API，Key 仅保存在本机，不上传服务器</p>
+      <p class="text-sm text-ink-sub">管理模型服务、招聘数据源与本地数据；Key 与数据仅保存在本机</p>
     </div>
 
-    <div class="space-y-5">
+    <!-- 分组锚点导航（sticky；hash 路由下不能用 # 链接，走 JS scrollIntoView） -->
+    <div class="sticky top-14 md:top-2 z-30 -mx-2 px-2 py-2 mb-4
+      bg-page/90 backdrop-blur rounded-lg">
+      <div class="flex gap-1.5 overflow-x-auto">
+        <button v-for="g in SECTIONS" :key="g.id" @click="scrollToSec(g.id)"
+          class="px-3 py-1.5 text-xs font-medium rounded-md border whitespace-nowrap
+            transition-colors"
+          :class="activeSec === g.id
+            ? 'bg-accent/10 border-accent/50 text-accent'
+            : 'border-transparent text-ink-sub hover:text-ink hover:bg-inset'">
+          {{ g.label }}
+        </button>
+      </div>
+    </div>
+
+    <div class="space-y-6">
 
       <!-- 服务端预置提示（零配置分发） -->
       <div v-if="serverManaged"
@@ -18,38 +33,94 @@
         如需更换为自有 Key，可点「修改配置」弹窗填写并保存。
       </div>
 
-      <!-- 状态卡片（紧凑入口，配置表单收进弹窗） -->
-      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5">
-        <div class="flex items-center justify-between gap-4">
-          <div class="flex items-center gap-3.5 min-w-0">
-            <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-              :class="hasConfig ? 'bg-ok/10 text-ok' : 'bg-warn/10 text-warn'">
-              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path v-if="hasConfig" d="M20 6L9 17l-5-5" />
-                <path v-else d="M12 8v4.5M12 16h.01M12 3a9 9 0 100 18 9 9 0 000-18z" />
-              </svg>
+      <!-- ═══ 组一：模型服务 ═══ -->
+      <section id="sec-llm" class="scroll-mt-32 md:scroll-mt-20 space-y-4">
+        <div class="flex items-center gap-2.5">
+          <span class="w-2 h-2 bg-accent shrink-0" aria-hidden="true"></span>
+          <span class="text-sm font-semibold shrink-0">模型服务</span>
+          <span class="text-xs text-ink-faint hidden sm:inline shrink-0">诊断 / 面试 / 简历优化的 AI 能力来源</span>
+          <div class="h-px flex-1 bg-line"></div>
+        </div>
+
+        <!-- 状态卡片（紧凑入口，配置表单收进弹窗） -->
+        <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15 rounded-lg p-5">
+          <div class="flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3.5 min-w-0">
+              <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                :class="hasConfig ? 'bg-ok/10 text-ok' : 'bg-warn/10 text-warn'">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path v-if="hasConfig" d="M20 6L9 17l-5-5" />
+                  <path v-else d="M12 8v4.5M12 16h.01M12 3a9 9 0 100 18 9 9 0 000-18z" />
+                </svg>
+              </div>
+              <div class="min-w-0">
+                <div class="font-semibold text-sm mb-0.5">
+                  {{ hasConfig ? 'API 已配置' : '尚未配置 API' }}
+                </div>
+                <div class="text-xs text-ink-faint font-mono truncate">
+                  {{ hasConfig
+                    ? `${currentVendorName || '自定义'} · ${form.model || '未设置模型'}`
+                    : '选择厂商 → 贴 Key → 测试 → 保存，即可启用 AI 功能' }}
+                </div>
+              </div>
             </div>
-            <div class="min-w-0">
-              <div class="font-semibold text-sm mb-0.5">
-                {{ hasConfig ? 'API 已配置' : '尚未配置 API' }}
-              </div>
-              <div class="text-xs text-ink-faint font-mono truncate">
-                {{ hasConfig
-                  ? `${currentVendorName || '自定义'} · ${form.model || '未设置模型'}`
-                  : '选择厂商 → 贴 Key → 测试 → 保存，即可启用 AI 功能' }}
-              </div>
+            <div class="flex items-center gap-3 shrink-0">
+              <span v-if="hasConfig" class="w-2.5 h-2.5 rounded-full bg-ok" title="已配置" />
+              <button @click="showApiModal = true"
+                class="px-4 py-2 text-sm font-medium rounded-md
+                  bg-accent text-white hover:bg-accent-hover
+                  shadow-[0_1px_0_rgba(255,255,255,0.25)_inset]
+                  transition-colors">
+                {{ hasConfig ? '修改配置' : '立即配置' }}
+              </button>
             </div>
           </div>
-          <div class="flex items-center gap-3 shrink-0">
-            <span v-if="hasConfig" class="w-2.5 h-2.5 rounded-full bg-ok" title="已配置" />
-            <button @click="showApiModal = true"
-              class="px-4 py-2 text-sm font-medium rounded-md
-                bg-accent text-white hover:bg-accent-hover
-                shadow-[0_1px_0_rgba(255,255,255,0.25)_inset]
-                transition-colors">
-              {{ hasConfig ? '修改配置' : '立即配置' }}
-            </button>
+        </div>
+      </section>
+
+      <!-- 获取 Key 三步指引（默认折叠：未配置用户点开看，已配置用户零打扰） -->
+      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/15
+        rounded-lg overflow-hidden">
+        <button @click="showGuide = !showGuide"
+          class="w-full flex items-center justify-between gap-3 px-5 py-4 text-left
+            hover:bg-inset/60 transition-colors">
+          <span class="text-sm font-semibold">📖 如何获取 API Key？三步指引与控制台直达</span>
+          <span class="text-xs text-ink-faint shrink-0">{{ showGuide ? '收起 ▲' : '展开 ▼' }}</span>
+        </button>
+        <div v-show="showGuide" class="px-5 pb-5">
+          <div class="space-y-3.5 text-sm text-ink-sub leading-relaxed">
+            <div class="flex gap-3">
+              <span class="text-accent font-mono text-xs shrink-0 pt-0.5">01</span>
+              <span>点上方「立即配置 / 修改配置」打开配置弹窗，选择厂商后点击「前往控制台创建 API Key」
+                注册并生成 Key（智谱 glm-4-flash 免费、硅基流动有免费额度、Ollama 本地免费）</span>
+            </div>
+            <div class="flex gap-3">
+              <span class="text-accent font-mono text-xs shrink-0 pt-0.5">02</span>
+              <span>粘贴 Key，点「测试连接」——出错时会给出明确原因
+                （Key 无效 / 余额不足 / 模型名不存在 / 网络不通）</span>
+            </div>
+            <div class="flex gap-3">
+              <span class="text-accent font-mono text-xs shrink-0 pt-0.5">03</span>
+              <span>点「保存配置」，回到工作台即可开始诊断</span>
+            </div>
+          </div>
+
+          <!-- 厂商控制台直达（keyUrl 来自 VENDORS 预设） -->
+          <div class="mt-5 flex flex-wrap items-center gap-2">
+            <span class="text-xs text-ink-faint shrink-0">控制台直达：</span>
+            <a v-for="v in keyVendors" :key="v.id" :href="v.keyUrl" target="_blank" rel="noopener"
+              :title="v.note || v.name"
+              class="px-2.5 py-1 rounded-md border border-line text-xs text-ink-sub
+                hover:border-accent hover:text-accent transition-colors">
+              {{ v.name }} ↗
+            </a>
+          </div>
+
+          <div class="mt-5 p-3.5 rounded-md text-xs bg-warn/10 border border-warn/30
+            text-warn leading-relaxed">
+            <strong>提示：</strong>换厂商只需点对应预设按钮再贴新 Key；选「Ollama 本地」可零成本诊断
+            （Key 填任意字符，如 ollama，需先在本机 ollama pull 模型）。
           </div>
         </div>
       </div>
@@ -195,253 +266,245 @@
         </div>
       </Teleport>
 
-      <!-- M19：招聘数据源（岗位一键获取/推荐） -->
-      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-5 md:p-7">
-        <h2 class="text-base font-semibold mb-1">
-          招聘数据源
-          <span class="text-xs text-ink-faint font-normal">（分析页「一键获取岗位」的数据来源）</span>
-        </h2>
-        <p class="text-xs text-ink-faint mb-5">接入方式与模型 API 一致：选预设 → 贴 Key → 测试 → 保存</p>
+      <!-- ═══ 组二：数据源 ═══ -->
+      <section id="sec-jobs" class="scroll-mt-32 md:scroll-mt-20 space-y-4">
+        <div class="flex items-center gap-2.5">
+          <span class="w-2 h-2 bg-accent shrink-0" aria-hidden="true"></span>
+          <span class="text-sm font-semibold shrink-0">数据源</span>
+          <span class="text-xs text-ink-faint hidden sm:inline shrink-0">分析页「一键获取岗位」从这里取数</span>
+          <div class="h-px flex-1 bg-line"></div>
+        </div>
 
-        <div>
-          <label class="text-xs font-medium text-ink-sub block mb-2.5">数据源预设</label>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <button v-for="s in JOB_SOURCES" :key="s.id" @click="applyJobSource(s)"
-              class="px-2 py-2 text-xs font-medium rounded-md border transition-colors"
-              :class="jobProvider === s.id
-                ? 'bg-accent/10 border-accent/50 text-accent'
-                : 'bg-inset border-line text-ink-sub hover:text-ink hover:border-line-strong'">
-              {{ s.name }}
+        <!-- M19：招聘数据源（岗位一键获取/推荐） -->
+        <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-5 md:p-7">
+          <h2 class="text-base font-semibold mb-1">
+            招聘数据源
+            <span class="text-xs text-ink-faint font-normal">（分析页「一键获取岗位」的数据来源）</span>
+          </h2>
+          <p class="text-xs text-ink-faint mb-5">接入方式与模型 API 一致：选预设 → 贴 Key → 测试 → 保存</p>
+
+          <div>
+            <label class="text-xs font-medium text-ink-sub block mb-2.5">数据源预设</label>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <button v-for="s in JOB_SOURCES" :key="s.id" @click="applyJobSource(s)"
+                class="px-2 py-2 text-xs font-medium rounded-md border transition-colors"
+                :class="jobProvider === s.id
+                  ? 'bg-accent/10 border-accent/50 text-accent'
+                  : 'bg-inset border-line text-ink-sub hover:text-ink hover:border-line-strong'">
+                {{ s.name }}
+              </button>
+            </div>
+            <div v-if="currentJobSource" class="flex items-center gap-3 mt-2.5 text-xs flex-wrap">
+              <span class="text-ink-faint">{{ currentJobSource.note }}</span>
+              <a v-if="currentJobSource.keyUrl" :href="currentJobSource.keyUrl" target="_blank"
+                rel="noopener" class="text-accent hover:underline">
+                {{ currentJobSource.keyUrlText }}
+              </a>
+            </div>
+          </div>
+
+          <div v-if="currentJobSource?.needId" class="mt-4">
+            <label class="text-xs font-medium text-ink-sub block mb-2.5">
+              {{ currentJobSource.idLabel }} <span class="text-bad">*</span>
+            </label>
+            <input v-model="jobForm.api_id" type="text" placeholder="App ID"
+              class="w-full px-3.5 py-2.5 text-sm bg-inset rounded-md border border-line
+                font-mono focus:outline-none focus:border-accent transition-colors" />
+          </div>
+
+          <div v-if="currentJobSource?.keyLabel" class="mt-4">
+            <label class="text-xs font-medium text-ink-sub block mb-2.5">
+              {{ currentJobSource.keyLabel }} <span class="text-bad">*</span>
+            </label>
+            <input v-model="jobForm.api_key" type="password" :placeholder="currentJobSource.keyPlaceholder"
+              class="w-full px-3.5 py-2.5 text-sm bg-inset rounded-md border border-line
+                font-mono focus:outline-none focus:border-accent transition-colors" />
+            <div class="text-xs text-ink-faint mt-1.5">
+              仅保存在本机 localStorage，不会上传服务器
+            </div>
+          </div>
+
+          <div v-if="jobTestResult" class="mt-4 p-3.5 rounded-md text-sm border"
+            :class="jobTestResult.success
+              ? 'bg-ok/10 text-ok border-ok/30'
+              : 'bg-bad/10 text-bad border-bad/30'">
+            <div>{{ jobTestResult.message }}</div>
+            <div v-if="jobTestResult.raw" class="text-xs opacity-70 mt-1.5 font-mono break-all">
+              {{ jobTestResult.raw }}
+            </div>
+          </div>
+
+          <div class="flex flex-wrap gap-2.5 mt-5">
+            <button @click="clearJobSource"
+              class="px-4 py-2.5 text-sm font-medium rounded-md text-ink-sub
+                border border-line hover:border-bad/50 hover:text-bad transition-colors">
+              清空
+            </button>
+            <button @click="testJob" :disabled="jobTesting || currentJobSource?.id === 'mock'"
+              class="px-4 py-2.5 text-sm font-medium rounded-md text-ink
+                border border-line-strong hover:border-accent hover:text-accent
+                disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              {{ jobTesting ? '测试中…' : '测试连接' }}
+            </button>
+            <button @click="saveJobSourceCfg" :disabled="!jobSourceReady"
+              class="flex-1 min-w-[120px] px-4 py-2.5 text-sm font-medium rounded-md
+                bg-accent text-white hover:bg-accent-hover
+                disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              保存配置
             </button>
           </div>
-          <div v-if="currentJobSource" class="flex items-center gap-3 mt-2.5 text-xs flex-wrap">
-            <span class="text-ink-faint">{{ currentJobSource.note }}</span>
-            <a v-if="currentJobSource.keyUrl" :href="currentJobSource.keyUrl" target="_blank"
-              rel="noopener" class="text-accent hover:underline">
-              {{ currentJobSource.keyUrlText }}
-            </a>
+        </div>
+      </section>
+
+      <!-- ═══ 组三：使用偏好 ═══ -->
+      <section id="sec-prefs" class="scroll-mt-32 md:scroll-mt-20 space-y-4">
+        <div class="flex items-center gap-2.5">
+          <span class="w-2 h-2 bg-accent shrink-0" aria-hidden="true"></span>
+          <span class="text-sm font-semibold shrink-0">使用偏好</span>
+          <span class="text-xs text-ink-faint hidden sm:inline shrink-0">跟进提醒与导出位置</span>
+          <div class="h-px flex-1 bg-line"></div>
+        </div>
+
+        <!-- M60 跟进提醒 -->
+        <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-5 md:p-7">
+          <h2 class="text-base font-semibold mb-2">🔔 跟进提醒</h2>
+          <p class="text-sm text-ink-sub leading-relaxed mb-4">
+            岗位标记「已投递」后超过下面的天数仍停留在「已投递」状态，工作台会出现「📌 求职跟进」提醒；
+            把岗位流转到面试中 / Offer / 已结束，提醒自动消失。
+          </p>
+          <div class="flex items-center gap-2.5 flex-wrap">
+            <label for="followup-days" class="text-xs text-ink-sub shrink-0">提醒阈值</label>
+            <input id="followup-days" v-model.number="followupDaysInput" type="number" min="1" max="30"
+              class="w-24 px-3 py-2 text-sm bg-inset rounded-md border border-line
+                focus:outline-none focus:border-accent transition-colors" />
+            <span class="text-xs text-ink-faint">天（1~30，默认 7）</span>
+            <button @click="saveFollowupDays" :disabled="savingFollowupDays"
+              class="px-4 py-2 text-sm font-medium rounded-md shrink-0
+                bg-accent text-white hover:bg-accent-hover disabled:opacity-40 transition-colors">
+              {{ savingFollowupDays ? '保存中…' : '保存' }}
+            </button>
           </div>
         </div>
 
-        <div v-if="currentJobSource?.needId" class="mt-4">
-          <label class="text-xs font-medium text-ink-sub block mb-2.5">
-            {{ currentJobSource.idLabel }} <span class="text-bad">*</span>
-          </label>
-          <input v-model="jobForm.api_id" type="text" placeholder="App ID"
-            class="w-full px-3.5 py-2.5 text-sm bg-inset rounded-md border border-line
-              font-mono focus:outline-none focus:border-accent transition-colors" />
-        </div>
+        <!-- M71 导出位置 -->
+        <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-5 md:p-7">
+          <h2 class="text-base font-semibold mb-2">📁 导出位置</h2>
+          <p v-if="isWeb" class="text-sm text-ink-sub leading-relaxed mb-4">
+            网页版文件直接下载到浏览器下载目录，无需设置；下面的配置仅桌面版生效。
+          </p>
+          <p v-else class="text-sm text-ink-sub leading-relaxed mb-4">
+            桌面版所有导出统一保存到下面的目录，并按类型自动归入子文件夹，不再散落各处。
+          </p>
 
-        <div v-if="currentJobSource?.keyLabel" class="mt-4">
-          <label class="text-xs font-medium text-ink-sub block mb-2.5">
-            {{ currentJobSource.keyLabel }} <span class="text-bad">*</span>
-          </label>
-          <input v-model="jobForm.api_key" type="password" :placeholder="currentJobSource.keyPlaceholder"
-            class="w-full px-3.5 py-2.5 text-sm bg-inset rounded-md border border-line
-              font-mono focus:outline-none focus:border-accent transition-colors" />
+          <!-- 当前生效目录 -->
+          <div class="flex items-center gap-3 flex-wrap mb-4">
+            <code
+              class="text-xs font-mono bg-inset border border-line rounded px-2.5 py-1.5 break-all min-w-0 flex-1">
+              {{ exportRoot || '加载中…' }}
+            </code>
+            <button @click="openExportDir" :disabled="!isDesktop || openingExportDir"
+              :title="isDesktop ? '在资源管理器中打开' : '仅桌面版支持'"
+              class="px-4 py-2 text-sm font-medium rounded-md text-ink shrink-0
+                border border-line-strong hover:border-accent hover:text-accent
+                disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              {{ openingExportDir ? '打开中…' : '📂 打开' }}
+            </button>
+          </div>
+
+          <!-- 自定义目录 -->
+          <div class="flex items-center gap-2.5 flex-wrap">
+            <input v-model="exportRootInput" type="text"
+              placeholder="输入新的导出目录绝对路径；留空保存 = 恢复默认"
+              class="flex-1 min-w-[240px] px-3.5 py-2.5 text-sm bg-inset rounded-md border border-line
+                font-mono focus:outline-none focus:border-accent transition-colors" />
+            <button @click="saveExportRoot" :disabled="savingExportRoot"
+              class="px-4 py-2.5 text-sm font-medium rounded-md shrink-0
+                bg-accent text-white hover:bg-accent-hover
+                disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              {{ savingExportRoot ? '保存中…' : '保存' }}
+            </button>
+          </div>
           <div class="text-xs text-ink-faint mt-1.5">
-            仅保存在本机 localStorage，不会上传服务器
+            默认目录为程序目录下的 data/exports；桌面版导出无需每次另存为，自动按类型归档
+          </div>
+
+          <p class="text-xs text-ink-faint mt-3 leading-relaxed">
+            分类规则：简历 →「简历」 · 投递材料包 →「投递材料包」 · 面试报告 →「面试报告」 ·
+            诊断报告 →「诊断报告」 · 数据备份 →「数据备份」
+          </p>
+        </div>
+      </section>
+
+      <!-- ═══ 组四：数据管理（危险操作置底） ═══ -->
+      <section id="sec-data" class="scroll-mt-32 md:scroll-mt-20 space-y-4">
+        <div class="flex items-center gap-2.5">
+          <span class="w-2 h-2 bg-accent shrink-0" aria-hidden="true"></span>
+          <span class="text-sm font-semibold shrink-0">数据管理</span>
+          <span class="text-xs text-ink-faint hidden sm:inline shrink-0">备份恢复 · 数据清除</span>
+          <div class="h-px flex-1 bg-line"></div>
+        </div>
+
+        <!-- M59 数据备份与恢复 -->
+        <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-5 md:p-7">
+          <h2 class="text-base font-semibold mb-2">💾 数据备份</h2>
+          <p class="text-sm text-ink-sub leading-relaxed mb-4">
+            一键导出全部本地数据的 JSON 快照，用于备份或换机迁移；导入以新增方式合并，
+            不覆盖、不删除现有数据。
+          </p>
+
+          <!-- 各表条数统计 -->
+          <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-5">
+            <div v-for="it in backupStatItems" :key="it.key"
+              class="bg-inset border border-line rounded-md px-2 py-2.5 text-center">
+              <div class="text-lg font-semibold leading-none mb-1 font-mono">{{ it.count }}</div>
+              <div class="text-[11px] text-ink-faint">{{ it.label }}</div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2.5 flex-wrap">
+            <button @click="exportBackup" :disabled="exportingBackup"
+              class="px-4 py-2.5 text-sm font-medium rounded-md
+                bg-accent text-white hover:bg-accent-hover
+                disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              {{ exportingBackup ? '导出中…' : '⬇ 导出备份' }}
+            </button>
+            <button @click="pickImportFile" :disabled="importingBackup"
+              class="px-4 py-2.5 text-sm font-medium rounded-md text-ink
+                border border-line-strong hover:border-accent hover:text-accent
+                disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              {{ importingBackup ? '导入中…' : '⬆ 导入恢复' }}
+            </button>
+            <input ref="backupFileInput" type="file" accept=".json,application/json"
+              class="hidden" @change="onImportFilePicked" />
+          </div>
+
+          <p class="text-xs text-ink-faint mt-4 leading-relaxed">
+            备份包含：简历 / 简历版本 / 岗位库 / 诊断历史 / 面试与刷题会话 / 导出记录；
+            不含 LLM 配置（API Key 仅存本机，不落备份文件）
+          </p>
+        </div>
+
+        <!-- M22 C1 数据与隐私（清空为不可恢复操作，整页置底） -->
+        <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-5 md:p-7">
+          <h2 class="text-base font-semibold mb-2">数据与隐私</h2>
+          <p class="text-sm text-ink-sub leading-relaxed mb-4">
+            简历与诊断数据全部保存在你自己的电脑上（程序目录 data/ 下，SQLite 本地库），
+            不上传任何服务器；JD 文本仅用于当次诊断分析。诊断过程中需要把简历内容与 JD
+            发给你所配置的 LLM 服务商（如智谱/DeepSeek）用于生成结果，此外无任何第三方。
+          </p>
+          <div class="flex items-center gap-3 flex-wrap">
+            <button @click="confirmClearData" :disabled="clearingData"
+              class="px-4 py-2.5 text-sm font-medium rounded-md
+                border border-bad/50 text-bad hover:bg-bad/10
+                disabled:opacity-40 transition-colors">
+              {{ clearingData ? '正在清空...' : '清空我的全部数据' }}
+            </button>
+            <span class="text-xs text-ink-faint">
+              将删除：诊断记录、简历库、导出历史、会话、证件照与快照，不可恢复
+            </span>
           </div>
         </div>
-
-        <div v-if="jobTestResult" class="mt-4 p-3.5 rounded-md text-sm border"
-          :class="jobTestResult.success
-            ? 'bg-ok/10 text-ok border-ok/30'
-            : 'bg-bad/10 text-bad border-bad/30'">
-          <div>{{ jobTestResult.message }}</div>
-          <div v-if="jobTestResult.raw" class="text-xs opacity-70 mt-1.5 font-mono break-all">
-            {{ jobTestResult.raw }}
-          </div>
-        </div>
-
-        <div class="flex flex-wrap gap-2.5 mt-5">
-          <button @click="clearJobSource"
-            class="px-4 py-2.5 text-sm font-medium rounded-md text-ink-sub
-              border border-line hover:border-bad/50 hover:text-bad transition-colors">
-            清空
-          </button>
-          <button @click="testJob" :disabled="jobTesting || currentJobSource?.id === 'mock'"
-            class="px-4 py-2.5 text-sm font-medium rounded-md text-ink
-              border border-line-strong hover:border-accent hover:text-accent
-              disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-            {{ jobTesting ? '测试中…' : '测试连接' }}
-          </button>
-          <button @click="saveJobSourceCfg" :disabled="!jobSourceReady"
-            class="flex-1 min-w-[120px] px-4 py-2.5 text-sm font-medium rounded-md
-              bg-accent text-white hover:bg-accent-hover
-              disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-            保存配置
-          </button>
-        </div>
-      </div>
-
-      <!-- 获取 Key 指引 -->
-      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-5 md:p-7">
-        <h2 class="text-base font-semibold mb-4">获取 Key 三步指引</h2>
-        <div class="space-y-3.5 text-sm text-ink-sub leading-relaxed">
-          <div class="flex gap-3">
-            <span class="text-accent font-mono text-xs shrink-0 pt-0.5">01</span>
-            <span>点上方「立即配置 / 修改配置」打开配置弹窗，选择厂商后点击「前往控制台创建 API Key」
-              注册并生成 Key（智谱 glm-4-flash 免费、硅基流动有免费额度、Ollama 本地免费）</span>
-          </div>
-          <div class="flex gap-3">
-            <span class="text-accent font-mono text-xs shrink-0 pt-0.5">02</span>
-            <span>粘贴 Key，点「测试连接」——出错时会给出明确原因
-              （Key 无效 / 余额不足 / 模型名不存在 / 网络不通）</span>
-          </div>
-          <div class="flex gap-3">
-            <span class="text-accent font-mono text-xs shrink-0 pt-0.5">03</span>
-            <span>点「保存配置」，回到工作台即可开始诊断</span>
-          </div>
-        </div>
-
-        <!-- 厂商控制台直达（keyUrl 来自 VENDORS 预设） -->
-        <div class="mt-5 flex flex-wrap items-center gap-2">
-          <span class="text-xs text-ink-faint shrink-0">控制台直达：</span>
-          <a v-for="v in keyVendors" :key="v.id" :href="v.keyUrl" target="_blank" rel="noopener"
-            :title="v.note || v.name"
-            class="px-2.5 py-1 rounded-md border border-line text-xs text-ink-sub
-              hover:border-accent hover:text-accent transition-colors">
-            {{ v.name }} ↗
-          </a>
-        </div>
-
-        <div class="mt-5 p-3.5 rounded-md text-xs bg-warn/10 border border-warn/30
-          text-warn leading-relaxed">
-          <strong>提示：</strong>换厂商只需点对应预设按钮再贴新 Key；选「Ollama 本地」可零成本诊断
-          （Key 填任意字符，如 ollama，需先在本机 ollama pull 模型）。
-        </div>
-      </div>
-
-      <!-- M22 C1 数据与隐私 -->
-      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-5 md:p-7">
-        <h2 class="text-base font-semibold mb-2">数据与隐私</h2>
-        <p class="text-sm text-ink-sub leading-relaxed mb-4">
-          简历与诊断数据全部保存在你自己的电脑上（程序目录 data/ 下，SQLite 本地库），
-          不上传任何服务器；JD 文本仅用于当次诊断分析。诊断过程中需要把简历内容与 JD
-          发给你所配置的 LLM 服务商（如智谱/DeepSeek）用于生成结果，此外无任何第三方。
-        </p>
-        <div class="flex items-center gap-3 flex-wrap">
-          <button @click="confirmClearData" :disabled="clearingData"
-            class="px-4 py-2.5 text-sm font-medium rounded-md
-              border border-bad/50 text-bad hover:bg-bad/10
-              disabled:opacity-40 transition-colors">
-            {{ clearingData ? '正在清空...' : '清空我的全部数据' }}
-          </button>
-          <span class="text-xs text-ink-faint">
-            将删除：诊断记录、简历库、导出历史、会话、证件照与快照，不可恢复
-          </span>
-        </div>
-      </div>
-
-      <!-- M59 数据备份与恢复 -->
-      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-5 md:p-7">
-        <h2 class="text-base font-semibold mb-2">💾 数据备份</h2>
-        <p class="text-sm text-ink-sub leading-relaxed mb-4">
-          一键导出全部本地数据的 JSON 快照，用于备份或换机迁移；导入以新增方式合并，
-          不覆盖、不删除现有数据。
-        </p>
-
-        <!-- 各表条数统计 -->
-        <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-5">
-          <div v-for="it in backupStatItems" :key="it.key"
-            class="bg-inset border border-line rounded-md px-2 py-2.5 text-center">
-            <div class="text-lg font-semibold leading-none mb-1 font-mono">{{ it.count }}</div>
-            <div class="text-[11px] text-ink-faint">{{ it.label }}</div>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2.5 flex-wrap">
-          <button @click="exportBackup" :disabled="exportingBackup"
-            class="px-4 py-2.5 text-sm font-medium rounded-md
-              bg-accent text-white hover:bg-accent-hover
-              disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-            {{ exportingBackup ? '导出中…' : '⬇ 导出备份' }}
-          </button>
-          <button @click="pickImportFile" :disabled="importingBackup"
-            class="px-4 py-2.5 text-sm font-medium rounded-md text-ink
-              border border-line-strong hover:border-accent hover:text-accent
-              disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-            {{ importingBackup ? '导入中…' : '⬆ 导入恢复' }}
-          </button>
-          <input ref="backupFileInput" type="file" accept=".json,application/json"
-            class="hidden" @change="onImportFilePicked" />
-        </div>
-
-        <p class="text-xs text-ink-faint mt-4 leading-relaxed">
-          备份包含：简历 / 简历版本 / 岗位库 / 诊断历史 / 面试与刷题会话 / 导出记录；
-          不含 LLM 配置（API Key 仅存本机，不落备份文件）
-        </p>
-      </div>
-
-      <!-- M71 导出位置 -->
-      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-5 md:p-7">
-        <h2 class="text-base font-semibold mb-2">📁 导出位置</h2>
-        <p v-if="isWeb" class="text-sm text-ink-sub leading-relaxed mb-4">
-          网页版文件直接下载到浏览器下载目录，无需设置；下面的配置仅桌面版生效。
-        </p>
-        <p v-else class="text-sm text-ink-sub leading-relaxed mb-4">
-          桌面版所有导出统一保存到下面的目录，并按类型自动归入子文件夹，不再散落各处。
-        </p>
-
-        <!-- 当前生效目录 -->
-        <div class="flex items-center gap-3 flex-wrap mb-4">
-          <code
-            class="text-xs font-mono bg-inset border border-line rounded px-2.5 py-1.5 break-all min-w-0 flex-1">
-            {{ exportRoot || '加载中…' }}
-          </code>
-          <button @click="openExportDir" :disabled="!isDesktop || openingExportDir"
-            :title="isDesktop ? '在资源管理器中打开' : '仅桌面版支持'"
-            class="px-4 py-2 text-sm font-medium rounded-md text-ink shrink-0
-              border border-line-strong hover:border-accent hover:text-accent
-              disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-            {{ openingExportDir ? '打开中…' : '📂 打开' }}
-          </button>
-        </div>
-
-        <!-- 自定义目录 -->
-        <div class="flex items-center gap-2.5 flex-wrap">
-          <input v-model="exportRootInput" type="text"
-            placeholder="输入新的导出目录绝对路径；留空保存 = 恢复默认"
-            class="flex-1 min-w-[240px] px-3.5 py-2.5 text-sm bg-inset rounded-md border border-line
-              font-mono focus:outline-none focus:border-accent transition-colors" />
-          <button @click="saveExportRoot" :disabled="savingExportRoot"
-            class="px-4 py-2.5 text-sm font-medium rounded-md shrink-0
-              bg-accent text-white hover:bg-accent-hover
-              disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-            {{ savingExportRoot ? '保存中…' : '保存' }}
-          </button>
-        </div>
-        <div class="text-xs text-ink-faint mt-1.5">
-          默认目录为程序目录下的 data/exports；桌面版导出无需每次另存为，自动按类型归档
-        </div>
-
-        <p class="text-xs text-ink-faint mt-3 leading-relaxed">
-          分类规则：简历 →「简历」 · 投递材料包 →「投递材料包」 · 面试报告 →「面试报告」 ·
-          诊断报告 →「诊断报告」 · 数据备份 →「数据备份」
-        </p>
-      </div>
-
-      <!-- M60 跟进提醒 -->
-      <div class="bg-panel border-2 border-ink/80 shadow-[3px_3px_0_0] shadow-ink/20 rounded-lg p-5 md:p-7">
-        <h2 class="text-base font-semibold mb-2">🔔 跟进提醒</h2>
-        <p class="text-sm text-ink-sub leading-relaxed mb-4">
-          岗位标记「已投递」后超过下面的天数仍停留在「已投递」状态，工作台会出现「📌 求职跟进」提醒；
-          把岗位流转到面试中 / Offer / 已结束，提醒自动消失。
-        </p>
-        <div class="flex items-center gap-2.5 flex-wrap">
-          <label for="followup-days" class="text-xs text-ink-sub shrink-0">提醒阈值</label>
-          <input id="followup-days" v-model.number="followupDaysInput" type="number" min="1" max="30"
-            class="w-24 px-3 py-2 text-sm bg-inset rounded-md border border-line
-              focus:outline-none focus:border-accent transition-colors" />
-          <span class="text-xs text-ink-faint">天（1~30，默认 7）</span>
-          <button @click="saveFollowupDays" :disabled="savingFollowupDays"
-            class="px-4 py-2 text-sm font-medium rounded-md shrink-0
-              bg-accent text-white hover:bg-accent-hover disabled:opacity-40 transition-colors">
-            {{ savingFollowupDays ? '保存中…' : '保存' }}
-          </button>
-        </div>
-      </div>
+      </section>
 
     </div>
   </div>
@@ -465,6 +528,35 @@ const testing = ref(false)
 const testResult = ref(null)
 const serverManaged = ref(false)
 const vendorId = ref('custom')
+
+/* ================================ 页面分组导航 ================================ */
+
+// hash 路由下 # 锚点会破坏路由，锚点条只能 JS scrollIntoView
+const SECTIONS = [
+  { id: 'sec-llm', label: '模型服务' },
+  { id: 'sec-jobs', label: '数据源' },
+  { id: 'sec-prefs', label: '使用偏好' },
+  { id: 'sec-data', label: '数据管理' },
+]
+const activeSec = ref('sec-llm')
+const showGuide = ref(false) // 获取 Key 指引折叠卡（默认收起）
+
+function scrollToSec(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function onSecScroll() {
+  // 取「顶部越过 sticky 条（含移动端顶栏余量）」的最后一组为当前组；触底强制末组
+  let cur = SECTIONS[0].id
+  for (const s of SECTIONS) {
+    const el = document.getElementById(s.id)
+    if (el && el.getBoundingClientRect().top <= 140) cur = s.id
+  }
+  if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) {
+    cur = SECTIONS[SECTIONS.length - 1].id
+  }
+  activeSec.value = cur
+}
 
 /**
  * A6 主流厂商预设（OpenAI 兼容协议，后端 ChatOpenAI + base_url 零改动直连）
@@ -654,10 +746,14 @@ onMounted(() => {
   loadFollowupDays()
   // Esc 关闭 API 配置弹窗（Teleport 到 body，@keydown.esc 不可靠）
   window.addEventListener('keydown', onGlobalKey)
+  // 分组锚点高亮（被动监听，rAF 级开销可忽略）
+  window.addEventListener('scroll', onSecScroll, { passive: true })
+  onSecScroll()
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onGlobalKey)
+  window.removeEventListener('scroll', onSecScroll)
 })
 
 function onGlobalKey(e) {
