@@ -524,6 +524,9 @@
       </div>
     </Teleport>
 
+    <!-- M72.1 匹配度分解矩阵弹窗 -->
+    <MatchMatrixModal :job="matrixJob" :resumes="resumes" @close="matrixJob = null" />
+
     <!-- 降级提示 -->
     <div v-if="matchDegraded" class="mb-5 px-4 py-3 rounded-xl text-xs
       bg-warn/10 border border-warn/40 text-warn">
@@ -650,6 +653,8 @@
             <button @click="interviewWith(j)" class="text-xs text-accent hover:underline shrink-0">🎤 面试</button>
             <button @click="openApply(j)" title="平台深链直达 + AI 投递材料包"
               class="text-xs text-accent hover:underline shrink-0">🚀 投递</button>
+            <button @click="openMatrix(j)" title="匹配度分解：AI 逐条拆解 JD 并在简历中定位证据"
+              class="text-xs text-accent hover:underline shrink-0">🧩 分解</button>
             <!-- M69 原链直达（有链接才显示） -->
             <a v-if="j.url" :href="j.url" target="_blank" rel="noopener" title="打开岗位原链接"
               class="text-xs text-accent hover:underline shrink-0">🔗 原链</a>
@@ -674,6 +679,7 @@ import api from '../api'
 import { useAppMode } from '../composables/useAppMode'
 import LoadingBlock from '../components/LoadingBlock.vue'
 import CityInput from '../components/CityInput.vue'
+import MatchMatrixModal from '../components/MatchMatrixModal.vue'
 import { loadFavorites, clearFavorites } from '../utils/favorites'
 
 const { isDesktop } = useAppMode()
@@ -954,6 +960,17 @@ async function runKeywordCheck() {
   } finally {
     kcLoading.value = false
   }
+}
+
+/* ---- M72.1 匹配度分解矩阵（独立弹窗，简历在弹窗内选择） ---- */
+const matrixJob = ref(null)
+
+function openMatrix(j) {
+  if ((j.jd || '').trim().length < 30) {
+    Message.warning('该岗位暂无有效 JD，先编辑补充 JD 再做匹配分解')
+    return
+  }
+  matrixJob.value = j
 }
 
 /* ---- 搜索与筛选（本地过滤，匹配分排序作用于筛选后的子集） ---- */

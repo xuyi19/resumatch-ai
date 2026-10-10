@@ -1201,3 +1201,120 @@ async def keyword_check(
     resume_text = await _resolve_resume_text(req.resume_id, req.resume_text, db, owner_id)
     result = check_coverage(keywords, resume_text)
     return {**result, "total": len(keywords)}
+
+
+# ============================ M72.1 匹配度分解引擎 ============================
+
+
+class _MatrixRequirement(BaseModel):
+    """单条岗位要求 × 简历证据的匹配判定。证据必须逐字摘自简历原文，禁止编造。"""
+
+    requirement: str = Field(description="岗位要求的一句话概括，不超过 40 字")
+    category: str = Field(description="类型：skill(硬技能)|domain(领域/业务)|exp(经验/年限)|edu(学历)|other")
+    weight: int = Field(description="重要度 1~5：5=精通/必须/明确年限，3=熟悉/优先，1~2=加分项")
+    verdict: str = Field(description="匹配判定：hit(简历有直接证据)|partial(相关但不足)|miss(简历无证据)")
+    evidence: str = Field(default="", description="简历原文逐字摘录（不超过 80 字）；miss 时留空")
+    gap: str = Field(default="", description="差距说明或一句补强动作建议（不超过 60 字），hit 可留空")
+
+
+class _MatchMatrix(BaseModel):
+    requirements: list[_MatrixRequirement] = Field(description="6~12 条，按 JD 表述重要度排列")
+
+
+class MatchMatrixRequest(BaseModel):
+    """M72.1 匹配矩阵请求：JD + 简历（与 keyword-check 同口径二选一）+ 可选 llm_config。"""
+
+    jd: str = Field(min_length=30, max_length=20000)
+    resume_id: int | None = None
+    resume_text: str | None = Field(default=None, min_length=30, max_length=8000)
+    llm_config: dict | None = None
+
+
+def _quote_in_text(quote: str, text: str) -> bool:
+    """证据回贴校验：归一化全部空白 + 小写后做子串匹配（容忍换行/空格差异，不容忍改写）。"""
+    q = re.sub(r"\s+", "", quote or "").lower()
+    t = re.sub(r"\s+", "", text or "").lower()
+    return bool(q) and q in t
+
+
+@router.post("/match-matrix")
+async def match_matrix(
+    req: MatchMatrixRequest,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """M72.1 匹配度分解引擎：LLM 把 JD 拆成逐条要求并在简历中定位证据（可解释矩阵），
+    合并 M61 确定性关键词覆盖；纯计算视图零落库。
+
+    防幻觉（对齐诊断链证据接地思路）：LLM 返回的 evidence 逐字回贴简历原文校验，
+    校验不过或 hit 无证据 → verdict 降级 partial 并清空证据、标注需人工核对——宁可降级，
+    不让编造的证据进矩阵。
+    """
+    resume_text = await _resolve_resume_text(req.resume_id, req.resume_text, db, owner_id)
+    prompt = (
+        "你是求职匹配分析引擎。把目标岗位 JD 拆解为具体要求，并逐条在候选人简历中查找证据，"
+        "输出可解释的匹配矩阵。硬性规则：\n"
+        "1. requirements 拆 6~12 条，覆盖硬技能/领域知识/经验年限/学历等维度；\n"
+        "2. weight 按 JD 表述强度给 1~5：「精通/必须/3年以上」=5，「熟悉/了解/优先」=3，「加分项」=1~2；\n"
+        "3. evidence 必须是简历原文的逐字摘录（不超过 80 字），禁止改写、概括或编造；"
+        "简历中找不到证据就 verdict=miss 且 evidence 留空；\n"
+        "4. verdict 三档：hit=简历有直接证据；partial=有相关内容但明显不足；miss=完全无证据；\n"
+        "5. gap 用一句话给补强动作建议（如「补充 X 的量化结果」），hit 可留空。\n"
+        f"目标岗位 JD：\n{req.jd[:4000]}\n\n候选人简历：\n{resume_text[:4000]}"
+    )
+    try:
+        matrix = await call_llm_for_json(
+            prompt, _MatchMatrix, temperature=0.1, llm_config=req.llm_config
+        )
+    except ValueError as e:  # get_llm：未配置 Key 等配置类错误
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"匹配矩阵生成失败: {e}")
+        raise HTTPException(status_code=502, detail="AI 生成失败，请检查模型配置后重试")
+
+    rows: list[dict] = []
+    w_sum = 0.0
+    v_sum = 0.0
+    for r in matrix.requirements[:12]:
+        verdict = r.verdict if r.verdict in ("hit", "partial", "miss") else "partial"
+        evidence = (r.evidence or "").strip()[:200]
+        # 证据接地校验：hit/partial 必须有可回溯的原文证据
+        if verdict in ("hit", "partial"):
+            if not evidence or not _quote_in_text(evidence, resume_text):
+                verdict = "partial"
+                evidence = ""
+                gap = (r.gap or "").strip() or "证据未能回溯到简历原文，请人工核对"
+            else:
+                gap = (r.gap or "").strip()
+        else:
+            gap = (r.gap or "").strip()
+        weight = min(max(int(r.weight or 1), 1), 5)
+        w_sum += weight
+        v_sum += weight * {"hit": 1.0, "partial": 0.5, "miss": 0.0}[verdict]
+        rows.append({
+            "requirement": (r.requirement or "").strip()[:80],
+            "category": (r.category or "other").strip()[:16],
+            "weight": weight,
+            "verdict": verdict,
+            "evidence": evidence,
+            "gap": gap[:100],
+        })
+
+    if not rows:
+        raise HTTPException(status_code=502, detail="AI 未返回有效的匹配矩阵，请重试")
+
+    counts = {
+        "hit": sum(1 for x in rows if x["verdict"] == "hit"),
+        "partial": sum(1 for x in rows if x["verdict"] == "partial"),
+        "miss": sum(1 for x in rows if x["verdict"] == "miss"),
+        "total": len(rows),
+    }
+    keywords = check_coverage(extract_jd_keywords(req.jd), resume_text)
+    return {
+        "score": round(v_sum / w_sum * 100) if w_sum else 0,
+        "counts": counts,
+        "rows": rows,
+        "keywords": keywords,
+    }

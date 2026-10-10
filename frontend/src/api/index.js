@@ -147,6 +147,8 @@ export default {
   getJobAttribution: () => api.get('/jobs/attribution'),
   // M61 投递前体检：JD 关键词覆盖检查（纯本地词库比对，零 AI 调用）
   checkKeywordCoverage: (data) => api.post('/jobs/keyword-check', data),
+  // M72.1 匹配度分解引擎：LLM 逐条拆解 JD 并在简历中定位证据（证据接地校验+关键词合并）
+  matchMatrix: (data) => api.post('/jobs/match-matrix', data),
 
   // M22 数据与隐私：一键清空本用户全部数据
   clearAllData: () => api.delete('/data'),
