@@ -99,11 +99,11 @@
 |---|---|
 | ![发起诊断](docs/images/analyze.png) | ![诊断报告](docs/images/result.png) |
 
-| 模拟面试（多轮对话 + 评分雷达） | 岗位库（匹配排序 + 投递直达） |
+| 模拟面试（多轮对话 + 评分雷达） | 岗位库（批量匹配 + 匹配分解 + 投递直达） |
 |---|---|
-| ![模拟面试](docs/images/interview.png) | ![岗位库](docs/images/resumes.png) |
+| ![模拟面试](docs/images/interview.png) | ![岗位库](docs/images/jobs.png) |
 
-| 诊断历史（重诊对比） | 设置（自带 API Key） |
+| 诊断历史（重诊对比） | 设置（模型服务 · 数据源 · 使用偏好） |
 |---|---|
 | ![诊断历史](docs/images/history.png) | ![设置](docs/images/settings.png) |
 
