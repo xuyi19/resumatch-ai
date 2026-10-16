@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, String, Text, UniqueConstraint, func
+from sqlalchemy import JSON, DateTime, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -140,6 +140,8 @@ class SavedJob(Base):
     # M56.4 投递台账：投递渠道 boss/zhilian/liepin/nowcoder/email/other + 首次投递时间
     apply_channel: Mapped[str | None] = mapped_column(String(16), default=None)
     apply_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+    # D2 版本赛马：首次标记已投递时关联的简历版本（空 = 未记录；不随重复标记覆盖）
+    apply_resume_id: Mapped[int | None] = mapped_column(Integer, default=None)
     # M60 面试日程：用户在编辑弹窗自行维护的下次面试时间（空 = 无安排）
     next_interview_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     url: Mapped[str] = mapped_column(String(300), default="")

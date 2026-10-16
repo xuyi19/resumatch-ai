@@ -216,6 +216,7 @@ class LibraryStatusIn(BaseModel):
     # 容忍显式 null（Pydantic 严格类型会把前端 null 422 的既有教训）
     status: str | None = None
     apply_channel: str | None = None  # M56.4 标记已投递时可附渠道
+    apply_resume_id: int | None = None  # D2 版本赛马：首次标记已投递时关联的简历版本
 
 
 class LibraryStatusBatchIn(BaseModel):
@@ -247,6 +248,8 @@ def _job_dict(r: SavedJob) -> dict:
         # M56.4 投递台账
         "apply_channel": getattr(r, "apply_channel", None),
         "apply_at": r.apply_at.isoformat() if getattr(r, "apply_at", None) else None,
+        # D2 版本赛马：投递关联的简历版本
+        "apply_resume_id": getattr(r, "apply_resume_id", None),
         # M60 面试日程（编辑弹窗维护；followups 工作台提醒数据源）
         "next_interview_at": (
             r.next_interview_at.isoformat() if getattr(r, "next_interview_at", None) else None
@@ -444,6 +447,9 @@ async def update_library_job_status(
     # M56.4 首次标记已投递落时间；转走状态不抹历史，重复标记不覆盖
     if status == "applied" and not job.apply_at:
         job.apply_at = datetime.now()
+        # D2 版本赛马：首次投递时关联简历版本（与 apply_at 同口径，不覆盖）
+        if req.apply_resume_id:
+            job.apply_resume_id = req.apply_resume_id
     await db.commit()
     await db.refresh(job)
     return _job_dict(job)
@@ -968,6 +974,61 @@ async def job_attribution(
             "stale_avg_days": stale_avg,
         },
         "hypotheses": hypotheses[:4],
+    }
+
+
+@router.get("/resume-race")
+async def resume_race(
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(get_owner_id),
+):
+    """D2 简历版本赛马：按投递时关联的简历分组统计转化，回答「哪版简历更有效」。
+
+    口径与 /attribution 完全一致（曾投 = apply_at 落过时间或状态在投递后链路；
+    进面 = interviewing+offer；约面率 = 进面/投递；Offer 率 = offer/进面）。
+    诚实原则：未关联简历的投递归「未记录」组如实展示；简历被删除的历史关联
+    也归入未记录（无法恢复标题，不编造）；每组投递数低于 _ATTR_SAMPLE_MIN
+    标注 sample_ok=False，前端提示样本不足不做结论。
+    """
+    job_rows = (
+        await db.execute(select(SavedJob).where(SavedJob.owner_id == owner_id))
+    ).scalars().all()
+    resume_rows = (
+        await db.execute(select(Resume).where(Resume.owner_id == owner_id))
+    ).scalars().all()
+    title_map = {r.id: r.filename for r in resume_rows}
+
+    # rid=None 组即「未记录简历」组（含简历已删除的历史关联）
+    groups: dict[int | None, dict] = {}
+    for r in job_rows:
+        st = r.status or "wish"
+        if not (r.apply_at or st in ("applied", "interviewing", "offer")):
+            continue  # 未投过不参与赛马
+        rid = getattr(r, "apply_resume_id", None)
+        if rid is not None and rid not in title_map:
+            rid = None
+        g = groups.setdefault(rid, {"applied": 0, "interviewing": 0, "offer": 0})
+        g["applied"] += 1
+        if st in ("interviewing", "offer"):
+            g["interviewing"] += 1
+        if st == "offer":
+            g["offer"] += 1
+
+    rows = []
+    for rid, g in groups.items():
+        rows.append({
+            "resume_id": rid,
+            "resume_title": title_map.get(rid) if rid is not None else None,
+            **g,
+            "interview_rate": round(g["interviewing"] / g["applied"], 3) if g["applied"] else None,
+            "offer_rate": round(g["offer"] / g["interviewing"], 3) if g["interviewing"] else None,
+            "sample_ok": g["applied"] >= _ATTR_SAMPLE_MIN,
+        })
+    rows.sort(key=lambda x: (x["resume_id"] is not None, -(x["resume_id"] or 0)))
+    return {
+        "rows": rows,
+        "untracked_applied": groups.get(None, {}).get("applied", 0),
+        "min_sample": _ATTR_SAMPLE_MIN,
     }
 
 

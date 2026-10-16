@@ -269,6 +269,30 @@
             </div>
           </div>
         </div>
+
+        <!-- D2 简历版本赛马：哪版简历更有效（≥2 组才显示，样本不足灰字提示） -->
+        <div v-if="raceRows.length >= 2" class="mt-5 pt-4 border-t border-line">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-ink">🏹 简历版本赛马</h3>
+            <span class="text-xs text-ink-faint">按投递时关联的简历分组对比</span>
+          </div>
+          <div class="space-y-2">
+            <div v-for="r in raceRows" :key="r.resume_id ?? 'none'"
+              class="flex items-center gap-3 rounded-xl border px-4 py-2.5"
+              :class="r.sample_ok ? 'border-line bg-inset/50' : 'border-line/60 bg-inset/30 opacity-70'">
+              <span class="text-xs font-medium text-ink truncate max-w-[180px] shrink-0">
+                {{ r.resume_title || '未记录简历' }}
+              </span>
+              <div class="flex-1 h-2 rounded-full bg-line/60 overflow-hidden min-w-0">
+                <div class="h-full rounded-full bg-accent/60" :style="{ width: raceBarPct(r) }"></div>
+              </div>
+              <span class="text-xs font-mono text-ink-sub shrink-0">
+                {{ r.applied }} 投 · 约面 {{ r.interview_rate == null ? '—' : attrPct(r.interview_rate) }}
+              </span>
+            </div>
+          </div>
+          <p v-if="raceSampleHint" class="text-[11px] text-ink-faint mt-2">{{ raceSampleHint }}</p>
+        </div>
       </div>
 
       <!-- M53 活跃热力图 -->
@@ -453,6 +477,24 @@ const attrSeverityDot = { high: 'bg-bad', medium: 'bg-warn', info: 'bg-ink-faint
 function attrPct(v) {
   return Math.round(v * 100) + '%'
 }
+
+// D2 简历版本赛马：按投递关联简历分组的转化对比（接口失败回退空数组，整块隐藏）
+const race = ref({ rows: [], untracked_applied: 0, min_sample: 5 })
+const raceRows = computed(() => race.value.rows || [])
+const raceBarPct = (r) => {
+  const max = Math.max(...raceRows.value.map((x) => x.applied), 1)
+  return `${Math.max(Math.round((r.applied / max) * 100), 6)}%`
+}
+const raceSampleHint = computed(() => {
+  const rows = raceRows.value
+  if (!rows.length) return ''
+  const low = rows.filter((r) => !r.sample_ok).length
+  const min = race.value.min_sample
+  if (low === rows.length) return `各组投递量均不足 ${min} 份——先积累样本，暂不下结论`
+  if (low) return `${low} 组投递量不足 ${min} 份（已调淡显示），对比结论仅供参考`
+  if (race.value.untracked_applied) return `另有 ${race.value.untracked_applied} 条投递未关联简历；投递时在弹层选好简历，对比会更完整`
+  return ''
+})
 
 const today = new Date().toLocaleDateString('zh-CN', {
   year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
@@ -663,19 +705,21 @@ async function loadAll() {
   loading.value = true
   loadError.value = false
   try {
-    // 统计 + 最近诊断 + 最近面试 + 跟进聚合 + 求职归因 五路并发（后两路失败不阻断总览）
-    const [statsRes, histRes, ivRes, fuRes, atRes] = await Promise.all([
+    // 统计 + 最近诊断 + 最近面试 + 跟进聚合 + 求职归因 + 简历赛马 六路并发（后三路失败不阻断总览）
+    const [statsRes, histRes, ivRes, fuRes, atRes, raceRes] = await Promise.all([
       api.getStats(),
       api.getHistory({ limit: 5 }),
       api.interviewSessions(),
       api.getFollowups().catch(() => null),
       api.getJobAttribution().catch(() => null),
+      api.getResumeRace().catch(() => null),
     ])
     stats.value = statsRes.data
     recentDiags.value = histRes.data.items || []
     recentInterviews.value = (ivRes.data.items || []).slice(0, 5)
     if (fuRes?.data) followups.value = fuRes.data
     if (atRes?.data) attr.value = atRes.data
+    if (raceRes?.data) race.value = raceRes.data
   } catch (e) {
     console.warn('[dashboard] 统计加载失败', e)
     loadError.value = true

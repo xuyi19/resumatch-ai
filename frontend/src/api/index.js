@@ -126,8 +126,8 @@ export default {
   parseBatchImport: (data) => api.post('/jobs/library/parse-batch', data),
   updateLibraryJob: (id, data) => api.put(`/jobs/library/${id}`, data),
   // M49 投递状态
-  updateJobStatus: (id, status, apply_channel = null) =>
-    api.put(`/jobs/library/${id}/status`, { status, apply_channel }),  // M56.4 支持附投递渠道
+  updateJobStatus: (id, status, apply_channel = null, apply_resume_id = null) =>
+    api.put(`/jobs/library/${id}/status`, { status, apply_channel, apply_resume_id }),  // M56.4 渠道 + D2 赛马关联简历
   batchUpdateJobStatus: (ids, status) => api.put('/jobs/library/status-batch', { ids, status }),
   deleteLibraryJob: (id) => api.delete(`/jobs/library/${id}`),
   batchDeleteLibraryJobs: (ids) => api.post('/jobs/library/batch-delete', { ids }),
@@ -145,6 +145,8 @@ export default {
   getFollowups: () => api.get('/jobs/followups'),
   // M72 求职归因：投递漏斗转化率 + 规则归因假设（工作台「求职归因」卡）
   getJobAttribution: () => api.get('/jobs/attribution'),
+  // D2 简历版本赛马：按投递关联简历分组统计转化率（工作台「简历赛马」块）
+  getResumeRace: () => api.get('/jobs/resume-race'),
   // M61 投递前体检：JD 关键词覆盖检查（纯本地词库比对，零 AI 调用）
   checkKeywordCoverage: (data) => api.post('/jobs/keyword-check', data),
   // M72.1 匹配度分解引擎：LLM 逐条拆解 JD 并在简历中定位证据（证据接地校验+关键词合并）

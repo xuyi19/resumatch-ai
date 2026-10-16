@@ -714,14 +714,15 @@ const STATUS = {
 }
 const statusFilter = ref('')
 
-async function setStatus(j, status, channel = null) {
+async function setStatus(j, status, channel = null, resumeId = null) {
   const prev = j.status || 'wish'
   if (status === prev && !channel) return
   try {
-    const res = await api.updateJobStatus(j.id, status, channel)
+    const res = await api.updateJobStatus(j.id, status, channel, resumeId)
     j.status = res.data.status
     j.apply_channel = res.data.apply_channel
     j.apply_at = res.data.apply_at
+    j.apply_resume_id = res.data.apply_resume_id
   } catch (e) {
     Message.error(e.response?.data?.detail || '状态更新失败')
     j.status = prev
@@ -862,7 +863,8 @@ async function copyText(text, tip) {
 }
 
 async function markApplied() {
-  await setStatus(applyJob.value, 'applied', applyChannel.value || null)
+  // D2 版本赛马：把弹层里选中的简历（材料包/体检共用）一并关联到本次投递
+  await setStatus(applyJob.value, 'applied', applyChannel.value || null, applyResumeId.value || null)
   closeApply()
 }
 
