@@ -8,7 +8,7 @@ from loguru import logger
 from sqlalchemy import update
 
 from app import __author__, __build_tag__, __email__, __github__, __version__
-from app.api.v1 import backup, chat, data, health, history, interview, jobs, live, offers, optimize, quiz, resume, settings, star
+from app.api.v1 import agent_qa, backup, chat, data, health, history, interview, jobs, live, offers, optimize, quiz, resume, settings, star
 from app.core.config import BASE_DIR, settings as app_settings
 from app.core.db import Base, ensure_schema_columns, engine
 from app.core.watermark import get_author_fingerprint
@@ -79,6 +79,7 @@ app.include_router(quiz.router, prefix="/api/v1")
 app.include_router(star.router, prefix="/api/v1")
 app.include_router(offers.router, prefix="/api/v1")
 app.include_router(backup.router, prefix="/api/v1")
+app.include_router(agent_qa.router, prefix="/api/v1")  # 考核模块：知识库问答智能体（RAG + ReAct 工具 + 多轮记忆）
 
 
 def _resolve_web_dir() -> Path | None:

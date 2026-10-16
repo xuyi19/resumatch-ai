@@ -18,8 +18,11 @@ pydantic==2.13.5
 pydantic-settings==2.15.0
 
 # ---------- LLM / 多智能体 ----------
-langgraph==1.2.11               # 诊断工作流编排
+langgraph==1.2.11               # 诊断工作流编排（prebuilt.create_react_agent 复用为问答 ReAct 智能体）
 langchain-openai==1.6.2         # OpenAI 协议兼容（DeepSeek / 通义 / 智谱等）
+
+# ---------- 本地知识库（RAG 向量库） ----------
+chromadb==1.5.9                 # 持久化向量库（简历知识库问答：分块入库 + 语义检索 + 重排）
 
 # ---------- 简历文件解析 ----------
 pymupdf==1.28.2                 # PDF 文本提取

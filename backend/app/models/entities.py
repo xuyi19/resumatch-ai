@@ -100,6 +100,19 @@ class Conversation(Base):
     )
 
 
+class AgentMessage(Base):
+    """考核模块：知识库问答智能体的多轮对话记忆（按会话持久化，支持上下文裁剪）。"""
+
+    __tablename__ = "agent_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    owner_id: Mapped[str] = mapped_column(String(64), index=True)
+    session_id: Mapped[str] = mapped_column(String(64), index=True)
+    role: Mapped[str] = mapped_column(String(16))  # human / ai
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.now)
+
+
 class AppSetting(Base):
     """M71 通用键值设置（owner+key 唯一）：导出根目录等用户级配置，为 M67 目标画像铺路。
 
